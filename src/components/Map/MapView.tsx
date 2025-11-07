@@ -111,24 +111,40 @@ export const MapView = () => {
       format: new GeoJSON(),
       loader: async () => {
         try {
+          console.log("Loading features from OGC API for Uppsala kommun (0380)...");
+          
           // Fetch features from OGC API for Uppsala kommun with kommunkod
-          const response = await fetch(
-            "https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar/items?limit=1000&f=json&kommunkod=0380"
-          );
+          // Using filter parameter to get only Uppsala kommun
+          const url = "https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar/items?limit=2000&f=json&kommunkod=0380";
+          console.log("Fetching URL:", url);
+          
+          const response = await fetch(url);
           
           if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
           }
           
           const data = await response.json();
+          console.log("Received data:", data);
+          console.log("Number of features:", data.features?.length);
           
           if (data.features && data.features.length > 0) {
-            const features = new GeoJSON().readFeatures(data, {
-              dataProjection: "EPSG:4326",
-              featureProjection: "EPSG:3857",
-            });
+            // Filter to ensure we only have Uppsala kommun
+            const uppsalaFeatures = data.features.filter(
+              (f: any) => f.properties?.kommunkod === "0380"
+            );
+            console.log("Features after filtering:", uppsalaFeatures.length);
+            
+            const features = new GeoJSON().readFeatures(
+              { type: "FeatureCollection", features: uppsalaFeatures },
+              {
+                dataProjection: "EPSG:4326",
+                featureProjection: "EPSG:3857",
+              }
+            );
+            
             ogcSource.addFeatures(features);
-            toast.success(`Laddade ${features.length} brunnar från Uppsala kommun`);
+            toast.success(`Laddade ${features.length} brunnar från Uppsala kommun (0380)`);
           } else {
             toast.info("Inga brunnar hittades för Uppsala kommun");
           }
