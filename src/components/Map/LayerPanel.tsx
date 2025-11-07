@@ -68,7 +68,7 @@ export const LayerPanel = ({
                 Uppsala Brunnar (OGC API)
               </Label>
               <p className="text-xs text-muted-foreground">
-                Features från SGU OGC API
+                Klickbara features från SGU
               </p>
             </div>
             <Switch
@@ -77,6 +77,34 @@ export const LayerPanel = ({
               onCheckedChange={onOgcVisibleChange}
             />
           </div>
+          
+          {ogcVisible && (
+            <div className="mt-3 space-y-2 text-xs">
+              <div className="font-medium text-foreground">Djup till berg:</div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-[rgb(239,68,68)]" />
+                  <span className="text-muted-foreground">0-5 m (grund)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-[rgb(251,146,60)]" />
+                  <span className="text-muted-foreground">5-10 m (medel)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-[rgb(34,197,94)]" />
+                  <span className="text-muted-foreground">10-20 m (djup)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-[rgb(59,130,246)]" />
+                  <span className="text-muted-foreground">&gt;20 m (mycket djup)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-[rgb(156,163,175)]" />
+                  <span className="text-muted-foreground">Ej angivet</span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
