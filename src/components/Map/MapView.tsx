@@ -111,32 +111,51 @@ export const MapView = () => {
       format: new GeoJSON(),
       loader: async () => {
         try {
-          console.log("Loading features from OGC API for Uppsala kommun (0380)...");
+          console.log("Loading ALL features from OGC API for Uppsala kommun (0380)...");
           
-          // Fetch features from OGC API for Uppsala kommun with kommunkod
-          // Using filter parameter to get only Uppsala kommun
-          const url = "https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar/items?limit=2000&f=json&kommunkod=0380";
-          console.log("Fetching URL:", url);
+          let allFeatures: any[] = [];
+          let offset = 0;
+          const limit = 1000; // Fetch in batches of 1000
+          let hasMore = true;
           
-          const response = await fetch(url);
-          
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+          // Fetch all pages using pagination
+          while (hasMore) {
+            const url = `https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar/items?limit=${limit}&offset=${offset}&f=json&kommunkod=0380`;
+            console.log(`Fetching batch at offset ${offset}...`);
+            
+            const response = await fetch(url);
+            
+            if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            console.log(`Received ${data.features?.length || 0} features in this batch`);
+            
+            if (data.features && data.features.length > 0) {
+              // Filter to ensure we only have Uppsala kommun
+              const uppsalaFeatures = data.features.filter(
+                (f: any) => f.properties?.kommunkod === "0380"
+              );
+              
+              allFeatures = allFeatures.concat(uppsalaFeatures);
+              
+              // Check if there are more features
+              if (data.features.length < limit) {
+                hasMore = false;
+              } else {
+                offset += limit;
+              }
+            } else {
+              hasMore = false;
+            }
           }
           
-          const data = await response.json();
-          console.log("Received data:", data);
-          console.log("Number of features:", data.features?.length);
+          console.log(`Total features loaded: ${allFeatures.length}`);
           
-          if (data.features && data.features.length > 0) {
-            // Filter to ensure we only have Uppsala kommun
-            const uppsalaFeatures = data.features.filter(
-              (f: any) => f.properties?.kommunkod === "0380"
-            );
-            console.log("Features after filtering:", uppsalaFeatures.length);
-            
+          if (allFeatures.length > 0) {
             const features = new GeoJSON().readFeatures(
-              { type: "FeatureCollection", features: uppsalaFeatures },
+              { type: "FeatureCollection", features: allFeatures },
               {
                 dataProjection: "EPSG:4326",
                 featureProjection: "EPSG:3857",
