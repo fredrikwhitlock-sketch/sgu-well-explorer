@@ -71,6 +71,8 @@ export const MapView = () => {
   const [ogcVisible, setOgcVisible] = useState(false);
   const [coordinates, setCoordinates] = useState<[number, number] | null>(null);
   const [selectedWell, setSelectedWell] = useState<Record<string, any> | null>(null);
+  const [loadingWells, setLoadingWells] = useState(false);
+  const [wellsLoaded, setWellsLoaded] = useState(0);
   const wmsLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
   const ogcLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
 
@@ -111,32 +113,62 @@ export const MapView = () => {
       format: new GeoJSON(),
       loader: async () => {
         try {
+          setLoadingWells(true);
+          setWellsLoaded(0);
           console.log("Loading features from OGC API for Uppsala kommun (0380)...");
           
-          // Fetch features from OGC API for Uppsala kommun with kommunkod
-          // Using filter parameter to get only Uppsala kommun
-          const url = "https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar/items?limit=2000&f=json&kommunkod=0380";
-          console.log("Fetching URL:", url);
+          let allUppsalaFeatures: any[] = [];
+          let offset = 0;
+          const limit = 1000;
+          let hasMore = true;
           
-          const response = await fetch(url);
-          
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+          while (hasMore) {
+            const url = `https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar/items?limit=${limit}&offset=${offset}&f=json`;
+            console.log(`Fetching page at offset ${offset}...`);
+            
+            const response = await fetch(url);
+            
+            if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            console.log(`Received ${data.features?.length || 0} features at offset ${offset}`);
+            
+            if (data.features && data.features.length > 0) {
+              // Filter for Uppsala kommun only
+              const uppsalaFeatures = data.features.filter(
+                (f: any) => f.properties?.kommunkod === "0380"
+              );
+              
+              if (uppsalaFeatures.length > 0) {
+                allUppsalaFeatures = allUppsalaFeatures.concat(uppsalaFeatures);
+                setWellsLoaded(allUppsalaFeatures.length);
+                console.log(`Total Uppsala features so far: ${allUppsalaFeatures.length}`);
+              }
+              
+              // Check if we got fewer features than limit (last page)
+              if (data.features.length < limit) {
+                hasMore = false;
+              } else {
+                offset += limit;
+              }
+            } else {
+              hasMore = false;
+            }
+            
+            // Safety break to avoid infinite loops (max 50 pages = 50000 features)
+            if (offset >= 50000) {
+              console.log("Reached maximum offset of 50000");
+              hasMore = false;
+            }
           }
           
-          const data = await response.json();
-          console.log("Received data:", data);
-          console.log("Number of features:", data.features?.length);
+          console.log(`Total Uppsala features loaded: ${allUppsalaFeatures.length}`);
           
-          if (data.features && data.features.length > 0) {
-            // Filter to ensure we only have Uppsala kommun
-            const uppsalaFeatures = data.features.filter(
-              (f: any) => f.properties?.kommunkod === "0380"
-            );
-            console.log("Features after filtering:", uppsalaFeatures.length);
-            
+          if (allUppsalaFeatures.length > 0) {
             const features = new GeoJSON().readFeatures(
-              { type: "FeatureCollection", features: uppsalaFeatures },
+              { type: "FeatureCollection", features: allUppsalaFeatures },
               {
                 dataProjection: "EPSG:4326",
                 featureProjection: "EPSG:3857",
@@ -151,6 +183,8 @@ export const MapView = () => {
         } catch (error) {
           console.error("Error loading OGC features:", error);
           toast.error("Kunde inte ladda data från OGC API");
+        } finally {
+          setLoadingWells(false);
         }
       },
     });
@@ -258,6 +292,23 @@ export const MapView = () => {
       />
       
       <CoordinateDisplay coordinates={coordinates} />
+      
+      {loadingWells && (
+        <div className="absolute top-20 left-1/2 transform -translate-x-1/2 bg-background/95 backdrop-blur-sm p-4 rounded-lg shadow-lg border z-10 min-w-[300px]">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-medium">Laddar brunnar...</span>
+              <span className="text-muted-foreground">{wellsLoaded} brunnar</span>
+            </div>
+            <div className="w-full bg-secondary rounded-full h-2 overflow-hidden">
+              <div 
+                className="h-full bg-primary transition-all duration-300 rounded-full animate-pulse"
+                style={{ width: '100%' }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
       
       {selectedWell && (
         <WellPopup
