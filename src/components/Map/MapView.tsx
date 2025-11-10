@@ -121,6 +121,7 @@ export const MapView = () => {
           let offset = 0;
           const limit = 1000;
           let hasMore = true;
+          let totalFetched = 0;
           
           while (hasMore) {
             const url = `https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar/items?limit=${limit}&offset=${offset}&f=json`;
@@ -133,7 +134,8 @@ export const MapView = () => {
             }
             
             const data = await response.json();
-            console.log(`Received ${data.features?.length || 0} features at offset ${offset}`);
+            totalFetched += data.features?.length || 0;
+            console.log(`Received ${data.features?.length || 0} features at offset ${offset} (total fetched: ${totalFetched})`);
             
             if (data.features && data.features.length > 0) {
               // Filter for Uppsala län (kommunkod starts with "03")
@@ -150,21 +152,17 @@ export const MapView = () => {
               // Check if we got fewer features than limit (last page)
               if (data.features.length < limit) {
                 hasMore = false;
+                console.log("Reached last page of results");
               } else {
                 offset += limit;
               }
             } else {
               hasMore = false;
-            }
-            
-            // Safety break to avoid infinite loops (max 50 pages = 50000 features)
-            if (offset >= 50000) {
-              console.log("Reached maximum offset of 50000");
-              hasMore = false;
+              console.log("No more features returned");
             }
           }
           
-          console.log(`Total Uppsala län features loaded: ${allUppsalaFeatures.length}`);
+          console.log(`Total Uppsala län features loaded: ${allUppsalaFeatures.length} (from ${totalFetched} total features)`);
           
           if (allUppsalaFeatures.length > 0) {
             const features = new GeoJSON().readFeatures(
