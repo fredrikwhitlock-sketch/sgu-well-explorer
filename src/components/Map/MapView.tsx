@@ -264,7 +264,6 @@ export const MapView = () => {
   // Update OGC visibility and load data when enabled
   useEffect(() => {
     if (ogcLayerRef.current) {
-      ogcLayerRef.current.setVisible(ogcVisible);
       // Trigger data load when first enabled
       if (ogcVisible && ogcLayerRef.current.getSource()?.getFeatures().length === 0) {
         ogcLayerRef.current.getSource()?.loadFeatures(
@@ -273,6 +272,8 @@ export const MapView = () => {
           ogcLayerRef.current.getSource()!.getProjection()
         );
       }
+      // Always set visibility after triggering load to ensure layer stays visible
+      ogcLayerRef.current.setVisible(ogcVisible);
     }
   }, [ogcVisible]);
 
