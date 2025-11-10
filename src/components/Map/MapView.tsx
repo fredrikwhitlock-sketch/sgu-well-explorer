@@ -108,14 +108,14 @@ export const MapView = () => {
     });
     wmsLayerRef.current = wmsLayer;
 
-    // OGC API Features layer for Uppsala kommun (kommunkod 0380)
+    // OGC API Features layer for Uppsala län (kommunkod 03*)
     const ogcSource = new VectorSource({
       format: new GeoJSON(),
       loader: async () => {
         try {
           setLoadingWells(true);
           setWellsLoaded(0);
-          console.log("Loading features from OGC API for Uppsala kommun (0380)...");
+          console.log("Loading features from OGC API for Uppsala län (03*)...");
           
           let allUppsalaFeatures: any[] = [];
           let offset = 0;
@@ -136,15 +136,15 @@ export const MapView = () => {
             console.log(`Received ${data.features?.length || 0} features at offset ${offset}`);
             
             if (data.features && data.features.length > 0) {
-              // Filter for Uppsala kommun only
+              // Filter for Uppsala län (kommunkod starts with "03")
               const uppsalaFeatures = data.features.filter(
-                (f: any) => f.properties?.kommunkod === "0380"
+                (f: any) => f.properties?.kommunkod?.startsWith("03")
               );
               
               if (uppsalaFeatures.length > 0) {
                 allUppsalaFeatures = allUppsalaFeatures.concat(uppsalaFeatures);
                 setWellsLoaded(allUppsalaFeatures.length);
-                console.log(`Total Uppsala features so far: ${allUppsalaFeatures.length}`);
+                console.log(`Total Uppsala län features so far: ${allUppsalaFeatures.length}`);
               }
               
               // Check if we got fewer features than limit (last page)
@@ -164,7 +164,7 @@ export const MapView = () => {
             }
           }
           
-          console.log(`Total Uppsala features loaded: ${allUppsalaFeatures.length}`);
+          console.log(`Total Uppsala län features loaded: ${allUppsalaFeatures.length}`);
           
           if (allUppsalaFeatures.length > 0) {
             const features = new GeoJSON().readFeatures(
@@ -176,9 +176,9 @@ export const MapView = () => {
             );
             
             ogcSource.addFeatures(features);
-            toast.success(`Laddade ${features.length} brunnar från Uppsala kommun (0380)`);
+            toast.success(`Laddade ${features.length} brunnar från Uppsala län (03*)`);
           } else {
-            toast.info("Inga brunnar hittades för Uppsala kommun");
+            toast.info("Inga brunnar hittades för Uppsala län");
           }
         } catch (error) {
           console.error("Error loading OGC features:", error);
