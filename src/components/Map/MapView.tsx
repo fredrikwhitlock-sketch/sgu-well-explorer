@@ -174,6 +174,13 @@ export const MapView = () => {
             );
             
             ogcSource.addFeatures(features);
+            
+            // Ensure layer stays visible after features are added
+            if (ogcLayerRef.current) {
+              ogcLayerRef.current.setVisible(true);
+              ogcLayerRef.current.changed(); // Force layer to re-render
+            }
+            
             toast.success(`Laddade ${features.length} brunnar från Uppsala län (03*)`);
           } else {
             toast.info("Inga brunnar hittades för Uppsala län");
