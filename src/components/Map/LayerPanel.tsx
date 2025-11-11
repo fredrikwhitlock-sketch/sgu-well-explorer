@@ -7,22 +7,18 @@ import { Layers } from "lucide-react";
 interface LayerPanelProps {
   wmsVisible: boolean;
   wmsOpacity: number;
-  ogcVisible: boolean;
   sourcesVisible: boolean;
   onWmsVisibleChange: (visible: boolean) => void;
   onWmsOpacityChange: (opacity: number) => void;
-  onOgcVisibleChange: (visible: boolean) => void;
   onSourcesVisibleChange: (visible: boolean) => void;
 }
 
 export const LayerPanel = ({
   wmsVisible,
   wmsOpacity,
-  ogcVisible,
   sourcesVisible,
   onWmsVisibleChange,
   onWmsOpacityChange,
-  onOgcVisibleChange,
   onSourcesVisibleChange,
 }: LayerPanelProps) => {
   return (
@@ -60,53 +56,6 @@ export const LayerPanel = ({
                 onValueChange={([value]) => onWmsOpacityChange(value)}
                 className="w-full"
               />
-            </div>
-          )}
-        </div>
-
-        {/* OGC API Layer Control */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="space-y-1">
-              <Label htmlFor="ogc-layer" className="text-sm font-medium">
-                Brunnar (OGC API)
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                Klickbara brunnar från SGU
-              </p>
-            </div>
-            <Switch
-              id="ogc-layer"
-              checked={ogcVisible}
-              onCheckedChange={onOgcVisibleChange}
-            />
-          </div>
-          
-          {ogcVisible && (
-            <div className="mt-3 space-y-2 text-xs">
-              <div className="font-medium text-foreground">Djup till berg:</div>
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-[rgb(239,68,68)]" />
-                  <span className="text-muted-foreground">0-5 m (grund)</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-[rgb(251,146,60)]" />
-                  <span className="text-muted-foreground">5-10 m (medel)</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-[rgb(34,197,94)]" />
-                  <span className="text-muted-foreground">10-20 m (djup)</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-[rgb(59,130,246)]" />
-                  <span className="text-muted-foreground">&gt;20 m (mycket djup)</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-[rgb(156,163,175)]" />
-                  <span className="text-muted-foreground">Ej angivet</span>
-                </div>
-              </div>
             </div>
           )}
         </div>
