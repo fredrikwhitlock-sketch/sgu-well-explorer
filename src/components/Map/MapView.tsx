@@ -217,71 +217,49 @@ export const MapView = () => {
           setSourcesLoaded(0);
           console.log("Loading sources from OGC API for Uppsala län (03*)...");
           
-          let allUppsalaSources: any[] = [];
-          let offset = 0;
-          const limit = 1000;
-          let hasMore = true;
-          let totalFetched = 0;
+          // Load all sources without pagination (API doesn't support offset properly)
+          const url = `https://api.sgu.se/oppnadata/kallor/ogc/features/v1/collections/kallor/items?f=json`;
           
-          while (hasMore) {
-            const url = `https://api.sgu.se/oppnadata/kallor/ogc/features/v1/collections/kallor/items?limit=${limit}&offset=${offset}&f=json`;
-            console.log(`Fetching sources at offset ${offset}...`);
-            
-            const response = await fetch(url);
-            
-            if (!response.ok) {
-              throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            
-            const data = await response.json();
-            totalFetched += data.features?.length || 0;
-            console.log(`Received ${data.features?.length || 0} sources at offset ${offset} (total fetched: ${totalFetched})`);
-            
-            if (data.features && data.features.length > 0) {
-              // Filter for Uppsala län (kommunkod starts with "03")
-              const uppsalaSources = data.features.filter(
-                (f: any) => f.properties?.kommunkod?.startsWith("03")
-              );
-              
-              if (uppsalaSources.length > 0) {
-                allUppsalaSources = allUppsalaSources.concat(uppsalaSources);
-                setSourcesLoaded(allUppsalaSources.length);
-                console.log(`Total Uppsala län sources so far: ${allUppsalaSources.length}`);
-              }
-              
-              if (data.features.length < limit) {
-                hasMore = false;
-                console.log("Reached last page of sources");
-              } else {
-                offset += limit;
-              }
-            } else {
-              hasMore = false;
-              console.log("No more sources returned");
-            }
+          const response = await fetch(url);
+          
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
           }
           
-          console.log(`Total Uppsala län sources loaded: ${allUppsalaSources.length} (from ${totalFetched} total features)`);
+          const data = await response.json();
+          console.log(`Received ${data.features?.length || 0} total sources`);
           
-          if (allUppsalaSources.length > 0) {
-            const features = new GeoJSON().readFeatures(
-              { type: "FeatureCollection", features: allUppsalaSources },
-              {
-                dataProjection: "EPSG:4326",
-                featureProjection: "EPSG:3857",
-              }
+          if (data.features && data.features.length > 0) {
+            // Filter for Uppsala län (kommunkod starts with "03")
+            const uppsalaSources = data.features.filter(
+              (f: any) => f.properties?.kommunkod?.startsWith("03")
             );
             
-            sourcesSource.addFeatures(features);
+            console.log(`Found ${uppsalaSources.length} sources in Uppsala län`);
             
-            if (sourcesLayerRef.current) {
-              sourcesLayerRef.current.setVisible(true);
-              sourcesLayerRef.current.changed();
+            if (uppsalaSources.length > 0) {
+              const features = new GeoJSON().readFeatures(
+                { type: "FeatureCollection", features: uppsalaSources },
+                {
+                  dataProjection: "EPSG:4326",
+                  featureProjection: "EPSG:3857",
+                }
+              );
+              
+              sourcesSource.addFeatures(features);
+              setSourcesLoaded(features.length);
+              
+              if (sourcesLayerRef.current) {
+                sourcesLayerRef.current.setVisible(true);
+                sourcesLayerRef.current.changed();
+              }
+              
+              toast.success(`Laddade ${features.length} källor från Uppsala län`);
+            } else {
+              toast.info("Inga källor hittades för Uppsala län");
             }
-            
-            toast.success(`Laddade ${features.length} källor från Uppsala län (03*)`);
           } else {
-            toast.info("Inga källor hittades för Uppsala län");
+            toast.info("Inga källor returnerades från API:et");
           }
         } catch (error) {
           console.error("Error loading sources:", error);
