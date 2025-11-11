@@ -69,12 +69,16 @@ export const MapView = () => {
   const [wmsOpacity, setWmsOpacity] = useState(0.7);
   const [wmsVisible, setWmsVisible] = useState(true);
   const [ogcVisible, setOgcVisible] = useState(false);
+  const [sourcesVisible, setSourcesVisible] = useState(false);
   const [coordinates, setCoordinates] = useState<[number, number] | null>(null);
   const [selectedWell, setSelectedWell] = useState<Record<string, any> | null>(null);
   const [loadingWells, setLoadingWells] = useState(false);
   const [wellsLoaded, setWellsLoaded] = useState(0);
+  const [loadingSources, setLoadingSources] = useState(false);
+  const [sourcesLoaded, setSourcesLoaded] = useState(0);
   const wmsLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
   const ogcLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
+  const sourcesLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
 
   useEffect(() => {
     if (!mapRef.current) return;
@@ -204,10 +208,110 @@ export const MapView = () => {
     });
     ogcLayerRef.current = ogcLayer;
 
+    // OGC API Features layer for Källor (sources)
+    const sourcesSource = new VectorSource({
+      format: new GeoJSON(),
+      loader: async () => {
+        try {
+          setLoadingSources(true);
+          setSourcesLoaded(0);
+          console.log("Loading sources from OGC API for Uppsala län (03*)...");
+          
+          let allUppsalaSources: any[] = [];
+          let offset = 0;
+          const limit = 1000;
+          let hasMore = true;
+          let totalFetched = 0;
+          
+          while (hasMore) {
+            const url = `https://api.sgu.se/oppnadata/kallor/ogc/features/v1/collections/kallor/items?limit=${limit}&offset=${offset}&f=json`;
+            console.log(`Fetching sources at offset ${offset}...`);
+            
+            const response = await fetch(url);
+            
+            if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            totalFetched += data.features?.length || 0;
+            console.log(`Received ${data.features?.length || 0} sources at offset ${offset} (total fetched: ${totalFetched})`);
+            
+            if (data.features && data.features.length > 0) {
+              // Filter for Uppsala län (kommunkod starts with "03")
+              const uppsalaSources = data.features.filter(
+                (f: any) => f.properties?.kommunkod?.startsWith("03")
+              );
+              
+              if (uppsalaSources.length > 0) {
+                allUppsalaSources = allUppsalaSources.concat(uppsalaSources);
+                setSourcesLoaded(allUppsalaSources.length);
+                console.log(`Total Uppsala län sources so far: ${allUppsalaSources.length}`);
+              }
+              
+              if (data.features.length < limit) {
+                hasMore = false;
+                console.log("Reached last page of sources");
+              } else {
+                offset += limit;
+              }
+            } else {
+              hasMore = false;
+              console.log("No more sources returned");
+            }
+          }
+          
+          console.log(`Total Uppsala län sources loaded: ${allUppsalaSources.length} (from ${totalFetched} total features)`);
+          
+          if (allUppsalaSources.length > 0) {
+            const features = new GeoJSON().readFeatures(
+              { type: "FeatureCollection", features: allUppsalaSources },
+              {
+                dataProjection: "EPSG:4326",
+                featureProjection: "EPSG:3857",
+              }
+            );
+            
+            sourcesSource.addFeatures(features);
+            
+            if (sourcesLayerRef.current) {
+              sourcesLayerRef.current.setVisible(true);
+              sourcesLayerRef.current.changed();
+            }
+            
+            toast.success(`Laddade ${features.length} källor från Uppsala län (03*)`);
+          } else {
+            toast.info("Inga källor hittades för Uppsala län");
+          }
+        } catch (error) {
+          console.error("Error loading sources:", error);
+          toast.error("Kunde inte ladda källor från OGC API");
+        } finally {
+          setLoadingSources(false);
+        }
+      },
+    });
+
+    const sourcesLayer = new VectorLayer({
+      source: sourcesSource,
+      visible: sourcesVisible,
+      style: new Style({
+        image: new Circle({
+          radius: 6,
+          fill: new Fill({ color: "rgba(168, 85, 247, 0.8)" }), // purple
+          stroke: new Stroke({
+            color: "rgba(255, 255, 255, 0.8)",
+            width: 2,
+          }),
+        }),
+      }),
+    });
+    sourcesLayerRef.current = sourcesLayer;
+
     // Create map
     const map = new Map({
       target: mapRef.current,
-      layers: [osmLayer, wmsLayer, ogcLayer],
+      layers: [osmLayer, wmsLayer, ogcLayer, sourcesLayer],
       view: new View({
         center: [1784000, 8347000], // Uppsala center in Web Mercator
         zoom: 11,
@@ -229,7 +333,7 @@ export const MapView = () => {
       // Change cursor when hovering over features
       const pixel = map.getEventPixel(evt.originalEvent);
       const hit = map.hasFeatureAtPixel(pixel, {
-        layerFilter: (layer) => layer === ogcLayer,
+        layerFilter: (layer) => layer === ogcLayer || layer === sourcesLayer,
       });
       map.getTargetElement().style.cursor = hit ? "pointer" : "";
     });
@@ -237,7 +341,7 @@ export const MapView = () => {
     // Handle feature clicks
     map.on("click", (evt) => {
       const features = map.getFeaturesAtPixel(evt.pixel, {
-        layerFilter: (layer) => layer === ogcLayer,
+        layerFilter: (layer) => layer === ogcLayer || layer === sourcesLayer,
       });
       
       if (features && features.length > 0) {
@@ -284,6 +388,20 @@ export const MapView = () => {
     }
   }, [ogcVisible]);
 
+  // Update Sources visibility and load data when enabled
+  useEffect(() => {
+    if (sourcesLayerRef.current) {
+      if (sourcesVisible && sourcesLayerRef.current.getSource()?.getFeatures().length === 0) {
+        sourcesLayerRef.current.getSource()?.loadFeatures(
+          sourcesLayerRef.current.getSource()!.getExtent(),
+          1,
+          sourcesLayerRef.current.getSource()!.getProjection()
+        );
+      }
+      sourcesLayerRef.current.setVisible(sourcesVisible);
+    }
+  }, [sourcesVisible]);
+
   return (
     <div className="relative w-full h-screen">
       <div ref={mapRef} className="absolute inset-0" />
@@ -292,9 +410,11 @@ export const MapView = () => {
         wmsVisible={wmsVisible}
         wmsOpacity={wmsOpacity}
         ogcVisible={ogcVisible}
+        sourcesVisible={sourcesVisible}
         onWmsVisibleChange={setWmsVisible}
         onWmsOpacityChange={setWmsOpacity}
         onOgcVisibleChange={setOgcVisible}
+        onSourcesVisibleChange={setSourcesVisible}
       />
       
       <CoordinateDisplay coordinates={coordinates} />
@@ -305,6 +425,23 @@ export const MapView = () => {
             <div className="flex items-center justify-between text-sm">
               <span className="font-medium">Laddar brunnar...</span>
               <span className="text-muted-foreground">{wellsLoaded} brunnar</span>
+            </div>
+            <div className="w-full bg-secondary rounded-full h-2 overflow-hidden">
+              <div 
+                className="h-full bg-primary transition-all duration-300 rounded-full animate-pulse"
+                style={{ width: '100%' }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {loadingSources && (
+        <div className="absolute top-36 left-1/2 transform -translate-x-1/2 bg-background/95 backdrop-blur-sm p-4 rounded-lg shadow-lg border z-10 min-w-[300px]">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-medium">Laddar källor...</span>
+              <span className="text-muted-foreground">{sourcesLoaded} källor</span>
             </div>
             <div className="w-full bg-secondary rounded-full h-2 overflow-hidden">
               <div 

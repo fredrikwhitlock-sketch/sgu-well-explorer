@@ -8,18 +8,22 @@ interface LayerPanelProps {
   wmsVisible: boolean;
   wmsOpacity: number;
   ogcVisible: boolean;
+  sourcesVisible: boolean;
   onWmsVisibleChange: (visible: boolean) => void;
   onWmsOpacityChange: (opacity: number) => void;
   onOgcVisibleChange: (visible: boolean) => void;
+  onSourcesVisibleChange: (visible: boolean) => void;
 }
 
 export const LayerPanel = ({
   wmsVisible,
   wmsOpacity,
   ogcVisible,
+  sourcesVisible,
   onWmsVisibleChange,
   onWmsOpacityChange,
   onOgcVisibleChange,
+  onSourcesVisibleChange,
 }: LayerPanelProps) => {
   return (
     <Card className="absolute top-4 right-4 w-80 p-4 bg-card/95 backdrop-blur-sm shadow-lg border-border">
@@ -102,6 +106,34 @@ export const LayerPanel = ({
                   <div className="w-3 h-3 rounded-full bg-[rgb(156,163,175)]" />
                   <span className="text-muted-foreground">Ej angivet</span>
                 </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Sources Layer Control */}
+        <div className="space-y-3 pt-4 border-t border-border">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label htmlFor="sources-layer" className="text-sm font-medium">
+                Uppsala Källor (OGC API)
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Klickbara källor från SGU
+              </p>
+            </div>
+            <Switch
+              id="sources-layer"
+              checked={sourcesVisible}
+              onCheckedChange={onSourcesVisibleChange}
+            />
+          </div>
+          
+          {sourcesVisible && (
+            <div className="mt-3 space-y-2 text-xs">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-[rgb(168,85,247)]" />
+                <span className="text-muted-foreground">Källor</span>
               </div>
             </div>
           )}
