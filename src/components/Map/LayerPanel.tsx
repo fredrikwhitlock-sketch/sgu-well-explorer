@@ -69,10 +69,10 @@ export const LayerPanel = ({
           <div className="flex items-center justify-between">
             <div className="space-y-1">
               <Label htmlFor="ogc-layer" className="text-sm font-medium">
-                Uppsala Brunnar (OGC API)
+                Brunnar (OGC API)
               </Label>
               <p className="text-xs text-muted-foreground">
-                Klickbara features från SGU
+                Klickbara brunnar från SGU
               </p>
             </div>
             <Switch
@@ -116,7 +116,7 @@ export const LayerPanel = ({
           <div className="flex items-center justify-between">
             <div className="space-y-1">
               <Label htmlFor="sources-layer" className="text-sm font-medium">
-                Uppsala Källor (OGC API)
+                Källor (OGC API)
               </Label>
               <p className="text-xs text-muted-foreground">
                 Klickbara källor från SGU
