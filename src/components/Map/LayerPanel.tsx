@@ -5,35 +5,31 @@ import { Slider } from "@/components/ui/slider";
 import { Layers } from "lucide-react";
 
 interface LayerPanelProps {
-  wmsVisible: boolean;
-  wmsOpacity: number;
   sourcesVisible: boolean;
   wellsVisible: boolean;
   aquifersVisible: boolean;
+  aquifersOpacity: number;
   sourcesLoaded: number;
   wellsLoaded: number;
   aquifersLoaded: number;
-  onWmsVisibleChange: (visible: boolean) => void;
-  onWmsOpacityChange: (opacity: number) => void;
   onSourcesVisibleChange: (visible: boolean) => void;
   onWellsVisibleChange: (visible: boolean) => void;
   onAquifersVisibleChange: (visible: boolean) => void;
+  onAquifersOpacityChange: (opacity: number) => void;
 }
 
 export const LayerPanel = ({
-  wmsVisible,
-  wmsOpacity,
   sourcesVisible,
   wellsVisible,
   aquifersVisible,
+  aquifersOpacity,
   sourcesLoaded,
   wellsLoaded,
   aquifersLoaded,
-  onWmsVisibleChange,
-  onWmsOpacityChange,
   onSourcesVisibleChange,
   onWellsVisibleChange,
   onAquifersVisibleChange,
+  onAquifersOpacityChange,
 }: LayerPanelProps) => {
   return (
     <Card className="absolute top-4 right-4 w-80 p-4 bg-card/95 backdrop-blur-sm shadow-lg border-border">
@@ -43,39 +39,8 @@ export const LayerPanel = ({
       </div>
       
       <div className="space-y-4">
-        {/* WMS Layer Control */}
-        <div className="space-y-3 pb-4 border-b border-border">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="wms-layer" className="text-sm font-medium">
-              SGU Brunnar (WMS)
-            </Label>
-            <Switch
-              id="wms-layer"
-              checked={wmsVisible}
-              onCheckedChange={onWmsVisibleChange}
-            />
-          </div>
-          
-          {wmsVisible && (
-            <div className="space-y-2">
-              <Label htmlFor="wms-opacity" className="text-xs text-muted-foreground">
-                Transparens: {Math.round(wmsOpacity * 100)}%
-              </Label>
-              <Slider
-                id="wms-opacity"
-                min={0}
-                max={1}
-                step={0.1}
-                value={[wmsOpacity]}
-                onValueChange={([value]) => onWmsOpacityChange(value)}
-                className="w-full"
-              />
-            </div>
-          )}
-        </div>
-
         {/* Wells Layer Control */}
-        <div className="space-y-3 pt-4 border-t border-border">
+        <div className="space-y-3">
           <div className="flex items-center justify-between">
             <div className="space-y-1">
               <Label htmlFor="wells-layer" className="text-sm font-medium">
@@ -121,10 +86,26 @@ export const LayerPanel = ({
           </div>
           
           {aquifersVisible && (
-            <div className="mt-3 space-y-2 text-xs">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full border-2 border-[rgb(34,197,94)] bg-[rgba(34,197,94,0.2)]" />
-                <span className="text-muted-foreground">Magasin</span>
+            <div className="mt-3 space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="aquifers-opacity" className="text-xs text-muted-foreground">
+                  Transparens: {Math.round(aquifersOpacity * 100)}%
+                </Label>
+                <Slider
+                  id="aquifers-opacity"
+                  min={0}
+                  max={1}
+                  step={0.1}
+                  value={[aquifersOpacity]}
+                  onValueChange={([value]) => onAquifersOpacityChange(value)}
+                  className="w-full"
+                />
+              </div>
+              <div className="text-xs">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full border-2 border-[rgb(34,197,94)] bg-[rgba(34,197,94,0.2)]" />
+                  <span className="text-muted-foreground">Klickbara magasin</span>
+                </div>
               </div>
             </div>
           )}

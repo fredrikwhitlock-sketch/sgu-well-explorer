@@ -28,20 +28,18 @@ register(proj4);
 export const MapView = () => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<Map | null>(null);
-  const [wmsOpacity, setWmsOpacity] = useState(0.7);
-  const [wmsVisible, setWmsVisible] = useState(true);
   const [sourcesVisible, setSourcesVisible] = useState(false);
   const [wellsVisible, setWellsVisible] = useState(false);
   const [aquifersVisible, setAquifersVisible] = useState(false);
+  const [aquifersOpacity, setAquifersOpacity] = useState(0.5);
   const [coordinates, setCoordinates] = useState<[number, number] | null>(null);
-  const [selectedFeature, setSelectedFeature] = useState<{ properties: Record<string, any>; type: 'source' | 'well' } | null>(null);
+  const [selectedFeature, setSelectedFeature] = useState<{ properties: Record<string, any>; type: 'source' | 'well' | 'aquifer' } | null>(null);
   const [loadingSources, setLoadingSources] = useState(false);
   const [loadingWells, setLoadingWells] = useState(false);
   const [loadingAquifers, setLoadingAquifers] = useState(false);
   const [sourcesLoaded, setSourcesLoaded] = useState(0);
   const [wellsLoaded, setWellsLoaded] = useState(0);
   const [aquifersLoaded, setAquifersLoaded] = useState(0);
-  const wmsLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
   const sourcesLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const wellsLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const aquifersLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
@@ -59,24 +57,6 @@ export const MapView = () => {
     const osmLayer = new TileLayer({
       source: new OSM(),
     });
-
-    // WMS layer from SGU - Brunnar
-    const wmsLayer = new ImageLayer({
-      source: new ImageWMS({
-        url: "https://resource.sgu.se/service/wms/130/brunnar",
-        params: {
-          LAYERS: "brunnar",
-          TILED: true,
-          VERSION: "1.3.0",
-          FORMAT: "image/png",
-        },
-        serverType: "geoserver",
-        crossOrigin: "anonymous",
-      }),
-      opacity: wmsOpacity,
-      visible: wmsVisible,
-    });
-    wmsLayerRef.current = wmsLayer;
 
     // OGC API Features layer for Källor (sources)
     const sourcesSource = new VectorSource({
@@ -149,8 +129,6 @@ export const MapView = () => {
       format: new GeoJSON(),
       strategy: (extent) => [extent],
       loader: async (extent) => {
-        if (!wellsVisible) return;
-        
         try {
           setLoadingWells(true);
           console.log("Loading wells from OGC API with bbox...");
@@ -266,6 +244,7 @@ export const MapView = () => {
     const aquifersLayer = new VectorLayer({
       source: aquifersSource,
       visible: aquifersVisible,
+      opacity: aquifersOpacity,
       style: new Style({
         stroke: new Stroke({
           color: "rgba(34, 197, 94, 0.8)",
@@ -281,7 +260,7 @@ export const MapView = () => {
     // Create map
     const map = new Map({
       target: mapRef.current,
-      layers: [osmLayer, wmsLayer, aquifersLayer, wellsLayer, sourcesLayer],
+      layers: [osmLayer, aquifersLayer, wellsLayer, sourcesLayer],
       view: new View({
         center: [1784000, 8347000], // Uppsala center in Web Mercator
         zoom: 11,
@@ -303,7 +282,7 @@ export const MapView = () => {
       // Change cursor when hovering over features
       const pixel = map.getEventPixel(evt.originalEvent);
       const hit = map.hasFeatureAtPixel(pixel, {
-        layerFilter: (layer) => layer === sourcesLayer || layer === wellsLayer,
+        layerFilter: (layer) => layer === sourcesLayer || layer === wellsLayer || layer === aquifersLayer,
       });
       map.getTargetElement().style.cursor = hit ? "pointer" : "";
     });
@@ -311,7 +290,7 @@ export const MapView = () => {
     // Handle feature clicks
     map.on("click", (evt) => {
       const features = map.getFeaturesAtPixel(evt.pixel, {
-        layerFilter: (layer) => layer === sourcesLayer || layer === wellsLayer,
+        layerFilter: (layer) => layer === sourcesLayer || layer === wellsLayer || layer === aquifersLayer,
       });
       
       if (features && features.length > 0) {
@@ -322,39 +301,27 @@ export const MapView = () => {
         const pixel = evt.pixel;
         const clickedLayers: any[] = [];
         map.forEachFeatureAtPixel(pixel, (f, layer) => {
-          if (layer === sourcesLayer || layer === wellsLayer) {
+          if (layer === sourcesLayer || layer === wellsLayer || layer === aquifersLayer) {
             clickedLayers.push({ feature: f, layer });
           }
         });
         
         if (clickedLayers.length > 0) {
           const { layer } = clickedLayers[0];
-          const type = layer === sourcesLayer ? 'source' : 'well';
+          let type: 'source' | 'well' | 'aquifer' = 'source';
+          if (layer === wellsLayer) type = 'well';
+          else if (layer === aquifersLayer) type = 'aquifer';
           setSelectedFeature({ properties, type });
         }
       }
     });
 
-    toast.success("Karta laddad! WMS-lager från SGU är aktivt");
+    toast.success("Karta laddad!");
 
     return () => {
       map.setTarget(undefined);
     };
   }, []);
-
-  // Update WMS opacity
-  useEffect(() => {
-    if (wmsLayerRef.current) {
-      wmsLayerRef.current.setOpacity(wmsOpacity);
-    }
-  }, [wmsOpacity]);
-
-  // Update WMS visibility
-  useEffect(() => {
-    if (wmsLayerRef.current) {
-      wmsLayerRef.current.setVisible(wmsVisible);
-    }
-  }, [wmsVisible]);
 
   // Update Sources visibility and load data when enabled
   useEffect(() => {
@@ -400,6 +367,13 @@ export const MapView = () => {
     }
   }, [aquifersVisible]);
 
+  // Update Aquifers opacity
+  useEffect(() => {
+    if (aquifersLayerRef.current) {
+      aquifersLayerRef.current.setOpacity(aquifersOpacity);
+    }
+  }, [aquifersOpacity]);
+
   const handleSearchResult = (coordinates: [number, number], zoom?: number) => {
     if (mapInstanceRef.current) {
       mapInstanceRef.current.getView().animate({
@@ -417,19 +391,17 @@ export const MapView = () => {
       <SearchControl onSearchResult={handleSearchResult} />
       
       <LayerPanel
-        wmsVisible={wmsVisible}
-        wmsOpacity={wmsOpacity}
         sourcesVisible={sourcesVisible}
         wellsVisible={wellsVisible}
         aquifersVisible={aquifersVisible}
+        aquifersOpacity={aquifersOpacity}
         sourcesLoaded={sourcesLoaded}
         wellsLoaded={wellsLoaded}
         aquifersLoaded={aquifersLoaded}
-        onWmsVisibleChange={setWmsVisible}
-        onWmsOpacityChange={setWmsOpacity}
         onSourcesVisibleChange={setSourcesVisible}
         onWellsVisibleChange={setWellsVisible}
         onAquifersVisibleChange={setAquifersVisible}
+        onAquifersOpacityChange={setAquifersOpacity}
       />
       
       <CoordinateDisplay coordinates={coordinates} />
