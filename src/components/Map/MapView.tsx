@@ -18,6 +18,7 @@ import "ol/ol.css";
 import { LayerPanel } from "./LayerPanel";
 import { CoordinateDisplay } from "./CoordinateDisplay";
 import { WellPopup } from "./WellPopup";
+import { SearchControl } from "./SearchControl";
 import { toast } from "sonner";
 
 // Define SWEREF99 TM projection
@@ -30,12 +31,20 @@ export const MapView = () => {
   const [wmsOpacity, setWmsOpacity] = useState(0.7);
   const [wmsVisible, setWmsVisible] = useState(true);
   const [sourcesVisible, setSourcesVisible] = useState(false);
+  const [wellsVisible, setWellsVisible] = useState(false);
+  const [aquifersVisible, setAquifersVisible] = useState(false);
   const [coordinates, setCoordinates] = useState<[number, number] | null>(null);
-  const [selectedSource, setSelectedSource] = useState<Record<string, any> | null>(null);
+  const [selectedFeature, setSelectedFeature] = useState<{ properties: Record<string, any>; type: 'source' | 'well' } | null>(null);
   const [loadingSources, setLoadingSources] = useState(false);
+  const [loadingWells, setLoadingWells] = useState(false);
+  const [loadingAquifers, setLoadingAquifers] = useState(false);
   const [sourcesLoaded, setSourcesLoaded] = useState(0);
+  const [wellsLoaded, setWellsLoaded] = useState(0);
+  const [aquifersLoaded, setAquifersLoaded] = useState(0);
   const wmsLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
   const sourcesLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
+  const wellsLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
+  const aquifersLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
 
   useEffect(() => {
     if (!mapRef.current) return;
@@ -78,7 +87,6 @@ export const MapView = () => {
           setSourcesLoaded(0);
           console.log("Loading sources from OGC API...");
           
-          // Load all sources without pagination (API doesn't support offset properly)
           const url = `https://api.sgu.se/oppnadata/kallor/ogc/features/v1/collections/kallor/items?f=json`;
           
           const response = await fetch(url);
@@ -126,7 +134,7 @@ export const MapView = () => {
       style: new Style({
         image: new Circle({
           radius: 6,
-          fill: new Fill({ color: "rgba(168, 85, 247, 0.8)" }), // purple
+          fill: new Fill({ color: "rgba(168, 85, 247, 0.8)" }),
           stroke: new Stroke({
             color: "rgba(255, 255, 255, 0.8)",
             width: 2,
@@ -136,10 +144,144 @@ export const MapView = () => {
     });
     sourcesLayerRef.current = sourcesLayer;
 
+    // OGC API Features layer for Brunnar (wells) - bbox-filtered
+    const wellsSource = new VectorSource({
+      format: new GeoJSON(),
+      strategy: (extent) => [extent],
+      loader: async (extent) => {
+        if (!wellsVisible) return;
+        
+        try {
+          setLoadingWells(true);
+          console.log("Loading wells from OGC API with bbox...");
+          
+          // Convert Web Mercator extent to WGS84 bbox
+          const [minX, minY, maxX, maxY] = extent;
+          const minLon = (minX / 20037508.34) * 180;
+          const maxLon = (maxX / 20037508.34) * 180;
+          const minLat = (Math.atan(Math.exp((minY / 20037508.34) * Math.PI)) * 360 / Math.PI) - 90;
+          const maxLat = (Math.atan(Math.exp((maxY / 20037508.34) * Math.PI)) * 360 / Math.PI) - 90;
+          
+          const bbox = `${minLon},${minLat},${maxLon},${maxLat}`;
+          const url = `https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar/items?f=json&bbox=${bbox}&limit=1000`;
+          
+          const response = await fetch(url);
+          
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          
+          const data = await response.json();
+          console.log(`Received ${data.features?.length || 0} wells`);
+          
+          if (data.features && data.features.length > 0) {
+            const features = new GeoJSON().readFeatures(
+              { type: "FeatureCollection", features: data.features },
+              {
+                dataProjection: "EPSG:4326",
+                featureProjection: "EPSG:3857",
+              }
+            );
+            
+            wellsSource.addFeatures(features);
+            setWellsLoaded(wellsSource.getFeatures().length);
+            
+            if (data.features.length >= 1000) {
+              toast.info("Visar max 1000 brunnar. Zooma in för fler detaljer.");
+            }
+          }
+        } catch (error) {
+          console.error("Error loading wells:", error);
+          toast.error("Kunde inte ladda brunnar från OGC API");
+        } finally {
+          setLoadingWells(false);
+        }
+      },
+    });
+
+    const wellsLayer = new VectorLayer({
+      source: wellsSource,
+      visible: wellsVisible,
+      style: new Style({
+        image: new Circle({
+          radius: 5,
+          fill: new Fill({ color: "rgba(59, 130, 246, 0.7)" }),
+          stroke: new Stroke({
+            color: "rgba(255, 255, 255, 0.8)",
+            width: 1.5,
+          }),
+        }),
+      }),
+    });
+    wellsLayerRef.current = wellsLayer;
+
+    // OGC API Features layer for Grundvattenmagasin (aquifers)
+    const aquifersSource = new VectorSource({
+      format: new GeoJSON(),
+      loader: async () => {
+        try {
+          setLoadingAquifers(true);
+          setAquifersLoaded(0);
+          console.log("Loading aquifers from OGC API...");
+          
+          const url = `https://api.sgu.se/oppnadata/grundvattenmagasin/ogc/features/v1/collections/grundvattenmagasin/items?f=json&limit=5000`;
+          
+          const response = await fetch(url);
+          
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          
+          const data = await response.json();
+          console.log(`Received ${data.features?.length || 0} aquifers`);
+          
+          if (data.features && data.features.length > 0) {
+            const features = new GeoJSON().readFeatures(
+              { type: "FeatureCollection", features: data.features },
+              {
+                dataProjection: "EPSG:4326",
+                featureProjection: "EPSG:3857",
+              }
+            );
+            
+            aquifersSource.addFeatures(features);
+            setAquifersLoaded(features.length);
+            
+            if (aquifersLayerRef.current) {
+              aquifersLayerRef.current.setVisible(true);
+              aquifersLayerRef.current.changed();
+            }
+            
+            toast.success(`Laddade ${features.length} grundvattenmagasin`);
+          }
+        } catch (error) {
+          console.error("Error loading aquifers:", error);
+          toast.error("Kunde inte ladda grundvattenmagasin");
+        } finally {
+          setLoadingAquifers(false);
+        }
+      },
+    });
+
+    const aquifersLayer = new VectorLayer({
+      source: aquifersSource,
+      visible: aquifersVisible,
+      style: new Style({
+        stroke: new Stroke({
+          color: "rgba(34, 197, 94, 0.8)",
+          width: 2,
+        }),
+        fill: new Fill({
+          color: "rgba(34, 197, 94, 0.2)",
+        }),
+      }),
+    });
+    aquifersLayerRef.current = aquifersLayer;
+
     // Create map
     const map = new Map({
       target: mapRef.current,
-      layers: [osmLayer, wmsLayer, sourcesLayer],
+      layers: [osmLayer, wmsLayer, aquifersLayer, wellsLayer, sourcesLayer],
       view: new View({
         center: [1784000, 8347000], // Uppsala center in Web Mercator
         zoom: 11,
@@ -161,7 +303,7 @@ export const MapView = () => {
       // Change cursor when hovering over features
       const pixel = map.getEventPixel(evt.originalEvent);
       const hit = map.hasFeatureAtPixel(pixel, {
-        layerFilter: (layer) => layer === sourcesLayer,
+        layerFilter: (layer) => layer === sourcesLayer || layer === wellsLayer,
       });
       map.getTargetElement().style.cursor = hit ? "pointer" : "";
     });
@@ -169,13 +311,27 @@ export const MapView = () => {
     // Handle feature clicks
     map.on("click", (evt) => {
       const features = map.getFeaturesAtPixel(evt.pixel, {
-        layerFilter: (layer) => layer === sourcesLayer,
+        layerFilter: (layer) => layer === sourcesLayer || layer === wellsLayer,
       });
       
       if (features && features.length > 0) {
         const feature = features[0];
         const properties = feature.getProperties();
-        setSelectedSource(properties);
+        
+        // Determine feature type based on layer
+        const pixel = evt.pixel;
+        const clickedLayers: any[] = [];
+        map.forEachFeatureAtPixel(pixel, (f, layer) => {
+          if (layer === sourcesLayer || layer === wellsLayer) {
+            clickedLayers.push({ feature: f, layer });
+          }
+        });
+        
+        if (clickedLayers.length > 0) {
+          const { layer } = clickedLayers[0];
+          const type = layer === sourcesLayer ? 'source' : 'well';
+          setSelectedFeature({ properties, type });
+        }
       }
     });
 
@@ -214,42 +370,115 @@ export const MapView = () => {
     }
   }, [sourcesVisible]);
 
+  // Update Wells visibility and reload data when enabled
+  useEffect(() => {
+    if (wellsLayerRef.current) {
+      wellsLayerRef.current.setVisible(wellsVisible);
+      if (wellsVisible && mapInstanceRef.current) {
+        const extent = mapInstanceRef.current.getView().calculateExtent();
+        wellsLayerRef.current.getSource()?.clear();
+        wellsLayerRef.current.getSource()?.loadFeatures(
+          extent,
+          1,
+          wellsLayerRef.current.getSource()!.getProjection()
+        );
+      }
+    }
+  }, [wellsVisible]);
+
+  // Update Aquifers visibility and load data when enabled
+  useEffect(() => {
+    if (aquifersLayerRef.current) {
+      if (aquifersVisible && aquifersLayerRef.current.getSource()?.getFeatures().length === 0) {
+        aquifersLayerRef.current.getSource()?.loadFeatures(
+          aquifersLayerRef.current.getSource()!.getExtent(),
+          1,
+          aquifersLayerRef.current.getSource()!.getProjection()
+        );
+      }
+      aquifersLayerRef.current.setVisible(aquifersVisible);
+    }
+  }, [aquifersVisible]);
+
+  const handleSearchResult = (coordinates: [number, number], zoom?: number) => {
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.getView().animate({
+        center: coordinates,
+        zoom: zoom || 14,
+        duration: 1000,
+      });
+    }
+  };
+
   return (
     <div className="relative w-full h-screen">
       <div ref={mapRef} className="absolute inset-0" />
+      
+      <SearchControl onSearchResult={handleSearchResult} />
       
       <LayerPanel
         wmsVisible={wmsVisible}
         wmsOpacity={wmsOpacity}
         sourcesVisible={sourcesVisible}
+        wellsVisible={wellsVisible}
+        aquifersVisible={aquifersVisible}
+        sourcesLoaded={sourcesLoaded}
+        wellsLoaded={wellsLoaded}
+        aquifersLoaded={aquifersLoaded}
         onWmsVisibleChange={setWmsVisible}
         onWmsOpacityChange={setWmsOpacity}
         onSourcesVisibleChange={setSourcesVisible}
+        onWellsVisibleChange={setWellsVisible}
+        onAquifersVisibleChange={setAquifersVisible}
       />
       
       <CoordinateDisplay coordinates={coordinates} />
       
-      {loadingSources && (
+      {(loadingSources || loadingWells || loadingAquifers) && (
         <div className="absolute top-20 left-1/2 transform -translate-x-1/2 bg-background/95 backdrop-blur-sm p-4 rounded-lg shadow-lg border z-10 min-w-[300px]">
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-sm">
-              <span className="font-medium">Laddar källor...</span>
-              <span className="text-muted-foreground">{sourcesLoaded} källor</span>
-            </div>
-            <div className="w-full bg-secondary rounded-full h-2 overflow-hidden">
-              <div 
-                className="h-full bg-primary transition-all duration-300 rounded-full animate-pulse"
-                style={{ width: '100%' }}
-              />
-            </div>
+          <div className="space-y-3">
+            {loadingSources && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium">Laddar källor...</span>
+                  <span className="text-muted-foreground">{sourcesLoaded} källor</span>
+                </div>
+                <div className="w-full bg-secondary rounded-full h-2 overflow-hidden">
+                  <div className="h-full bg-primary transition-all duration-300 rounded-full animate-pulse" style={{ width: '100%' }} />
+                </div>
+              </div>
+            )}
+            {loadingWells && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium">Laddar brunnar...</span>
+                  <span className="text-muted-foreground">{wellsLoaded} brunnar</span>
+                </div>
+                <div className="w-full bg-secondary rounded-full h-2 overflow-hidden">
+                  <div className="h-full bg-primary transition-all duration-300 rounded-full animate-pulse" style={{ width: '100%' }} />
+                </div>
+              </div>
+            )}
+            {loadingAquifers && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium">Laddar grundvattenmagasin...</span>
+                  <span className="text-muted-foreground">{aquifersLoaded} magasin</span>
+                </div>
+                <div className="w-full bg-secondary rounded-full h-2 overflow-hidden">
+                  <div className="h-full bg-primary transition-all duration-300 rounded-full animate-pulse" style={{ width: '100%' }} />
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
       
-      {selectedSource && (
+      {selectedFeature && (
         <WellPopup
-          properties={selectedSource}
-          onClose={() => setSelectedSource(null)}
+          properties={selectedFeature.properties}
+          type={selectedFeature.type}
+          onClose={() => setSelectedFeature(null)}
         />
       )}
     </div>
