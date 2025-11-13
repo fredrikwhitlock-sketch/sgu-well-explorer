@@ -5,11 +5,12 @@ import { Separator } from "@/components/ui/separator";
 
 interface WellPopupProps {
   properties: Record<string, any>;
-  type: 'source' | 'well' | 'aquifer';
+  type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'samplingsite';
+  analysisResults?: any[];
   onClose: () => void;
 }
 
-export const WellPopup = ({ properties, type, onClose }: WellPopupProps) => {
+export const WellPopup = ({ properties, type, analysisResults, onClose }: WellPopupProps) => {
   const formatValue = (value: any): string => {
     if (value === null || value === undefined) return "Ej angivet";
     if (typeof value === "string" && value.includes("T00:00:00Z")) {
@@ -18,7 +19,15 @@ export const WellPopup = ({ properties, type, onClose }: WellPopupProps) => {
     return String(value);
   };
 
-  const title = type === 'source' ? 'Källinformation' : type === 'well' ? 'Brunnsinformation' : 'Grundvattenmagasin';
+  const getTitle = () => {
+    if (type === 'well') return 'Brunnsinformation';
+    if (type === 'aquifer') return 'Grundvattenmagasin';
+    if (type === 'waterBody') return 'Grundvattenförekomst';
+    if (type === 'samplingsite') return 'Provplats miljöövervakning';
+    return 'Källinformation';
+  };
+
+  const title = getTitle();
 
   return (
     <Card className="absolute top-20 right-4 w-96 max-h-[calc(100vh-120px)] overflow-y-auto bg-card/95 backdrop-blur-sm shadow-lg border-border">
@@ -243,6 +252,179 @@ export const WellPopup = ({ properties, type, onClose }: WellPopupProps) => {
                 <dt className="text-xs font-medium text-muted-foreground">Positionsvärdering</dt>
                 <dd className="text-sm text-foreground mt-1">{formatValue(properties.posvardering)}</dd>
               </div>
+            )}
+          </>
+        ) : type === 'waterBody' ? (
+          <>
+            {properties.eu_cd && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">EU-kod</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.eu_cd)}</dd>
+              </div>
+            )}
+
+            {properties.ms_cd && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Nationell kod</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.ms_cd)}</dd>
+              </div>
+            )}
+
+            {properties.name && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Namn</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.name)}</dd>
+              </div>
+            )}
+
+            {properties.wb_type && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Typ</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.wb_type)}</dd>
+              </div>
+            )}
+
+            {properties.wb && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Status</dt>
+                <dd className="text-sm text-foreground mt-1">{properties.wb === 'Y' ? 'Beslutad' : 'Preliminär'}</dd>
+              </div>
+            )}
+
+            <Separator />
+
+            {properties.district && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Vattendistrikt</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.district)}</dd>
+              </div>
+            )}
+
+            {properties.comp_auth && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Vattenmyndighet</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.comp_auth)}</dd>
+              </div>
+            )}
+
+            {properties.version && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Version</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.version)}</dd>
+              </div>
+            )}
+
+            {properties.versionname && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Versionens namn</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.versionname)}</dd>
+              </div>
+            )}
+
+            <Separator />
+
+            {properties.geom_area && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Area</dt>
+                <dd className="text-sm text-foreground mt-1">{Math.round(properties.geom_area / 1000000)} km²</dd>
+              </div>
+            )}
+
+            {properties.url_viss && (
+              <div className="mt-2">
+                <a 
+                  href={properties.url_viss} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-sm text-primary hover:underline"
+                >
+                  Visa i VISS →
+                </a>
+              </div>
+            )}
+          </>
+        ) : type === 'samplingsite' ? (
+          <>
+            {properties.obsplatsid && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Obsplats-ID</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.obsplatsid)}</dd>
+              </div>
+            )}
+
+            {properties.provplatsnamn && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Namn</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.provplatsnamn)}</dd>
+              </div>
+            )}
+
+            {properties.kommun && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Kommun</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.kommun)}</dd>
+              </div>
+            )}
+
+            {properties.lan && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Län</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.lan)}</dd>
+              </div>
+            )}
+
+            {properties.provplatsbeskrivning && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Beskrivning</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.provplatsbeskrivning)}</dd>
+              </div>
+            )}
+
+            {properties.provplatstyp && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Typ</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.provplatstyp)}</dd>
+              </div>
+            )}
+
+            {properties.magasin && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Magasin</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.magasin)}</dd>
+              </div>
+            )}
+            
+            {analysisResults && analysisResults.length > 0 && (
+              <>
+                <Separator />
+                <div>
+                  <h4 className="text-sm font-semibold text-foreground mb-2">Senaste provtagning</h4>
+                  {analysisResults[0].provtagningsdatum && (
+                    <div>
+                      <dt className="text-xs font-medium text-muted-foreground">Datum</dt>
+                      <dd className="text-sm text-foreground mt-1">{formatValue(analysisResults[0].provtagningsdatum)}</dd>
+                    </div>
+                  )}
+                  {analysisResults[0].parameter && (
+                    <div>
+                      <dt className="text-xs font-medium text-muted-foreground">Parameter</dt>
+                      <dd className="text-sm text-foreground mt-1">{formatValue(analysisResults[0].parameter)}</dd>
+                    </div>
+                  )}
+                  {analysisResults[0].varde && (
+                    <div>
+                      <dt className="text-xs font-medium text-muted-foreground">Värde</dt>
+                      <dd className="text-sm text-foreground mt-1">{formatValue(analysisResults[0].varde)} {analysisResults[0].enhet || ''}</dd>
+                    </div>
+                  )}
+                  {analysisResults[0].metod && (
+                    <div>
+                      <dt className="text-xs font-medium text-muted-foreground">Metod</dt>
+                      <dd className="text-sm text-foreground mt-1">{formatValue(analysisResults[0].metod)}</dd>
+                    </div>
+                  )}
+                </div>
+              </>
             )}
           </>
         ) : (

@@ -33,16 +33,24 @@ export const MapView = () => {
   const [aquifersVisible, setAquifersVisible] = useState(false);
   const [aquifersOpacity, setAquifersOpacity] = useState(0.5);
   const [coordinates, setCoordinates] = useState<[number, number] | null>(null);
-  const [selectedFeature, setSelectedFeature] = useState<{ properties: Record<string, any>; type: 'source' | 'well' | 'aquifer' } | null>(null);
+  const [selectedFeature, setSelectedFeature] = useState<{ properties: Record<string, any>; type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'samplingsite'; analysisResults?: any[] } | null>(null);
   const [loadingSources, setLoadingSources] = useState(false);
   const [loadingWells, setLoadingWells] = useState(false);
   const [loadingAquifers, setLoadingAquifers] = useState(false);
   const [sourcesLoaded, setSourcesLoaded] = useState(0);
   const [wellsLoaded, setWellsLoaded] = useState(0);
   const [aquifersLoaded, setAquifersLoaded] = useState(0);
+  const [waterBodiesVisible, setWaterBodiesVisible] = useState(false);
+  const [samplingSitesVisible, setSamplingSitesVisible] = useState(false);
+  const [loadingWaterBodies, setLoadingWaterBodies] = useState(false);
+  const [loadingSamplingSites, setLoadingSamplingSites] = useState(false);
+  const [waterBodiesLoaded, setWaterBodiesLoaded] = useState(0);
+  const [samplingSitesLoaded, setSamplingSitesLoaded] = useState(0);
   const sourcesLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const wellsLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const aquifersLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
+  const waterBodiesLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
+  const samplingSitesLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
 
   useEffect(() => {
     if (!mapRef.current) return;
@@ -257,10 +265,137 @@ export const MapView = () => {
     });
     aquifersLayerRef.current = aquifersLayer;
 
+    // OGC API Features layer for Grundvattenförekomster (water bodies)
+    const waterBodiesSource = new VectorSource({
+      format: new GeoJSON(),
+      loader: async () => {
+        try {
+          setLoadingWaterBodies(true);
+          setWaterBodiesLoaded(0);
+          console.log("Loading water bodies from OGC API...");
+          
+          const url = `https://api.sgu.se/oppnadata/grundvattenforekomster/ogc/features/v1/collections/grundvattenforekomster/items?f=json&limit=5000`;
+          
+          const response = await fetch(url);
+          
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          
+          const data = await response.json();
+          console.log(`Received ${data.features?.length || 0} water bodies`);
+          
+          if (data.features && data.features.length > 0) {
+            const features = new GeoJSON().readFeatures(
+              { type: "FeatureCollection", features: data.features },
+              {
+                dataProjection: "EPSG:4326",
+                featureProjection: "EPSG:3857",
+              }
+            );
+            
+            waterBodiesSource.addFeatures(features);
+            setWaterBodiesLoaded(features.length);
+            
+            if (waterBodiesLayerRef.current) {
+              waterBodiesLayerRef.current.setVisible(true);
+              waterBodiesLayerRef.current.changed();
+            }
+            
+            toast.success(`Laddade ${features.length} grundvattenförekomster`);
+          }
+        } catch (error) {
+          console.error("Error loading water bodies:", error);
+          toast.error("Kunde inte ladda grundvattenförekomster");
+        } finally {
+          setLoadingWaterBodies(false);
+        }
+      },
+    });
+
+    const waterBodiesLayer = new VectorLayer({
+      source: waterBodiesSource,
+      visible: waterBodiesVisible,
+      style: new Style({
+        stroke: new Stroke({
+          color: "rgba(59, 130, 246, 0.8)",
+          width: 2,
+        }),
+        fill: new Fill({
+          color: "rgba(59, 130, 246, 0.15)",
+        }),
+      }),
+    });
+    waterBodiesLayerRef.current = waterBodiesLayer;
+
+    // OGC API Features layer for Provplatser (sampling sites)
+    const samplingSitesSource = new VectorSource({
+      format: new GeoJSON(),
+      loader: async () => {
+        try {
+          setLoadingSamplingSites(true);
+          setSamplingSitesLoaded(0);
+          console.log("Loading sampling sites from OGC API...");
+          
+          const url = `https://api.sgu.se/oppnadata/grundvattenkvalitet-provplatser/ogc/features/v1/collections/provplatser/items?f=json&limit=5000`;
+          
+          const response = await fetch(url);
+          
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          
+          const data = await response.json();
+          console.log(`Received ${data.features?.length || 0} sampling sites`);
+          
+          if (data.features && data.features.length > 0) {
+            const features = new GeoJSON().readFeatures(
+              { type: "FeatureCollection", features: data.features },
+              {
+                dataProjection: "EPSG:4326",
+                featureProjection: "EPSG:3857",
+              }
+            );
+            
+            samplingSitesSource.addFeatures(features);
+            setSamplingSitesLoaded(features.length);
+            
+            if (samplingSitesLayerRef.current) {
+              samplingSitesLayerRef.current.setVisible(true);
+              samplingSitesLayerRef.current.changed();
+            }
+            
+            toast.success(`Laddade ${features.length} provplatser`);
+          }
+        } catch (error) {
+          console.error("Error loading sampling sites:", error);
+          toast.error("Kunde inte ladda provplatser");
+        } finally {
+          setLoadingSamplingSites(false);
+        }
+      },
+    });
+
+    const samplingSitesLayer = new VectorLayer({
+      source: samplingSitesSource,
+      visible: samplingSitesVisible,
+      style: new Style({
+        image: new Circle({
+          radius: 6,
+          fill: new Fill({ color: "rgba(251, 191, 36, 0.8)" }),
+          stroke: new Stroke({
+            color: "rgba(255, 255, 255, 0.8)",
+            width: 2,
+          }),
+        }),
+      }),
+    });
+    samplingSitesLayerRef.current = samplingSitesLayer;
+
     // Create map
     const map = new Map({
       target: mapRef.current,
-      layers: [osmLayer, aquifersLayer, wellsLayer, sourcesLayer],
+      layers: [osmLayer, waterBodiesLayer, aquifersLayer, wellsLayer, samplingSitesLayer, sourcesLayer],
       view: new View({
         center: [1784000, 8347000], // Uppsala center in Web Mercator
         zoom: 11,
@@ -282,15 +417,15 @@ export const MapView = () => {
       // Change cursor when hovering over features
       const pixel = map.getEventPixel(evt.originalEvent);
       const hit = map.hasFeatureAtPixel(pixel, {
-        layerFilter: (layer) => layer === sourcesLayer || layer === wellsLayer || layer === aquifersLayer,
+        layerFilter: (layer) => layer === sourcesLayer || layer === wellsLayer || layer === aquifersLayer || layer === waterBodiesLayer || layer === samplingSitesLayer,
       });
       map.getTargetElement().style.cursor = hit ? "pointer" : "";
     });
 
     // Handle feature clicks
-    map.on("click", (evt) => {
+    map.on("click", async (evt) => {
       const features = map.getFeaturesAtPixel(evt.pixel, {
-        layerFilter: (layer) => layer === sourcesLayer || layer === wellsLayer || layer === aquifersLayer,
+        layerFilter: (layer) => layer === sourcesLayer || layer === wellsLayer || layer === aquifersLayer || layer === waterBodiesLayer || layer === samplingSitesLayer,
       });
       
       if (features && features.length > 0) {
@@ -301,16 +436,42 @@ export const MapView = () => {
         const pixel = evt.pixel;
         const clickedLayers: any[] = [];
         map.forEachFeatureAtPixel(pixel, (f, layer) => {
-          if (layer === sourcesLayer || layer === wellsLayer || layer === aquifersLayer) {
+          if (layer === sourcesLayer || layer === wellsLayer || layer === aquifersLayer || layer === waterBodiesLayer || layer === samplingSitesLayer) {
             clickedLayers.push({ feature: f, layer });
           }
         });
         
         if (clickedLayers.length > 0) {
           const { layer } = clickedLayers[0];
-          let type: 'source' | 'well' | 'aquifer' = 'source';
+          let type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'samplingsite' = 'source';
           if (layer === wellsLayer) type = 'well';
           else if (layer === aquifersLayer) type = 'aquifer';
+          else if (layer === waterBodiesLayer) type = 'waterBody';
+          else if (layer === samplingSitesLayer) {
+            type = 'samplingsite';
+            // Fetch analysis results for sampling site
+            const obsplatsid = properties.obsplatsid;
+            if (obsplatsid) {
+              try {
+                console.log("Fetching analysis results for:", obsplatsid);
+                const url = `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat/ogc/features/v1/collections/analysresultat/items?f=json&obsplatsid=${obsplatsid}&limit=1&sortby=-provtagningsdatum`;
+                const response = await fetch(url);
+                if (response.ok) {
+                  const data = await response.json();
+                  if (data.features && data.features.length > 0) {
+                    setSelectedFeature({ 
+                      properties, 
+                      type, 
+                      analysisResults: data.features.map((f: any) => f.properties) 
+                    });
+                    return;
+                  }
+                }
+              } catch (error) {
+                console.error("Error fetching analysis results:", error);
+              }
+            }
+          }
           setSelectedFeature({ properties, type });
         }
       }
@@ -374,6 +535,34 @@ export const MapView = () => {
     }
   }, [aquifersOpacity]);
 
+  // Update Water Bodies visibility and load data when enabled
+  useEffect(() => {
+    if (waterBodiesLayerRef.current) {
+      if (waterBodiesVisible && waterBodiesLayerRef.current.getSource()?.getFeatures().length === 0) {
+        waterBodiesLayerRef.current.getSource()?.loadFeatures(
+          waterBodiesLayerRef.current.getSource()!.getExtent(),
+          1,
+          waterBodiesLayerRef.current.getSource()!.getProjection()
+        );
+      }
+      waterBodiesLayerRef.current.setVisible(waterBodiesVisible);
+    }
+  }, [waterBodiesVisible]);
+
+  // Update Sampling Sites visibility and load data when enabled
+  useEffect(() => {
+    if (samplingSitesLayerRef.current) {
+      if (samplingSitesVisible && samplingSitesLayerRef.current.getSource()?.getFeatures().length === 0) {
+        samplingSitesLayerRef.current.getSource()?.loadFeatures(
+          samplingSitesLayerRef.current.getSource()!.getExtent(),
+          1,
+          samplingSitesLayerRef.current.getSource()!.getProjection()
+        );
+      }
+      samplingSitesLayerRef.current.setVisible(samplingSitesVisible);
+    }
+  }, [samplingSitesVisible]);
+
   const handleSearchResult = (coordinates: [number, number], zoom?: number) => {
     if (mapInstanceRef.current) {
       mapInstanceRef.current.getView().animate({
@@ -395,18 +584,24 @@ export const MapView = () => {
         wellsVisible={wellsVisible}
         aquifersVisible={aquifersVisible}
         aquifersOpacity={aquifersOpacity}
+        waterBodiesVisible={waterBodiesVisible}
+        samplingSitesVisible={samplingSitesVisible}
         sourcesLoaded={sourcesLoaded}
         wellsLoaded={wellsLoaded}
         aquifersLoaded={aquifersLoaded}
+        waterBodiesLoaded={waterBodiesLoaded}
+        samplingSitesLoaded={samplingSitesLoaded}
         onSourcesVisibleChange={setSourcesVisible}
         onWellsVisibleChange={setWellsVisible}
         onAquifersVisibleChange={setAquifersVisible}
         onAquifersOpacityChange={setAquifersOpacity}
+        onWaterBodiesVisibleChange={setWaterBodiesVisible}
+        onSamplingSitesVisibleChange={setSamplingSitesVisible}
       />
       
       <CoordinateDisplay coordinates={coordinates} />
       
-      {(loadingSources || loadingWells || loadingAquifers) && (
+      {(loadingSources || loadingWells || loadingAquifers || loadingWaterBodies || loadingSamplingSites) && (
         <div className="absolute top-20 left-1/2 transform -translate-x-1/2 bg-background/95 backdrop-blur-sm p-4 rounded-lg shadow-lg border z-10 min-w-[300px]">
           <div className="space-y-3">
             {loadingSources && (
@@ -442,6 +637,28 @@ export const MapView = () => {
                 </div>
               </div>
             )}
+            {loadingWaterBodies && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium">Laddar grundvattenförekomster...</span>
+                  <span className="text-muted-foreground">{waterBodiesLoaded} förekomster</span>
+                </div>
+                <div className="w-full bg-secondary rounded-full h-2 overflow-hidden">
+                  <div className="h-full bg-primary transition-all duration-300 rounded-full animate-pulse" style={{ width: '100%' }} />
+                </div>
+              </div>
+            )}
+            {loadingSamplingSites && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium">Laddar provplatser...</span>
+                  <span className="text-muted-foreground">{samplingSitesLoaded} platser</span>
+                </div>
+                <div className="w-full bg-secondary rounded-full h-2 overflow-hidden">
+                  <div className="h-full bg-primary transition-all duration-300 rounded-full animate-pulse" style={{ width: '100%' }} />
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -450,6 +667,7 @@ export const MapView = () => {
         <WellPopup
           properties={selectedFeature.properties}
           type={selectedFeature.type}
+          analysisResults={selectedFeature.analysisResults}
           onClose={() => setSelectedFeature(null)}
         />
       )}

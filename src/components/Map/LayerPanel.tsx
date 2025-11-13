@@ -9,13 +9,19 @@ interface LayerPanelProps {
   wellsVisible: boolean;
   aquifersVisible: boolean;
   aquifersOpacity: number;
+  waterBodiesVisible: boolean;
+  samplingSitesVisible: boolean;
   sourcesLoaded: number;
   wellsLoaded: number;
   aquifersLoaded: number;
+  waterBodiesLoaded: number;
+  samplingSitesLoaded: number;
   onSourcesVisibleChange: (visible: boolean) => void;
   onWellsVisibleChange: (visible: boolean) => void;
   onAquifersVisibleChange: (visible: boolean) => void;
   onAquifersOpacityChange: (opacity: number) => void;
+  onWaterBodiesVisibleChange: (visible: boolean) => void;
+  onSamplingSitesVisibleChange: (visible: boolean) => void;
 }
 
 export const LayerPanel = ({
@@ -23,13 +29,19 @@ export const LayerPanel = ({
   wellsVisible,
   aquifersVisible,
   aquifersOpacity,
+  waterBodiesVisible,
+  samplingSitesVisible,
   sourcesLoaded,
   wellsLoaded,
   aquifersLoaded,
+  waterBodiesLoaded,
+  samplingSitesLoaded,
   onSourcesVisibleChange,
   onWellsVisibleChange,
   onAquifersVisibleChange,
   onAquifersOpacityChange,
+  onWaterBodiesVisibleChange,
+  onSamplingSitesVisibleChange,
 }: LayerPanelProps) => {
   return (
     <Card className="absolute top-4 right-4 w-80 p-4 bg-card/95 backdrop-blur-sm shadow-lg border-border">
@@ -134,6 +146,62 @@ export const LayerPanel = ({
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full bg-[rgb(168,85,247)]" />
                 <span className="text-muted-foreground">Källor</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Water Bodies Layer Control */}
+        <div className="space-y-3 pt-4 border-t border-border">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label htmlFor="waterbodies-layer" className="text-sm font-medium">
+                Grundvattenförekomster
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Vattenförvaltning {waterBodiesLoaded > 0 && `(${waterBodiesLoaded})`}
+              </p>
+            </div>
+            <Switch
+              id="waterbodies-layer"
+              checked={waterBodiesVisible}
+              onCheckedChange={onWaterBodiesVisibleChange}
+            />
+          </div>
+          
+          {waterBodiesVisible && (
+            <div className="mt-3 space-y-2 text-xs">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full border-2 border-[rgb(59,130,246)] bg-[rgba(59,130,246,0.15)]" />
+                <span className="text-muted-foreground">Klickbara förekomster</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Sampling Sites Layer Control */}
+        <div className="space-y-3 pt-4 border-t border-border">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label htmlFor="samplingsites-layer" className="text-sm font-medium">
+                Provplatser miljöövervakning
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Grundvattenkvalitet {samplingSitesLoaded > 0 && `(${samplingSitesLoaded})`}
+              </p>
+            </div>
+            <Switch
+              id="samplingsites-layer"
+              checked={samplingSitesVisible}
+              onCheckedChange={onSamplingSitesVisibleChange}
+            />
+          </div>
+          
+          {samplingSitesVisible && (
+            <div className="mt-3 space-y-2 text-xs">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-[rgb(251,191,36)]" />
+                <span className="text-muted-foreground">Klickbara provplatser</span>
               </div>
             </div>
           )}
