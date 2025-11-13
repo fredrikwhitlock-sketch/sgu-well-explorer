@@ -27,15 +27,42 @@ export const SearchControl = ({ onSearchResult }: SearchControlProps) => {
       
       if (coordMatch) {
         const [, coord1, coord2] = coordMatch;
-        const lat = parseFloat(coord1);
-        const lon = parseFloat(coord2);
+        const num1 = parseFloat(coord1);
+        const num2 = parseFloat(coord2);
         
-        // Convert WGS84 to Web Mercator
-        const x = lon * 20037508.34 / 180;
-        const y = Math.log(Math.tan((90 + lat) * Math.PI / 360)) / (Math.PI / 180) * 20037508.34 / 180;
+        let x: number, y: number;
+        
+        // Determine coordinate system based on values
+        // SWEREF 99 TM (EPSG:3006): N typically 6000000-7700000, E typically 250000-950000
+        // WGS84: lat -90 to 90, lon -180 to 180
+        if (num1 > 1000000) {
+          // Likely SWEREF 99 TM (N, E format)
+          const N = num1;
+          const E = num2;
+          
+          // Convert SWEREF 99 TM to WGS84 using proj4
+          const proj4 = (await import('proj4')).default;
+          proj4.defs("EPSG:3006", "+proj=utm +zone=33 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs");
+          const [lon, lat] = proj4("EPSG:3006", "EPSG:4326", [E, N]);
+          
+          // Convert WGS84 to Web Mercator
+          x = lon * 20037508.34 / 180;
+          y = Math.log(Math.tan((90 + lat) * Math.PI / 360)) / (Math.PI / 180) * 20037508.34 / 180;
+          
+          toast.success(`SWEREF 99 TM: N ${N.toFixed(0)}, E ${E.toFixed(0)}`);
+        } else {
+          // Assume WGS84 (lat, lon)
+          const lat = num1;
+          const lon = num2;
+          
+          // Convert WGS84 to Web Mercator
+          x = lon * 20037508.34 / 180;
+          y = Math.log(Math.tan((90 + lat) * Math.PI / 360)) / (Math.PI / 180) * 20037508.34 / 180;
+          
+          toast.success(`WGS84: ${lat.toFixed(4)}, ${lon.toFixed(4)}`);
+        }
         
         onSearchResult([x, y], 14);
-        toast.success(`Koordinat: ${lat.toFixed(4)}, ${lon.toFixed(4)}`);
       } else {
         // Use Nominatim for geocoding
         const response = await fetch(
@@ -114,7 +141,7 @@ export const SearchControl = ({ onSearchResult }: SearchControlProps) => {
         </Button>
       </div>
       <p className="text-xs text-muted-foreground mt-2">
-        Exempel: Stockholm, lat,lon (59.33,18.06)
+        Exempel: Stockholm, 59.33,18.06 eller 6580822,674032 (SWEREF 99 TM)
       </p>
     </Card>
   );
