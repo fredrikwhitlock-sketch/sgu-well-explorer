@@ -10,18 +10,21 @@ interface LayerPanelProps {
   aquifersVisible: boolean;
   aquifersOpacity: number;
   waterBodiesVisible: boolean;
-  samplingSitesVisible: boolean;
+  gwLevelsObservedVisible: boolean;
+  gwLevelsModeledVisible: boolean;
   sourcesLoaded: number;
   wellsLoaded: number;
   aquifersLoaded: number;
   waterBodiesLoaded: number;
-  samplingSitesLoaded: number;
+  gwLevelsObservedLoaded: number;
+  gwLevelsModeledLoaded: number;
   onSourcesVisibleChange: (visible: boolean) => void;
   onWellsVisibleChange: (visible: boolean) => void;
   onAquifersVisibleChange: (visible: boolean) => void;
   onAquifersOpacityChange: (opacity: number) => void;
   onWaterBodiesVisibleChange: (visible: boolean) => void;
-  onSamplingSitesVisibleChange: (visible: boolean) => void;
+  onGwLevelsObservedVisibleChange: (visible: boolean) => void;
+  onGwLevelsModeledVisibleChange: (visible: boolean) => void;
 }
 
 export const LayerPanel = ({
@@ -30,18 +33,21 @@ export const LayerPanel = ({
   aquifersVisible,
   aquifersOpacity,
   waterBodiesVisible,
-  samplingSitesVisible,
+  gwLevelsObservedVisible,
+  gwLevelsModeledVisible,
   sourcesLoaded,
   wellsLoaded,
   aquifersLoaded,
   waterBodiesLoaded,
-  samplingSitesLoaded,
+  gwLevelsObservedLoaded,
+  gwLevelsModeledLoaded,
   onSourcesVisibleChange,
   onWellsVisibleChange,
   onAquifersVisibleChange,
   onAquifersOpacityChange,
   onWaterBodiesVisibleChange,
-  onSamplingSitesVisibleChange,
+  onGwLevelsObservedVisibleChange,
+  onGwLevelsModeledVisibleChange,
 }: LayerPanelProps) => {
   return (
     <Card className="absolute top-4 right-4 w-80 p-4 bg-card/95 backdrop-blur-sm shadow-lg border-border">
