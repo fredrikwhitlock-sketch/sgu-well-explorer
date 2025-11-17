@@ -185,29 +185,57 @@ export const LayerPanel = ({
           )}
         </div>
 
-        {/* Sampling Sites Layer Control */}
+        {/* Observed Groundwater Levels Layer Control */}
         <div className="space-y-3 pt-4 border-t border-border">
           <div className="flex items-center justify-between">
             <div className="space-y-1">
-              <Label htmlFor="samplingsites-layer" className="text-sm font-medium">
-                Provplatser miljöövervakning
+              <Label htmlFor="gw-observed-layer" className="text-sm font-medium">
+                Grundvattennivåer observerade
               </Label>
               <p className="text-xs text-muted-foreground">
-                Grundvattenkvalitet {samplingSitesLoaded > 0 && `(${samplingSitesLoaded})`}
+                Mätstationer från SGU {gwLevelsObservedLoaded > 0 && `(${gwLevelsObservedLoaded})`}
               </p>
             </div>
             <Switch
-              id="samplingsites-layer"
-              checked={samplingSitesVisible}
-              onCheckedChange={onSamplingSitesVisibleChange}
+              id="gw-observed-layer"
+              checked={gwLevelsObservedVisible}
+              onCheckedChange={onGwLevelsObservedVisibleChange}
             />
           </div>
           
-          {samplingSitesVisible && (
+          {gwLevelsObservedVisible && (
             <div className="mt-3 space-y-2 text-xs">
               <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-[rgb(251,191,36)]" />
-                <span className="text-muted-foreground">Klickbara provplatser</span>
+                <div className="w-3 h-3 rounded-full bg-[rgb(147,51,234)]" />
+                <span className="text-muted-foreground">Klickbara stationer</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Modeled Groundwater Levels Layer Control */}
+        <div className="space-y-3 pt-4 border-t border-border">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label htmlFor="gw-modeled-layer" className="text-sm font-medium">
+                Grundvattennivåer modellerade (HYPE)
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Beräknade nivåer {gwLevelsModeledLoaded > 0 && `(${gwLevelsModeledLoaded})`}
+              </p>
+            </div>
+            <Switch
+              id="gw-modeled-layer"
+              checked={gwLevelsModeledVisible}
+              onCheckedChange={onGwLevelsModeledVisibleChange}
+            />
+          </div>
+          
+          {gwLevelsModeledVisible && (
+            <div className="mt-3 space-y-2 text-xs">
+              <div className="flex items-center gap-2">
+                <div className="w-12 h-3 bg-gradient-to-r from-red-500 via-yellow-400 to-blue-500 border border-black/30"></div>
+                <span className="text-muted-foreground">Torrt → Högt</span>
               </div>
             </div>
           )}
