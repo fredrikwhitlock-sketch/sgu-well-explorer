@@ -13,6 +13,10 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        serif: ['Georgia', 'Times New Roman', 'serif'],
+        sans: ['Arial', 'Helvetica', 'sans-serif'],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -61,6 +65,12 @@ export default {
           DEFAULT: "hsl(var(--map-control))",
           hover: "hsl(var(--map-control-hover))",
           active: "hsl(var(--map-control-active))",
+        },
+        sgu: {
+          maroon: "hsl(var(--sgu-maroon))",
+          "dark-maroon": "hsl(var(--sgu-dark-maroon))",
+          cream: "hsl(var(--sgu-cream))",
+          link: "hsl(var(--sgu-link))",
         },
       },
       boxShadow: {

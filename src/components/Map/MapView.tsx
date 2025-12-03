@@ -1,11 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import Map from "ol/Map";
+import OLMap from "ol/Map";
 import View from "ol/View";
 import TileLayer from "ol/layer/Tile";
-import ImageLayer from "ol/layer/Image";
 import VectorLayer from "ol/layer/Vector";
 import OSM from "ol/source/OSM";
-import ImageWMS from "ol/source/ImageWMS";
 import VectorSource from "ol/source/Vector";
 import GeoJSON from "ol/format/GeoJSON";
 import { register } from "ol/proj/proj4";
@@ -25,9 +23,21 @@ import { toast } from "sonner";
 proj4.defs("EPSG:3006", "+proj=utm +zone=33 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs");
 register(proj4);
 
+// Function to get color based on fill degree (fyllnadsgrad) - red (dry) to blue (high levels)
+const getGwFillColor = (fillDegree: number | undefined, opacity: number = 0.7) => {
+  if (fillDegree === undefined || fillDegree === null) return `rgba(128, 128, 128, ${opacity})`; // Gray for missing data
+  if (fillDegree < 10) return `rgba(180, 30, 30, ${opacity})`; // Dark red - very dry
+  if (fillDegree < 25) return `rgba(239, 68, 68, ${opacity})`; // Red - dry
+  if (fillDegree < 40) return `rgba(249, 115, 22, ${opacity})`; // Orange
+  if (fillDegree < 60) return `rgba(250, 204, 21, ${opacity})`; // Yellow - normal
+  if (fillDegree < 75) return `rgba(132, 204, 22, ${opacity})`; // Yellow-green
+  if (fillDegree < 90) return `rgba(34, 197, 94, ${opacity})`; // Green - wet
+  return `rgba(59, 130, 246, ${opacity})`; // Blue - very wet
+};
+
 export const MapView = () => {
   const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<Map | null>(null);
+  const mapInstanceRef = useRef<OLMap | null>(null);
   const [sourcesVisible, setSourcesVisible] = useState(false);
   const [wellsVisible, setWellsVisible] = useState(false);
   const [aquifersVisible, setAquifersVisible] = useState(false);
@@ -42,7 +52,8 @@ export const MapView = () => {
   const [aquifersLoaded, setAquifersLoaded] = useState(0);
   const [waterBodiesVisible, setWaterBodiesVisible] = useState(false);
   const [gwLevelsObservedVisible, setGwLevelsObservedVisible] = useState(false);
-  const [gwLevelsModeledVisible, setGwLevelsModeledVisible] = useState(false);
+  const [gwLevelsModeledSmaVisible, setGwLevelsModeledSmaVisible] = useState(false);
+  const [gwLevelsModeledStoraVisible, setGwLevelsModeledStoraVisible] = useState(false);
   const [loadingWaterBodies, setLoadingWaterBodies] = useState(false);
   const [loadingGwLevelsObserved, setLoadingGwLevelsObserved] = useState(false);
   const [loadingGwLevelsModeled, setLoadingGwLevelsModeled] = useState(false);
@@ -54,7 +65,11 @@ export const MapView = () => {
   const aquifersLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const waterBodiesLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const gwLevelsObservedLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
-  const gwLevelsModeledLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
+  const gwLevelsModeledSmaLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
+  const gwLevelsModeledStoraLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
+
+  // Cache for HYPE level data
+  const hypeLevelDataRef = useRef<Map<string, any>>(new Map());
 
   useEffect(() => {
     if (!mapRef.current) return;
@@ -126,7 +141,7 @@ export const MapView = () => {
       style: new Style({
         image: new Circle({
           radius: 6,
-          fill: new Fill({ color: "rgba(168, 85, 247, 0.8)" }),
+          fill: new Fill({ color: "rgba(92, 45, 81, 0.8)" }), // SGU maroon
           stroke: new Stroke({
             color: "rgba(255, 255, 255, 0.8)",
             width: 2,
@@ -205,29 +220,55 @@ export const MapView = () => {
     });
     wellsLayerRef.current = wellsLayer;
 
-    // OGC API Features layer for Grundvattenmagasin (aquifers)
+    // Helper function to fetch all pages from OGC API
+    const fetchAllPages = async (baseUrl: string, onProgress?: (count: number) => void): Promise<any[]> => {
+      const allFeatures: any[] = [];
+      let nextUrl: string | null = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}limit=1000`;
+      
+      while (nextUrl) {
+        const response = await fetch(nextUrl);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        
+        if (data.features) {
+          allFeatures.push(...data.features);
+          onProgress?.(allFeatures.length);
+        }
+        
+        // Check for next page link
+        nextUrl = null;
+        if (data.links) {
+          const nextLink = data.links.find((l: any) => l.rel === 'next');
+          if (nextLink) {
+            nextUrl = nextLink.href;
+          }
+        }
+      }
+      
+      return allFeatures;
+    };
+
+    // OGC API Features layer for Grundvattenmagasin (aquifers) - No limit
     const aquifersSource = new VectorSource({
       format: new GeoJSON(),
       loader: async () => {
         try {
           setLoadingAquifers(true);
           setAquifersLoaded(0);
-          console.log("Loading aquifers from OGC API...");
+          console.log("Loading all aquifers from OGC API...");
           
-          const url = `https://api.sgu.se/oppnadata/grundvattenmagasin/ogc/features/v1/collections/grundvattenmagasin/items?f=json&limit=5000`;
+          const allFeatures = await fetchAllPages(
+            `https://api.sgu.se/oppnadata/grundvattenmagasin/ogc/features/v1/collections/grundvattenmagasin/items?f=json`,
+            (count) => setAquifersLoaded(count)
+          );
           
-          const response = await fetch(url);
+          console.log(`Received ${allFeatures.length} aquifers total`);
           
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-          
-          const data = await response.json();
-          console.log(`Received ${data.features?.length || 0} aquifers`);
-          
-          if (data.features && data.features.length > 0) {
+          if (allFeatures.length > 0) {
             const features = new GeoJSON().readFeatures(
-              { type: "FeatureCollection", features: data.features },
+              { type: "FeatureCollection", features: allFeatures },
               {
                 dataProjection: "EPSG:4326",
                 featureProjection: "EPSG:3857",
@@ -269,29 +310,25 @@ export const MapView = () => {
     });
     aquifersLayerRef.current = aquifersLayer;
 
-    // OGC API Features layer for Grundvattenförekomster (water bodies)
+    // OGC API Features layer for Grundvattenförekomster (water bodies) - No limit
     const waterBodiesSource = new VectorSource({
       format: new GeoJSON(),
       loader: async () => {
         try {
           setLoadingWaterBodies(true);
           setWaterBodiesLoaded(0);
-          console.log("Loading water bodies from OGC API...");
+          console.log("Loading all water bodies from OGC API...");
           
-          const url = `https://api.sgu.se/oppnadata/grundvattenforekomster/ogc/features/v1/collections/grundvattenforekomster/items?f=json&limit=5000`;
+          const allFeatures = await fetchAllPages(
+            `https://api.sgu.se/oppnadata/grundvattenforekomster/ogc/features/v1/collections/grundvattenforekomster/items?f=json`,
+            (count) => setWaterBodiesLoaded(count)
+          );
           
-          const response = await fetch(url);
+          console.log(`Received ${allFeatures.length} water bodies total`);
           
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-          
-          const data = await response.json();
-          console.log(`Received ${data.features?.length || 0} water bodies`);
-          
-          if (data.features && data.features.length > 0) {
+          if (allFeatures.length > 0) {
             const features = new GeoJSON().readFeatures(
-              { type: "FeatureCollection", features: data.features },
+              { type: "FeatureCollection", features: allFeatures },
               {
                 dataProjection: "EPSG:4326",
                 featureProjection: "EPSG:3857",
@@ -341,20 +378,16 @@ export const MapView = () => {
           setGwLevelsObservedLoaded(0);
           console.log("Loading observed groundwater levels from OGC API...");
           
-          const url = `https://api.sgu.se/oppnadata/grundvattennivaer-observerade/ogc/features/v1/collections/stationer/items?f=json&limit=5000`;
+          const allFeatures = await fetchAllPages(
+            `https://api.sgu.se/oppnadata/grundvattennivaer-observerade/ogc/features/v1/collections/stationer/items?f=json`,
+            (count) => setGwLevelsObservedLoaded(count)
+          );
           
-          const response = await fetch(url);
+          console.log(`Received ${allFeatures.length} groundwater level stations`);
           
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-          
-          const data = await response.json();
-          console.log(`Received ${data.features?.length || 0} groundwater level stations`);
-          
-          if (data.features && data.features.length > 0) {
+          if (allFeatures.length > 0) {
             const features = new GeoJSON().readFeatures(
-              { type: "FeatureCollection", features: data.features },
+              { type: "FeatureCollection", features: allFeatures },
               {
                 dataProjection: "EPSG:4326",
                 featureProjection: "EPSG:3857",
@@ -396,87 +429,130 @@ export const MapView = () => {
     });
     gwLevelsObservedLayerRef.current = gwLevelsObservedLayer;
 
-    // OGC API Features layer for Grundvattennivåer modellerade (modeled groundwater levels - HYPE)
-    // Function to get color based on fill degree (fyllnadsgrad) - red (dry) to blue (high levels)
-    const getGwFillColor = (fillDegree: number) => {
-      if (fillDegree < 20) return "rgba(239, 68, 68, 0.7)"; // Red - very dry
-      if (fillDegree < 40) return "rgba(249, 115, 22, 0.7)"; // Orange - dry
-      if (fillDegree < 60) return "rgba(250, 204, 21, 0.7)"; // Yellow - normal
-      if (fillDegree < 80) return "rgba(34, 197, 94, 0.7)"; // Green - wet
-      return "rgba(59, 130, 246, 0.7)"; // Blue - very wet
-    };
-
+    // Shared source for HYPE areas
     const gwLevelsModeledSource = new VectorSource({
       format: new GeoJSON(),
-      loader: async () => {
-        try {
-          setLoadingGwLevelsModeled(true);
-          setGwLevelsModeledLoaded(0);
-          console.log("Loading modeled groundwater levels from OGC API...");
-          
-          const url = `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/omraden/items?f=json&limit=5000`;
-          
-          const response = await fetch(url);
-          
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-          
-          const data = await response.json();
-          console.log(`Received ${data.features?.length || 0} modeled groundwater level areas`);
-          
-          if (data.features && data.features.length > 0) {
-            const features = new GeoJSON().readFeatures(
-              { type: "FeatureCollection", features: data.features },
-              {
-                dataProjection: "EPSG:4326",
-                featureProjection: "EPSG:3857",
-              }
-            );
-            
-            gwLevelsModeledSource.addFeatures(features);
-            setGwLevelsModeledLoaded(features.length);
-            
-            if (gwLevelsModeledLayerRef.current) {
-              gwLevelsModeledLayerRef.current.setVisible(true);
-              gwLevelsModeledLayerRef.current.changed();
-            }
-            
-            toast.success(`Laddade ${features.length} modellerade grundvattennivåområden`);
-          }
-        } catch (error) {
-          console.error("Error loading modeled groundwater levels:", error);
-          toast.error("Kunde inte ladda modellerade grundvattennivåer");
-        } finally {
-          setLoadingGwLevelsModeled(false);
-        }
-      },
     });
 
-    const gwLevelsModeledLayer = new VectorLayer({
+    // Function to load HYPE areas with latest level data
+    const loadHypeData = async () => {
+      try {
+        setLoadingGwLevelsModeled(true);
+        setGwLevelsModeledLoaded(0);
+        console.log("Loading HYPE areas from OGC API...");
+        
+        // First, load all areas
+        const areaFeatures = await fetchAllPages(
+          `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/omraden/items?f=json`,
+          (count) => setGwLevelsModeledLoaded(count)
+        );
+        
+        console.log(`Received ${areaFeatures.length} HYPE areas`);
+        
+        if (areaFeatures.length > 0) {
+          // Fetch the latest groundwater level data (sorted by date descending)
+          console.log("Loading latest HYPE level data...");
+          const levelResponse = await fetch(
+            `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/grundvattennivaer_tidigare/items?f=json&limit=10000&sortby=-datum`
+          );
+          
+          let levelDataMap = new Map<string, any>();
+          if (levelResponse.ok) {
+            const levelData = await levelResponse.json();
+            console.log(`Received ${levelData.features?.length || 0} level records`);
+            
+            // Create a map of omrade_id to latest level data
+            if (levelData.features) {
+              for (const feature of levelData.features) {
+                const omradeId = feature.properties?.omrade_id;
+                if (omradeId && !levelDataMap.has(omradeId)) {
+                  levelDataMap.set(omradeId, feature.properties);
+                }
+              }
+            }
+          }
+          
+          hypeLevelDataRef.current = levelDataMap;
+          console.log(`Mapped level data for ${levelDataMap.size} areas`);
+          
+          // Merge area features with level data
+          const mergedFeatures = areaFeatures.map(feature => {
+            const omradeId = feature.properties?.omrade_id;
+            const levelData = levelDataMap.get(omradeId);
+            return {
+              ...feature,
+              properties: {
+                ...feature.properties,
+                ...levelData,
+              }
+            };
+          });
+          
+          const features = new GeoJSON().readFeatures(
+            { type: "FeatureCollection", features: mergedFeatures },
+            {
+              dataProjection: "EPSG:4326",
+              featureProjection: "EPSG:3857",
+            }
+          );
+          
+          gwLevelsModeledSource.addFeatures(features);
+          setGwLevelsModeledLoaded(features.length);
+          
+          toast.success(`Laddade ${features.length} HYPE-områden med nivådata`);
+        }
+      } catch (error) {
+        console.error("Error loading HYPE data:", error);
+        toast.error("Kunde inte ladda modellerade grundvattennivåer");
+      } finally {
+        setLoadingGwLevelsModeled(false);
+      }
+    };
+
+    // Layer for small aquifers (små magasin)
+    const gwLevelsModeledSmaLayer = new VectorLayer({
       source: gwLevelsModeledSource,
-      visible: gwLevelsModeledVisible,
+      visible: gwLevelsModeledSmaVisible,
       style: (feature: Feature) => {
         const props = feature.getProperties();
-        // Try to get the latest fyllnadsgrad value from properties
-        const fillDegree = props.fyllnadsgrad || props.fill_degree || 50; // Default to 50 if not found
+        const fillDegree = props.fyllnadsgrad_sma;
         return new Style({
           stroke: new Stroke({
             color: "rgba(0, 0, 0, 0.3)",
             width: 1,
           }),
           fill: new Fill({
-            color: getGwFillColor(fillDegree),
+            color: getGwFillColor(fillDegree, 0.6),
           }),
         });
       },
     });
-    gwLevelsModeledLayerRef.current = gwLevelsModeledLayer;
+    gwLevelsModeledSmaLayerRef.current = gwLevelsModeledSmaLayer;
+
+    // Layer for large aquifers (stora magasin)
+    const gwLevelsModeledStoraLayer = new VectorLayer({
+      source: gwLevelsModeledSource,
+      visible: gwLevelsModeledStoraVisible,
+      style: (feature: Feature) => {
+        const props = feature.getProperties();
+        const fillDegree = props.fyllnadsgrad_stora;
+        return new Style({
+          stroke: new Stroke({
+            color: "rgba(0, 0, 0, 0.3)",
+            width: 1,
+          }),
+          fill: new Fill({
+            color: getGwFillColor(fillDegree, 0.6),
+          }),
+        });
+      },
+    });
+    gwLevelsModeledStoraLayerRef.current = gwLevelsModeledStoraLayer;
 
     // Create map
-    const map = new Map({
+    const map = new OLMap({
       target: mapRef.current,
-      layers: [osmLayer, waterBodiesLayer, aquifersLayer, gwLevelsModeledLayer, gwLevelsObservedLayer, wellsLayer, sourcesLayer],
+      layers: [osmLayer, waterBodiesLayer, aquifersLayer, gwLevelsModeledStoraLayer, gwLevelsModeledSmaLayer, gwLevelsObservedLayer, wellsLayer, sourcesLayer],
       view: new View({
         center: [1784000, 8347000], // Uppsala center in Web Mercator
         zoom: 11,
@@ -498,7 +574,7 @@ export const MapView = () => {
       // Change cursor when hovering over features
       const pixel = map.getEventPixel(evt.originalEvent);
       const hit = map.hasFeatureAtPixel(pixel, {
-        layerFilter: (layer) => layer === sourcesLayer || layer === wellsLayer || layer === aquifersLayer || layer === waterBodiesLayer || layer === gwLevelsObservedLayer || layer === gwLevelsModeledLayer,
+        layerFilter: (layer) => layer === sourcesLayer || layer === wellsLayer || layer === aquifersLayer || layer === waterBodiesLayer || layer === gwLevelsObservedLayer || layer === gwLevelsModeledSmaLayer || layer === gwLevelsModeledStoraLayer,
       });
       map.getTargetElement().style.cursor = hit ? "pointer" : "";
     });
@@ -506,7 +582,7 @@ export const MapView = () => {
     // Handle feature clicks
     map.on("click", async (evt) => {
       const features = map.getFeaturesAtPixel(evt.pixel, {
-        layerFilter: (layer) => layer === sourcesLayer || layer === wellsLayer || layer === aquifersLayer || layer === waterBodiesLayer || layer === gwLevelsObservedLayer || layer === gwLevelsModeledLayer,
+        layerFilter: (layer) => layer === sourcesLayer || layer === wellsLayer || layer === aquifersLayer || layer === waterBodiesLayer || layer === gwLevelsObservedLayer || layer === gwLevelsModeledSmaLayer || layer === gwLevelsModeledStoraLayer,
       });
       
       if (features && features.length > 0) {
@@ -517,7 +593,7 @@ export const MapView = () => {
         const pixel = evt.pixel;
         const clickedLayers: any[] = [];
         map.forEachFeatureAtPixel(pixel, (f, layer) => {
-          if (layer === sourcesLayer || layer === wellsLayer || layer === aquifersLayer || layer === waterBodiesLayer || layer === gwLevelsObservedLayer || layer === gwLevelsModeledLayer) {
+          if (layer === sourcesLayer || layer === wellsLayer || layer === aquifersLayer || layer === waterBodiesLayer || layer === gwLevelsObservedLayer || layer === gwLevelsModeledSmaLayer || layer === gwLevelsModeledStoraLayer) {
             clickedLayers.push({ feature: f, layer });
           }
         });
@@ -529,7 +605,7 @@ export const MapView = () => {
           else if (layer === aquifersLayer) type = 'aquifer';
           else if (layer === waterBodiesLayer) type = 'waterBody';
           else if (layer === gwLevelsObservedLayer) type = 'gwLevelsObserved';
-          else if (layer === gwLevelsModeledLayer) type = 'gwLevelsModeled';
+          else if (layer === gwLevelsModeledSmaLayer || layer === gwLevelsModeledStoraLayer) type = 'gwLevelsModeled';
           setSelectedFeature({ properties, type });
         }
       }
@@ -607,7 +683,7 @@ export const MapView = () => {
     }
   }, [waterBodiesVisible]);
 
-  // Update Sampling Sites visibility and load data when enabled
+  // Update Observed GW Levels visibility and load data when enabled
   useEffect(() => {
     if (gwLevelsObservedLayerRef.current) {
       if (gwLevelsObservedVisible && gwLevelsObservedLayerRef.current.getSource()?.getFeatures().length === 0) {
@@ -621,19 +697,111 @@ export const MapView = () => {
     }
   }, [gwLevelsObservedVisible]);
 
-  // Update Modeled Groundwater Levels visibility and load data when enabled
+  // Update HYPE layers visibility and load data when either is enabled
   useEffect(() => {
-    if (gwLevelsModeledLayerRef.current) {
-      if (gwLevelsModeledVisible && gwLevelsModeledLayerRef.current.getSource()?.getFeatures().length === 0) {
-        gwLevelsModeledLayerRef.current.getSource()?.loadFeatures(
-          gwLevelsModeledLayerRef.current.getSource()!.getExtent(),
-          1,
-          gwLevelsModeledLayerRef.current.getSource()!.getProjection()
-        );
+    const shouldLoad = gwLevelsModeledSmaVisible || gwLevelsModeledStoraVisible;
+    const sourceEmpty = gwLevelsModeledSmaLayerRef.current?.getSource()?.getFeatures().length === 0;
+    
+    if (shouldLoad && sourceEmpty && gwLevelsModeledSmaLayerRef.current) {
+      // Load HYPE data using the dedicated loader
+      const source = gwLevelsModeledSmaLayerRef.current.getSource();
+      if (source && source.getFeatures().length === 0) {
+        // Trigger load manually since both layers share the same source
+        (async () => {
+          try {
+            setLoadingGwLevelsModeled(true);
+            setGwLevelsModeledLoaded(0);
+            
+            // Helper function to fetch all pages
+            const fetchAllPages = async (baseUrl: string, onProgress?: (count: number) => void): Promise<any[]> => {
+              const allFeatures: any[] = [];
+              let nextUrl: string | null = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}limit=1000`;
+              
+              while (nextUrl) {
+                const response = await fetch(nextUrl);
+                if (!response.ok) break;
+                const data = await response.json();
+                
+                if (data.features) {
+                  allFeatures.push(...data.features);
+                  onProgress?.(allFeatures.length);
+                }
+                
+                nextUrl = null;
+                if (data.links) {
+                  const nextLink = data.links.find((l: any) => l.rel === 'next');
+                  if (nextLink) nextUrl = nextLink.href;
+                }
+              }
+              
+              return allFeatures;
+            };
+            
+            // Load all areas
+            const areaFeatures = await fetchAllPages(
+              `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/omraden/items?f=json`,
+              (count) => setGwLevelsModeledLoaded(count)
+            );
+            
+            // Fetch the latest groundwater level data
+            const levelResponse = await fetch(
+              `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/grundvattennivaer_tidigare/items?f=json&limit=10000&sortby=-datum`
+            );
+            
+            let levelDataMap = new Map<string, any>();
+            if (levelResponse.ok) {
+              const levelData = await levelResponse.json();
+              if (levelData.features) {
+                for (const feature of levelData.features) {
+                  const omradeId = feature.properties?.omrade_id;
+                  if (omradeId && !levelDataMap.has(omradeId)) {
+                    levelDataMap.set(omradeId, feature.properties);
+                  }
+                }
+              }
+            }
+            
+            // Merge area features with level data
+            const mergedFeatures = areaFeatures.map(feature => {
+              const omradeId = feature.properties?.omrade_id;
+              const levelData = levelDataMap.get(omradeId);
+              return {
+                ...feature,
+                properties: {
+                  ...feature.properties,
+                  ...levelData,
+                }
+              };
+            });
+            
+            const features = new GeoJSON().readFeatures(
+              { type: "FeatureCollection", features: mergedFeatures },
+              {
+                dataProjection: "EPSG:4326",
+                featureProjection: "EPSG:3857",
+              }
+            );
+            
+            source.addFeatures(features);
+            setGwLevelsModeledLoaded(features.length);
+            toast.success(`Laddade ${features.length} HYPE-områden`);
+          } catch (error) {
+            console.error("Error loading HYPE data:", error);
+            toast.error("Kunde inte ladda modellerade grundvattennivåer");
+          } finally {
+            setLoadingGwLevelsModeled(false);
+          }
+        })();
       }
-      gwLevelsModeledLayerRef.current.setVisible(gwLevelsModeledVisible);
     }
-  }, [gwLevelsModeledVisible]);
+    
+    if (gwLevelsModeledSmaLayerRef.current) {
+      gwLevelsModeledSmaLayerRef.current.setVisible(gwLevelsModeledSmaVisible);
+    }
+    if (gwLevelsModeledStoraLayerRef.current) {
+      gwLevelsModeledStoraLayerRef.current.setVisible(gwLevelsModeledStoraVisible);
+    }
+  }, [gwLevelsModeledSmaVisible, gwLevelsModeledStoraVisible]);
 
   const handleSearchResult = (coordinates: [number, number], zoom?: number) => {
     if (mapInstanceRef.current) {
@@ -658,7 +826,8 @@ export const MapView = () => {
         aquifersOpacity={aquifersOpacity}
         waterBodiesVisible={waterBodiesVisible}
         gwLevelsObservedVisible={gwLevelsObservedVisible}
-        gwLevelsModeledVisible={gwLevelsModeledVisible}
+        gwLevelsModeledSmaVisible={gwLevelsModeledSmaVisible}
+        gwLevelsModeledStoraVisible={gwLevelsModeledStoraVisible}
         sourcesLoaded={sourcesLoaded}
         wellsLoaded={wellsLoaded}
         aquifersLoaded={aquifersLoaded}
@@ -671,7 +840,8 @@ export const MapView = () => {
         onAquifersOpacityChange={setAquifersOpacity}
         onWaterBodiesVisibleChange={setWaterBodiesVisible}
         onGwLevelsObservedVisibleChange={setGwLevelsObservedVisible}
-        onGwLevelsModeledVisibleChange={setGwLevelsModeledVisible}
+        onGwLevelsModeledSmaVisibleChange={setGwLevelsModeledSmaVisible}
+        onGwLevelsModeledStoraVisibleChange={setGwLevelsModeledStoraVisible}
       />
       
       <CoordinateDisplay coordinates={coordinates} />

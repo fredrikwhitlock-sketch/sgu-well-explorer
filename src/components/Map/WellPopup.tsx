@@ -1,6 +1,6 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { X } from "lucide-react";
+import { X, ExternalLink } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 
 interface WellPopupProps {
@@ -19,6 +19,28 @@ export const WellPopup = ({ properties, type, analysisResults, onClose }: WellPo
     return String(value);
   };
 
+  const isUrl = (value: any): boolean => {
+    if (typeof value !== 'string') return false;
+    return value.startsWith('http://') || value.startsWith('https://');
+  };
+
+  const renderValue = (value: any, label?: string): React.ReactNode => {
+    const formatted = formatValue(value);
+    if (isUrl(value)) {
+      return (
+        <a 
+          href={value} 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="text-sgu-link hover:underline inline-flex items-center gap-1"
+        >
+          {label || 'Öppna länk'} <ExternalLink className="w-3 h-3" />
+        </a>
+      );
+    }
+    return formatted;
+  };
+
   const getTitle = () => {
     if (type === 'well') return 'Brunnsinformation';
     if (type === 'aquifer') return 'Grundvattenmagasin';
@@ -30,15 +52,33 @@ export const WellPopup = ({ properties, type, analysisResults, onClose }: WellPo
 
   const title = getTitle();
 
+  const getSituationLabel = (value: number | undefined): string => {
+    if (value === undefined || value === null) return "Ej angivet";
+    if (value < 10) return "Mycket under normal";
+    if (value < 25) return "Under normal";
+    if (value < 75) return "Nära normal";
+    if (value < 90) return "Över normal";
+    return "Mycket över normal";
+  };
+
+  const getSituationColor = (value: number | undefined): string => {
+    if (value === undefined || value === null) return "text-muted-foreground";
+    if (value < 10) return "text-red-600";
+    if (value < 25) return "text-orange-500";
+    if (value < 75) return "text-yellow-600";
+    if (value < 90) return "text-green-500";
+    return "text-blue-600";
+  };
+
   return (
     <Card className="absolute top-20 right-4 w-96 max-h-[calc(100vh-120px)] overflow-y-auto bg-card/95 backdrop-blur-sm shadow-lg border-border">
-      <div className="sticky top-0 bg-card border-b border-border p-4 flex items-center justify-between z-10">
-        <h3 className="font-semibold text-lg text-foreground">{title}</h3>
+      <div className="sticky top-0 bg-sgu-maroon border-b border-border p-4 flex items-center justify-between z-10">
+        <h3 className="font-semibold text-lg text-white">{title}</h3>
         <Button
           variant="ghost"
           size="sm"
           onClick={onClose}
-          className="h-8 w-8 p-0"
+          className="h-8 w-8 p-0 text-white hover:bg-sgu-dark-maroon"
         >
           <X className="h-4 w-4" />
         </Button>
@@ -127,7 +167,34 @@ export const WellPopup = ({ properties, type, analysisResults, onClose }: WellPo
             {properties.notering && (
               <div>
                 <dt className="text-xs font-medium text-muted-foreground">Notering</dt>
-                <dd className="text-sm text-foreground mt-1">{formatValue(properties.notering)}</dd>
+                <dd className="text-sm text-foreground mt-1">
+                  {isUrl(properties.notering) ? (
+                    <a 
+                      href={properties.notering} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-sgu-link hover:underline inline-flex items-center gap-1"
+                    >
+                      Öppna länk <ExternalLink className="w-3 h-3" />
+                    </a>
+                  ) : formatValue(properties.notering)}
+                </dd>
+              </div>
+            )}
+
+            {properties.url && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Mer information</dt>
+                <dd className="text-sm mt-1">
+                  <a 
+                    href={properties.url} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-sgu-link hover:underline inline-flex items-center gap-1"
+                  >
+                    Öppna länk <ExternalLink className="w-3 h-3" />
+                  </a>
+                </dd>
               </div>
             )}
           </>
@@ -337,9 +404,9 @@ export const WellPopup = ({ properties, type, analysisResults, onClose }: WellPo
                   href={properties.url_viss} 
                   target="_blank" 
                   rel="noopener noreferrer"
-                  className="text-sm text-primary hover:underline"
+                  className="text-sm text-sgu-link hover:underline inline-flex items-center gap-1"
                 >
-                  Visa i VISS →
+                  Visa i VISS <ExternalLink className="w-3 h-3" />
                 </a>
               </div>
             )}
@@ -401,6 +468,19 @@ export const WellPopup = ({ properties, type, analysisResults, onClose }: WellPo
                 <dd className="text-sm text-foreground mt-1">{formatValue(properties.jordart_tx)}</dd>
               </div>
             )}
+
+            {properties.url && (
+              <div className="mt-2">
+                <a 
+                  href={properties.url} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-sm text-sgu-link hover:underline inline-flex items-center gap-1"
+                >
+                  Mer information <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+            )}
           </>
         ) : type === 'gwLevelsModeled' ? (
           <>
@@ -411,20 +491,6 @@ export const WellPopup = ({ properties, type, analysisResults, onClose }: WellPo
               </div>
             )}
 
-            {properties.fyllnadsgrad !== undefined && (
-              <div>
-                <dt className="text-xs font-medium text-muted-foreground">Fyllnadsgrad</dt>
-                <dd className="text-sm text-foreground mt-1">{formatValue(properties.fyllnadsgrad)}%</dd>
-              </div>
-            )}
-
-            {properties.grundvattensituation !== undefined && (
-              <div>
-                <dt className="text-xs font-medium text-muted-foreground">Grundvattensituation</dt>
-                <dd className="text-sm text-foreground mt-1">{formatValue(properties.grundvattensituation)}</dd>
-              </div>
-            )}
-
             {properties.datum && (
               <div>
                 <dt className="text-xs font-medium text-muted-foreground">Datum</dt>
@@ -432,261 +498,123 @@ export const WellPopup = ({ properties, type, analysisResults, onClose }: WellPo
               </div>
             )}
 
-            {properties.api_link && (
+            <Separator className="my-3" />
+            
+            <div className="text-xs font-semibold text-foreground mb-2">Små magasin</div>
+
+            {properties.fyllnadsgrad_sma !== undefined && (
               <div>
-                <dt className="text-xs font-medium text-muted-foreground">Tidsserie</dt>
-                <dd className="text-sm text-foreground mt-1">
-                  <a 
-                    href={properties.api_link} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-primary hover:underline"
-                  >
-                    Visa i API →
-                  </a>
+                <dt className="text-xs font-medium text-muted-foreground">Fyllnadsgrad</dt>
+                <dd className={`text-sm mt-1 font-medium ${getSituationColor(properties.fyllnadsgrad_sma)}`}>
+                  {formatValue(properties.fyllnadsgrad_sma)}% - {getSituationLabel(properties.fyllnadsgrad_sma)}
                 </dd>
+              </div>
+            )}
+
+            {properties.grundvattensituation_sma !== undefined && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Grundvattensituation</dt>
+                <dd className={`text-sm mt-1 font-medium ${getSituationColor(properties.grundvattensituation_sma)}`}>
+                  {formatValue(properties.grundvattensituation_sma)}% - {getSituationLabel(properties.grundvattensituation_sma)}
+                </dd>
+              </div>
+            )}
+
+            <Separator className="my-3" />
+            
+            <div className="text-xs font-semibold text-foreground mb-2">Stora magasin</div>
+
+            {properties.fyllnadsgrad_stora !== undefined && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Fyllnadsgrad</dt>
+                <dd className={`text-sm mt-1 font-medium ${getSituationColor(properties.fyllnadsgrad_stora)}`}>
+                  {formatValue(properties.fyllnadsgrad_stora)}% - {getSituationLabel(properties.fyllnadsgrad_stora)}
+                </dd>
+              </div>
+            )}
+
+            {properties.grundvattensituation_stora !== undefined && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Grundvattensituation</dt>
+                <dd className={`text-sm mt-1 font-medium ${getSituationColor(properties.grundvattensituation_stora)}`}>
+                  {formatValue(properties.grundvattensituation_stora)}% - {getSituationLabel(properties.grundvattensituation_stora)}
+                </dd>
+              </div>
+            )}
+
+            {properties.url_tidsserie && (
+              <div className="mt-3">
+                <a 
+                  href={properties.url_tidsserie} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-sm text-sgu-link hover:underline inline-flex items-center gap-1"
+                >
+                  Hämta tidsserie (CSV) <ExternalLink className="w-3 h-3" />
+                </a>
               </div>
             )}
           </>
         ) : (
           <>
-            {properties.magasinsnamn && (
+            {properties.id && (
               <div>
-                <dt className="text-xs font-medium text-muted-foreground">Magasinsnamn</dt>
-                <dd className="text-sm text-foreground mt-1">{formatValue(properties.magasinsnamn)}</dd>
+                <dt className="text-xs font-medium text-muted-foreground">ID</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.id)}</dd>
               </div>
             )}
 
-            {properties.unik_magasinsidentitet && (
+            {properties.namn && (
               <div>
-                <dt className="text-xs font-medium text-muted-foreground">Magasins-ID</dt>
-                <dd className="text-sm text-foreground mt-1 break-all">{formatValue(properties.unik_magasinsidentitet)}</dd>
+                <dt className="text-xs font-medium text-muted-foreground">Namn</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.namn)}</dd>
               </div>
             )}
 
-            {properties.magasinsidentitet && (
+            {properties.jordart_txt && (
               <div>
-                <dt className="text-xs font-medium text-muted-foreground">Magasinsidentitet</dt>
-                <dd className="text-sm text-foreground mt-1">{formatValue(properties.magasinsidentitet)}</dd>
+                <dt className="text-xs font-medium text-muted-foreground">Jordart</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.jordart_txt)}</dd>
               </div>
             )}
-
-            {properties.lank_magasinsbeskrivning && (
-              <div>
-                <dt className="text-xs font-medium text-muted-foreground">Magasinsbeskrivning</dt>
-                <dd className="text-sm text-foreground mt-1">
-                  <a href={properties.lank_magasinsbeskrivning} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                    Läs mer
-                  </a>
-                </dd>
-              </div>
-            )}
-
-            <Separator />
-
-            {properties.akvifertyp && (
-              <div>
-                <dt className="text-xs font-medium text-muted-foreground">Akvifertyp</dt>
-                <dd className="text-sm text-foreground mt-1">{formatValue(properties.akvifertyp)}</dd>
-              </div>
-            )}
-
-            {properties.akvifertyp_kod && (
-              <div>
-                <dt className="text-xs font-medium text-muted-foreground">Akvifertyp kod</dt>
-                <dd className="text-sm text-foreground mt-1">{formatValue(properties.akvifertyp_kod)}</dd>
-              </div>
-            )}
-
-            {properties.grvbildningstyp && (
-              <div>
-                <dt className="text-xs font-medium text-muted-foreground">Grundvattenbildningstyp</dt>
-                <dd className="text-sm text-foreground mt-1">{formatValue(properties.grvbildningstyp)}</dd>
-              </div>
-            )}
-
-            {properties.grvbildningstyp_kod && (
-              <div>
-                <dt className="text-xs font-medium text-muted-foreground">Grundvattenbildningstyp kod</dt>
-                <dd className="text-sm text-foreground mt-1">{formatValue(properties.grvbildningstyp_kod)}</dd>
-              </div>
-            )}
-
-            {properties.genes && (
-              <div>
-                <dt className="text-xs font-medium text-muted-foreground">Genes</dt>
-                <dd className="text-sm text-foreground mt-1">{formatValue(properties.genes)}</dd>
-              </div>
-            )}
-
-            {properties.genes_kod && (
-              <div>
-                <dt className="text-xs font-medium text-muted-foreground">Genes kod</dt>
-                <dd className="text-sm text-foreground mt-1">{formatValue(properties.genes_kod)}</dd>
-              </div>
-            )}
-
-            {properties.magasinsposition && (
-              <div>
-                <dt className="text-xs font-medium text-muted-foreground">Magasinsposition</dt>
-                <dd className="text-sm text-foreground mt-1">{formatValue(properties.magasinsposition)}</dd>
-              </div>
-            )}
-
-            {properties.magasinsposition_kod && (
-              <div>
-                <dt className="text-xs font-medium text-muted-foreground">Magasinsposition kod</dt>
-                <dd className="text-sm text-foreground mt-1">{formatValue(properties.magasinsposition_kod)}</dd>
-              </div>
-            )}
-
-            <Separator />
-
-            {properties.infiltrationsmojligheter && (
-              <div>
-                <dt className="text-xs font-medium text-muted-foreground">Infiltrationsmöjligheter</dt>
-                <dd className="text-sm text-foreground mt-1">{formatValue(properties.infiltrationsmojligheter)}</dd>
-              </div>
-            )}
-
-            {properties.infiltrationsmojligheter_kod && (
-              <div>
-                <dt className="text-xs font-medium text-muted-foreground">Infiltrationsmöjligheter kod</dt>
-                <dd className="text-sm text-foreground mt-1">{formatValue(properties.infiltrationsmojligheter_kod)}</dd>
-              </div>
-            )}
-
-            {properties.medelmaktighet_mattad_zon && (
-              <div>
-                <dt className="text-xs font-medium text-muted-foreground">Medelmäktighet mättad zon</dt>
-                <dd className="text-sm text-foreground mt-1">{formatValue(properties.medelmaktighet_mattad_zon)}</dd>
-              </div>
-            )}
-
-            {properties.medelmaktighet_mattad_zon_kod && (
-              <div>
-                <dt className="text-xs font-medium text-muted-foreground">Medelmäktighet mättad zon kod</dt>
-                <dd className="text-sm text-foreground mt-1">{formatValue(properties.medelmaktighet_mattad_zon_kod)}</dd>
-              </div>
-            )}
-
-            {properties.medelmaktighet_omattad_zon && (
-              <div>
-                <dt className="text-xs font-medium text-muted-foreground">Medelmäktighet omättad zon</dt>
-                <dd className="text-sm text-foreground mt-1">{formatValue(properties.medelmaktighet_omattad_zon)}</dd>
-              </div>
-            )}
-
-            {properties.medelmaktighet_omattad_zon_kod && (
-              <div>
-                <dt className="text-xs font-medium text-muted-foreground">Medelmäktighet omättad zon kod</dt>
-                <dd className="text-sm text-foreground mt-1">{formatValue(properties.medelmaktighet_omattad_zon_kod)}</dd>
-              </div>
-            )}
-
-            {properties.tillrinning_fran_tillrinningsomraden_l_per_s && (
-              <div>
-                <dt className="text-xs font-medium text-muted-foreground">Tillrinning från tillrinningsområden</dt>
-                <dd className="text-sm text-foreground mt-1">{formatValue(properties.tillrinning_fran_tillrinningsomraden_l_per_s)} l/s</dd>
-              </div>
-            )}
-
-            <Separator />
-
-            {properties.bergart && (
-              <div>
-                <dt className="text-xs font-medium text-muted-foreground">Bergart</dt>
-                <dd className="text-sm text-foreground mt-1">{formatValue(properties.bergart)}</dd>
-              </div>
-            )}
-
-            {properties.bergart_kod && (
-              <div>
-                <dt className="text-xs font-medium text-muted-foreground">Bergart kod</dt>
-                <dd className="text-sm text-foreground mt-1">{formatValue(properties.bergart_kod)}</dd>
-              </div>
-            )}
-
-            {properties.geologisk_period && (
-              <div>
-                <dt className="text-xs font-medium text-muted-foreground">Geologisk period</dt>
-                <dd className="text-sm text-foreground mt-1">{formatValue(properties.geologisk_period)}</dd>
-              </div>
-            )}
-
-            {properties.geologisk_period_kod && (
-              <div>
-                <dt className="text-xs font-medium text-muted-foreground">Geologisk period kod</dt>
-                <dd className="text-sm text-foreground mt-1">{formatValue(properties.geologisk_period_kod)}</dd>
-              </div>
-            )}
-
-            {properties.geometrikvalitet && (
-              <div>
-                <dt className="text-xs font-medium text-muted-foreground">Geometrikvalitet</dt>
-                <dd className="text-sm text-foreground mt-1">{formatValue(properties.geometrikvalitet)}</dd>
-              </div>
-            )}
-
-            {properties.geometrikvalitet_kod && (
-              <div>
-                <dt className="text-xs font-medium text-muted-foreground">Geometrikvalitet kod</dt>
-                <dd className="text-sm text-foreground mt-1">{formatValue(properties.geometrikvalitet_kod)}</dd>
-              </div>
-            )}
-
-            {properties.geometriunderlag && (
-              <div>
-                <dt className="text-xs font-medium text-muted-foreground">Geometriunderlag</dt>
-                <dd className="text-sm text-foreground mt-1">{formatValue(properties.geometriunderlag)}</dd>
-              </div>
-            )}
-
-            {properties.geometriunderlag_kod && (
-              <div>
-                <dt className="text-xs font-medium text-muted-foreground">Geometriunderlag kod</dt>
-                <dd className="text-sm text-foreground mt-1">{formatValue(properties.geometriunderlag_kod)}</dd>
-              </div>
-            )}
-
-            {properties.karteringsprocess && (
-              <div>
-                <dt className="text-xs font-medium text-muted-foreground">Karteringsprocess</dt>
-                <dd className="text-sm text-foreground mt-1">{formatValue(properties.karteringsprocess)}</dd>
-              </div>
-            )}
-
-            {properties.karteringsprocess_kod && (
-              <div>
-                <dt className="text-xs font-medium text-muted-foreground">Karteringsprocess kod</dt>
-                <dd className="text-sm text-foreground mt-1">{formatValue(properties.karteringsprocess_kod)}</dd>
-              </div>
-            )}
-
-            <Separator />
 
             {properties.geom_area && (
               <div>
                 <dt className="text-xs font-medium text-muted-foreground">Area</dt>
-                <dd className="text-sm text-foreground mt-1">{Math.round(properties.geom_area).toLocaleString('sv-SE')} m²</dd>
+                <dd className="text-sm text-foreground mt-1">{Math.round(properties.geom_area / 1000)} km²</dd>
               </div>
             )}
 
-            {properties.geom_length && (
-              <div>
-                <dt className="text-xs font-medium text-muted-foreground">Omkrets</dt>
-                <dd className="text-sm text-foreground mt-1">{Math.round(properties.geom_length).toLocaleString('sv-SE')} m</dd>
-              </div>
-            )}
-
-            {properties.anmarkning_grundvattenmagasin && (
-              <div>
-                <dt className="text-xs font-medium text-muted-foreground">Anmärkning</dt>
-                <dd className="text-sm text-foreground mt-1">{formatValue(properties.anmarkning_grundvattenmagasin)}</dd>
+            {properties.url && (
+              <div className="mt-2">
+                <a 
+                  href={properties.url} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-sm text-sgu-link hover:underline inline-flex items-center gap-1"
+                >
+                  Mer information <ExternalLink className="w-3 h-3" />
+                </a>
               </div>
             )}
           </>
         )}
+
+        <Separator className="my-2" />
+        
+        <div className="pt-2">
+          <p className="text-xs text-muted-foreground">
+            Källa:{" "}
+            <a 
+              href="https://www.sgu.se" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-sgu-link hover:underline"
+            >
+              Sveriges geologiska undersökning (SGU)
+            </a>
+          </p>
+        </div>
       </div>
     </Card>
   );
