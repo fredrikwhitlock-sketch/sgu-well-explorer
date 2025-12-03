@@ -68,8 +68,8 @@ export const MapView = () => {
   const gwLevelsModeledSmaLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const gwLevelsModeledStoraLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
 
-  // Cache for HYPE level data
-  const hypeLevelDataRef = useRef<Map<string, any>>(new Map());
+  // Cache for HYPE level data - using globalThis.Map to avoid conflict with OL Map
+  const hypeLevelDataRef = useRef<globalThis.Map<string, any>>(new globalThis.Map());
 
   useEffect(() => {
     if (!mapRef.current) return;
@@ -456,7 +456,7 @@ export const MapView = () => {
             `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/grundvattennivaer_tidigare/items?f=json&limit=10000&sortby=-datum`
           );
           
-          let levelDataMap = new Map<string, any>();
+          let levelDataMap = new globalThis.Map<string, any>();
           if (levelResponse.ok) {
             const levelData = await levelResponse.json();
             console.log(`Received ${levelData.features?.length || 0} level records`);
@@ -748,7 +748,7 @@ export const MapView = () => {
               `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/grundvattennivaer_tidigare/items?f=json&limit=10000&sortby=-datum`
             );
             
-            let levelDataMap = new Map<string, any>();
+            let levelDataMap = new globalThis.Map<string, any>();
             if (levelResponse.ok) {
               const levelData = await levelResponse.json();
               if (levelData.features) {
