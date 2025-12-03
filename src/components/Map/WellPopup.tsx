@@ -493,7 +493,7 @@ export const WellPopup = ({ properties, type, analysisResults, onClose }: WellPo
 
             {properties.datum && (
               <div>
-                <dt className="text-xs font-medium text-muted-foreground">Datum</dt>
+                <dt className="text-xs font-medium text-muted-foreground">Senaste data</dt>
                 <dd className="text-sm text-foreground mt-1">{formatValue(properties.datum)}</dd>
               </div>
             )}
@@ -542,18 +542,21 @@ export const WellPopup = ({ properties, type, analysisResults, onClose }: WellPo
               </div>
             )}
 
-            {properties.url_tidsserie && (
-              <div className="mt-3">
+            <Separator className="my-3" />
+
+            <div className="space-y-2">
+              <div className="text-xs font-semibold text-foreground">Hämta tidsserie</div>
+              {properties.omrade_id && (
                 <a 
-                  href={properties.url_tidsserie} 
+                  href={`https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/grundvattennivaer_tidigare/items?f=csv&omrade_id=${properties.omrade_id}`}
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="text-sm text-sgu-link hover:underline inline-flex items-center gap-1"
                 >
-                  Hämta tidsserie (CSV) <ExternalLink className="w-3 h-3" />
+                  Ladda ner tidsserie (CSV) <ExternalLink className="w-3 h-3" />
                 </a>
-              </div>
-            )}
+              )}
+            </div>
           </>
         ) : (
           <>

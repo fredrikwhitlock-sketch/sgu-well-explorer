@@ -54,6 +54,8 @@ export const MapView = () => {
   const [gwLevelsObservedVisible, setGwLevelsObservedVisible] = useState(false);
   const [gwLevelsModeledSmaVisible, setGwLevelsModeledSmaVisible] = useState(false);
   const [gwLevelsModeledStoraVisible, setGwLevelsModeledStoraVisible] = useState(false);
+  const [gwLevelsModeledSmaOpacity, setGwLevelsModeledSmaOpacity] = useState(0.6);
+  const [gwLevelsModeledStoraOpacity, setGwLevelsModeledStoraOpacity] = useState(0.6);
   const [loadingWaterBodies, setLoadingWaterBodies] = useState(false);
   const [loadingGwLevelsObserved, setLoadingGwLevelsObserved] = useState(false);
   const [loadingGwLevelsModeled, setLoadingGwLevelsModeled] = useState(false);
@@ -513,16 +515,17 @@ export const MapView = () => {
     const gwLevelsModeledSmaLayer = new VectorLayer({
       source: gwLevelsModeledSource,
       visible: gwLevelsModeledSmaVisible,
+      opacity: gwLevelsModeledSmaOpacity,
       style: (feature: Feature) => {
         const props = feature.getProperties();
         const fillDegree = props.fyllnadsgrad_sma;
         return new Style({
           stroke: new Stroke({
-            color: "rgba(0, 0, 0, 0.3)",
+            color: "rgba(0, 0, 0, 0.5)",
             width: 1,
           }),
           fill: new Fill({
-            color: getGwFillColor(fillDegree, 0.6),
+            color: getGwFillColor(fillDegree, 1),
           }),
         });
       },
@@ -533,16 +536,17 @@ export const MapView = () => {
     const gwLevelsModeledStoraLayer = new VectorLayer({
       source: gwLevelsModeledSource,
       visible: gwLevelsModeledStoraVisible,
+      opacity: gwLevelsModeledStoraOpacity,
       style: (feature: Feature) => {
         const props = feature.getProperties();
         const fillDegree = props.fyllnadsgrad_stora;
         return new Style({
           stroke: new Stroke({
-            color: "rgba(0, 0, 0, 0.3)",
+            color: "rgba(0, 0, 0, 0.5)",
             width: 1,
           }),
           fill: new Fill({
-            color: getGwFillColor(fillDegree, 0.6),
+            color: getGwFillColor(fillDegree, 1),
           }),
         });
       },
@@ -803,6 +807,20 @@ export const MapView = () => {
     }
   }, [gwLevelsModeledSmaVisible, gwLevelsModeledStoraVisible]);
 
+  // Update HYPE small aquifers opacity
+  useEffect(() => {
+    if (gwLevelsModeledSmaLayerRef.current) {
+      gwLevelsModeledSmaLayerRef.current.setOpacity(gwLevelsModeledSmaOpacity);
+    }
+  }, [gwLevelsModeledSmaOpacity]);
+
+  // Update HYPE large aquifers opacity
+  useEffect(() => {
+    if (gwLevelsModeledStoraLayerRef.current) {
+      gwLevelsModeledStoraLayerRef.current.setOpacity(gwLevelsModeledStoraOpacity);
+    }
+  }, [gwLevelsModeledStoraOpacity]);
+
   const handleSearchResult = (coordinates: [number, number], zoom?: number) => {
     if (mapInstanceRef.current) {
       mapInstanceRef.current.getView().animate({
@@ -828,6 +846,8 @@ export const MapView = () => {
         gwLevelsObservedVisible={gwLevelsObservedVisible}
         gwLevelsModeledSmaVisible={gwLevelsModeledSmaVisible}
         gwLevelsModeledStoraVisible={gwLevelsModeledStoraVisible}
+        gwLevelsModeledSmaOpacity={gwLevelsModeledSmaOpacity}
+        gwLevelsModeledStoraOpacity={gwLevelsModeledStoraOpacity}
         sourcesLoaded={sourcesLoaded}
         wellsLoaded={wellsLoaded}
         aquifersLoaded={aquifersLoaded}
@@ -842,6 +862,8 @@ export const MapView = () => {
         onGwLevelsObservedVisibleChange={setGwLevelsObservedVisible}
         onGwLevelsModeledSmaVisibleChange={setGwLevelsModeledSmaVisible}
         onGwLevelsModeledStoraVisibleChange={setGwLevelsModeledStoraVisible}
+        onGwLevelsModeledSmaOpacityChange={setGwLevelsModeledSmaOpacity}
+        onGwLevelsModeledStoraOpacityChange={setGwLevelsModeledStoraOpacity}
       />
       
       <CoordinateDisplay coordinates={coordinates} />
