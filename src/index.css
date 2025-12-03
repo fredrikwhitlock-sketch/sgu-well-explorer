@@ -2,29 +2,31 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
+/* SGU Design System - Colors inspired by www.sgu.se
+   Primary: Dark maroon/burgundy (#5c2d51 / #4a1942)
+   Secondary: Cream/warm white backgrounds
+   Accent: Green for geological features
 */
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 215 25% 27%;
+    --background: 40 20% 98%;
+    --foreground: 280 40% 15%;
 
     --card: 0 0% 100%;
-    --card-foreground: 215 25% 27%;
+    --card-foreground: 280 40% 15%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 215 25% 27%;
+    --popover-foreground: 280 40% 15%;
 
-    --primary: 217 91% 60%;
+    --primary: 300 40% 28%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 215 25% 27%;
+    --secondary: 40 30% 95%;
+    --secondary-foreground: 280 40% 15%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215 20% 50%;
+    --muted: 40 20% 93%;
+    --muted-foreground: 280 20% 40%;
 
     --accent: 142 76% 36%;
     --accent-foreground: 0 0% 100%;
@@ -32,81 +34,84 @@ All colors MUST be HSL.
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 217 91% 60%;
+    --border: 40 20% 85%;
+    --input: 40 20% 85%;
+    --ring: 300 40% 28%;
 
-    --radius: 0.75rem;
+    --radius: 0.5rem;
     
     --map-control: 0 0% 100%;
-    --map-control-hover: 210 40% 98%;
-    --map-control-active: 217 91% 60%;
+    --map-control-hover: 40 30% 96%;
+    --map-control-active: 300 40% 28%;
     --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
     --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
     --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
 
-    --radius: 0.75rem;
+    --sidebar-background: 300 40% 22%;
+    --sidebar-foreground: 40 20% 95%;
+    --sidebar-primary: 0 0% 100%;
+    --sidebar-primary-foreground: 300 40% 22%;
+    --sidebar-accent: 300 35% 30%;
+    --sidebar-accent-foreground: 40 20% 95%;
+    --sidebar-border: 300 35% 35%;
+    --sidebar-ring: 300 40% 28%;
 
-    --sidebar-background: 0 0% 98%;
-
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* SGU specific colors */
+    --sgu-maroon: 300 40% 28%;
+    --sgu-dark-maroon: 300 45% 22%;
+    --sgu-cream: 40 30% 97%;
+    --sgu-link: 210 80% 45%;
   }
 
   .dark {
-    --background: 222 47% 11%;
-    --foreground: 210 40% 98%;
+    --background: 280 30% 8%;
+    --foreground: 40 20% 95%;
 
-    --card: 217 33% 17%;
-    --card-foreground: 210 40% 98%;
+    --card: 280 25% 12%;
+    --card-foreground: 40 20% 95%;
 
-    --popover: 217 33% 17%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 280 25% 12%;
+    --popover-foreground: 40 20% 95%;
 
-    --primary: 217 91% 60%;
+    --primary: 300 50% 45%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 217 33% 17%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 280 25% 15%;
+    --secondary-foreground: 40 20% 95%;
 
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 65%;
+    --muted: 280 25% 15%;
+    --muted-foreground: 40 15% 60%;
 
     --accent: 142 76% 36%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 63% 31%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 40 20% 95%;
 
-    --border: 217 33% 17%;
-    --input: 217 33% 17%;
-    --ring: 217 91% 60%;
+    --border: 280 25% 18%;
+    --input: 280 25% 18%;
+    --ring: 300 50% 45%;
     
-    --map-control: 217 33% 17%;
-    --map-control-hover: 217 33% 22%;
-    --map-control-active: 217 91% 60%;
+    --map-control: 280 25% 12%;
+    --map-control-hover: 280 25% 18%;
+    --map-control-active: 300 50% 45%;
     --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
     --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.3);
     --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.3);
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
+
+    --sidebar-background: 280 30% 10%;
+    --sidebar-foreground: 40 20% 95%;
+    --sidebar-primary: 300 50% 45%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-accent: 280 25% 18%;
+    --sidebar-accent-foreground: 40 20% 95%;
+    --sidebar-border: 280 25% 18%;
+    --sidebar-ring: 300 50% 45%;
+
+    --sgu-maroon: 300 50% 45%;
+    --sgu-dark-maroon: 300 45% 35%;
+    --sgu-cream: 280 20% 15%;
+    --sgu-link: 210 90% 60%;
   }
 }
 
@@ -117,5 +122,20 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
+    font-family: 'Georgia', 'Times New Roman', serif;
+  }
+
+  a {
+    @apply text-[hsl(var(--sgu-link))] hover:underline;
+  }
+}
+
+@layer components {
+  .sgu-header {
+    @apply bg-[hsl(var(--sgu-maroon))] text-white;
+  }
+
+  .sgu-link {
+    @apply text-[hsl(var(--sgu-link))] hover:underline cursor-pointer;
   }
 }

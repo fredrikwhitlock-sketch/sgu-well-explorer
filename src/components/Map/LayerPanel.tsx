@@ -2,7 +2,7 @@ import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
-import { Layers } from "lucide-react";
+import { Layers, ExternalLink } from "lucide-react";
 
 interface LayerPanelProps {
   sourcesVisible: boolean;
@@ -11,7 +11,8 @@ interface LayerPanelProps {
   aquifersOpacity: number;
   waterBodiesVisible: boolean;
   gwLevelsObservedVisible: boolean;
-  gwLevelsModeledVisible: boolean;
+  gwLevelsModeledSmaVisible: boolean;
+  gwLevelsModeledStoraVisible: boolean;
   sourcesLoaded: number;
   wellsLoaded: number;
   aquifersLoaded: number;
@@ -24,7 +25,8 @@ interface LayerPanelProps {
   onAquifersOpacityChange: (opacity: number) => void;
   onWaterBodiesVisibleChange: (visible: boolean) => void;
   onGwLevelsObservedVisibleChange: (visible: boolean) => void;
-  onGwLevelsModeledVisibleChange: (visible: boolean) => void;
+  onGwLevelsModeledSmaVisibleChange: (visible: boolean) => void;
+  onGwLevelsModeledStoraVisibleChange: (visible: boolean) => void;
 }
 
 export const LayerPanel = ({
@@ -34,7 +36,8 @@ export const LayerPanel = ({
   aquifersOpacity,
   waterBodiesVisible,
   gwLevelsObservedVisible,
-  gwLevelsModeledVisible,
+  gwLevelsModeledSmaVisible,
+  gwLevelsModeledStoraVisible,
   sourcesLoaded,
   wellsLoaded,
   aquifersLoaded,
@@ -47,25 +50,26 @@ export const LayerPanel = ({
   onAquifersOpacityChange,
   onWaterBodiesVisibleChange,
   onGwLevelsObservedVisibleChange,
-  onGwLevelsModeledVisibleChange,
+  onGwLevelsModeledSmaVisibleChange,
+  onGwLevelsModeledStoraVisibleChange,
 }: LayerPanelProps) => {
   return (
-    <Card className="absolute top-4 right-4 w-80 p-4 bg-card/95 backdrop-blur-sm shadow-lg border-border">
-      <div className="flex items-center gap-2 mb-4">
-        <Layers className="w-5 h-5 text-primary" />
-        <h3 className="font-semibold text-foreground">Kartlager</h3>
+    <Card className="absolute top-4 right-4 w-80 bg-card/95 backdrop-blur-sm shadow-lg border-border overflow-hidden">
+      <div className="bg-sgu-maroon text-white p-3 flex items-center gap-2">
+        <Layers className="w-5 h-5" />
+        <h3 className="font-semibold">Kartlager</h3>
       </div>
       
-      <div className="space-y-4">
+      <div className="p-4 space-y-4 max-h-[calc(100vh-200px)] overflow-y-auto">
         {/* Wells Layer Control */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <div className="space-y-1">
               <Label htmlFor="wells-layer" className="text-sm font-medium">
-                Brunnar (OGC API)
+                Brunnar
               </Label>
               <p className="text-xs text-muted-foreground">
-                Klickbara brunnar från SGU {wellsLoaded > 0 && `(${wellsLoaded})`}
+                SGU Brunnsarkivet {wellsLoaded > 0 && `(${wellsLoaded})`}
               </p>
             </div>
             <Switch
@@ -76,11 +80,19 @@ export const LayerPanel = ({
           </div>
           
           {wellsVisible && (
-            <div className="mt-3 space-y-2 text-xs">
+            <div className="mt-2 space-y-2 text-xs">
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full bg-[rgb(59,130,246)]" />
                 <span className="text-muted-foreground">Brunnar (laddas per vy)</span>
               </div>
+              <a 
+                href="https://www.sgu.se/produkter-och-tjanster/geologiska-data/brunnar--geologiska-data/" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-sgu-link hover:underline inline-flex items-center gap-1"
+              >
+                Produktbeskrivning <ExternalLink className="w-3 h-3" />
+              </a>
             </div>
           )}
         </div>
@@ -93,7 +105,7 @@ export const LayerPanel = ({
                 Grundvattenmagasin
               </Label>
               <p className="text-xs text-muted-foreground">
-                Avgränsningar från SGU {aquifersLoaded > 0 && `(${aquifersLoaded})`}
+                Avgränsningar {aquifersLoaded > 0 && `(${aquifersLoaded})`}
               </p>
             </div>
             <Switch
@@ -124,6 +136,14 @@ export const LayerPanel = ({
                   <div className="w-3 h-3 rounded-full border-2 border-[rgb(34,197,94)] bg-[rgba(34,197,94,0.2)]" />
                   <span className="text-muted-foreground">Klickbara magasin</span>
                 </div>
+                <a 
+                  href="https://www.sgu.se/produkter-och-tjanster/geologiska-data/grundvatten--geologiska-data/" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-sgu-link hover:underline inline-flex items-center gap-1 mt-2"
+                >
+                  Produktbeskrivning <ExternalLink className="w-3 h-3" />
+                </a>
               </div>
             </div>
           )}
@@ -134,10 +154,10 @@ export const LayerPanel = ({
           <div className="flex items-center justify-between">
             <div className="space-y-1">
               <Label htmlFor="sources-layer" className="text-sm font-medium">
-                Källor (OGC API)
+                Källor
               </Label>
               <p className="text-xs text-muted-foreground">
-                Klickbara källor från SGU {sourcesLoaded > 0 && `(${sourcesLoaded})`}
+                Naturliga källor {sourcesLoaded > 0 && `(${sourcesLoaded})`}
               </p>
             </div>
             <Switch
@@ -148,11 +168,19 @@ export const LayerPanel = ({
           </div>
           
           {sourcesVisible && (
-            <div className="mt-3 space-y-2 text-xs">
+            <div className="mt-2 space-y-2 text-xs">
               <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-[rgb(168,85,247)]" />
+                <div className="w-3 h-3 rounded-full bg-sgu-maroon" />
                 <span className="text-muted-foreground">Källor</span>
               </div>
+              <a 
+                href="https://www.sgu.se/grundvatten/kallor/" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-sgu-link hover:underline inline-flex items-center gap-1"
+              >
+                Produktbeskrivning <ExternalLink className="w-3 h-3" />
+              </a>
             </div>
           )}
         </div>
@@ -176,11 +204,19 @@ export const LayerPanel = ({
           </div>
           
           {waterBodiesVisible && (
-            <div className="mt-3 space-y-2 text-xs">
+            <div className="mt-2 space-y-2 text-xs">
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full border-2 border-[rgb(59,130,246)] bg-[rgba(59,130,246,0.15)]" />
                 <span className="text-muted-foreground">Klickbara förekomster</span>
               </div>
+              <a 
+                href="https://resource.sgu.se/dokument/produkter/grundvattenforekomster-beskrivning.pdf" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-sgu-link hover:underline inline-flex items-center gap-1"
+              >
+                Produktbeskrivning <ExternalLink className="w-3 h-3" />
+              </a>
             </div>
           )}
         </div>
@@ -193,7 +229,7 @@ export const LayerPanel = ({
                 Grundvattennivåer observerade
               </Label>
               <p className="text-xs text-muted-foreground">
-                Mätstationer från SGU {gwLevelsObservedLoaded > 0 && `(${gwLevelsObservedLoaded})`}
+                Mätstationer {gwLevelsObservedLoaded > 0 && `(${gwLevelsObservedLoaded})`}
               </p>
             </div>
             <Switch
@@ -204,47 +240,107 @@ export const LayerPanel = ({
           </div>
           
           {gwLevelsObservedVisible && (
-            <div className="mt-3 space-y-2 text-xs">
+            <div className="mt-2 space-y-2 text-xs">
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full bg-[rgb(147,51,234)]" />
                 <span className="text-muted-foreground">Klickbara stationer</span>
               </div>
+              <a 
+                href="https://resource.sgu.se/dokument/produkter/grundvattennivaer-observerade-beskrivning.pdf" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-sgu-link hover:underline inline-flex items-center gap-1"
+              >
+                Produktbeskrivning <ExternalLink className="w-3 h-3" />
+              </a>
             </div>
           )}
         </div>
 
-        {/* Modeled Groundwater Levels Layer Control */}
+        {/* Modeled Groundwater Levels - Small Aquifers */}
         <div className="space-y-3 pt-4 border-t border-border">
           <div className="flex items-center justify-between">
             <div className="space-y-1">
-              <Label htmlFor="gw-modeled-layer" className="text-sm font-medium">
-                Grundvattennivåer modellerade (HYPE)
+              <Label htmlFor="gw-modeled-sma-layer" className="text-sm font-medium">
+                HYPE - Små magasin
               </Label>
               <p className="text-xs text-muted-foreground">
-                Beräknade nivåer {gwLevelsModeledLoaded > 0 && `(${gwLevelsModeledLoaded})`}
+                Beräknad fyllnadsgrad {gwLevelsModeledLoaded > 0 && `(${gwLevelsModeledLoaded})`}
               </p>
             </div>
             <Switch
-              id="gw-modeled-layer"
-              checked={gwLevelsModeledVisible}
-              onCheckedChange={onGwLevelsModeledVisibleChange}
+              id="gw-modeled-sma-layer"
+              checked={gwLevelsModeledSmaVisible}
+              onCheckedChange={onGwLevelsModeledSmaVisibleChange}
             />
           </div>
           
-          {gwLevelsModeledVisible && (
-            <div className="mt-3 space-y-2 text-xs">
+          {gwLevelsModeledSmaVisible && (
+            <div className="mt-2 space-y-2 text-xs">
               <div className="flex items-center gap-2">
-                <div className="w-12 h-3 bg-gradient-to-r from-red-500 via-yellow-400 to-blue-500 border border-black/30"></div>
+                <div className="w-16 h-3 bg-gradient-to-r from-red-600 via-yellow-400 to-blue-500 border border-black/30 rounded-sm"></div>
                 <span className="text-muted-foreground">Torrt → Högt</span>
               </div>
             </div>
           )}
         </div>
+
+        {/* Modeled Groundwater Levels - Large Aquifers */}
+        <div className="space-y-3 pt-4 border-t border-border">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label htmlFor="gw-modeled-stora-layer" className="text-sm font-medium">
+                HYPE - Stora magasin
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Beräknad fyllnadsgrad {gwLevelsModeledLoaded > 0 && `(${gwLevelsModeledLoaded})`}
+              </p>
+            </div>
+            <Switch
+              id="gw-modeled-stora-layer"
+              checked={gwLevelsModeledStoraVisible}
+              onCheckedChange={onGwLevelsModeledStoraVisibleChange}
+            />
+          </div>
+          
+          {gwLevelsModeledStoraVisible && (
+            <div className="mt-2 space-y-2 text-xs">
+              <div className="flex items-center gap-2">
+                <div className="w-16 h-3 bg-gradient-to-r from-red-600 via-yellow-400 to-blue-500 border border-black/30 rounded-sm"></div>
+                <span className="text-muted-foreground">Torrt → Högt</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {(gwLevelsModeledSmaVisible || gwLevelsModeledStoraVisible) && (
+          <div className="pt-2 text-xs">
+            <a 
+              href="https://resource.sgu.se/dokument/produkter/grundvattennivaer-sgu-hype-omraden-beskrivning.pdf" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-sgu-link hover:underline inline-flex items-center gap-1"
+            >
+              HYPE produktbeskrivning <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
+        )}
       </div>
 
-      <div className="mt-4 pt-4 border-t border-border">
+      <div className="p-3 border-t border-border bg-muted/50">
         <p className="text-xs text-muted-foreground">
           Bakgrundskarta: OpenStreetMap
+        </p>
+        <p className="text-xs text-muted-foreground mt-1">
+          Data:{" "}
+          <a 
+            href="https://www.sgu.se" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="text-sgu-link hover:underline"
+          >
+            SGU
+          </a>
         </p>
       </div>
     </Card>
