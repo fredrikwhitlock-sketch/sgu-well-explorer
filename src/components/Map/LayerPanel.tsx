@@ -13,6 +13,8 @@ interface LayerPanelProps {
   gwLevelsObservedVisible: boolean;
   gwLevelsModeledSmaVisible: boolean;
   gwLevelsModeledStoraVisible: boolean;
+  gwLevelsModeledSmaOpacity: number;
+  gwLevelsModeledStoraOpacity: number;
   sourcesLoaded: number;
   wellsLoaded: number;
   aquifersLoaded: number;
@@ -27,6 +29,8 @@ interface LayerPanelProps {
   onGwLevelsObservedVisibleChange: (visible: boolean) => void;
   onGwLevelsModeledSmaVisibleChange: (visible: boolean) => void;
   onGwLevelsModeledStoraVisibleChange: (visible: boolean) => void;
+  onGwLevelsModeledSmaOpacityChange: (opacity: number) => void;
+  onGwLevelsModeledStoraOpacityChange: (opacity: number) => void;
 }
 
 export const LayerPanel = ({
@@ -38,6 +42,8 @@ export const LayerPanel = ({
   gwLevelsObservedVisible,
   gwLevelsModeledSmaVisible,
   gwLevelsModeledStoraVisible,
+  gwLevelsModeledSmaOpacity,
+  gwLevelsModeledStoraOpacity,
   sourcesLoaded,
   wellsLoaded,
   aquifersLoaded,
@@ -52,6 +58,8 @@ export const LayerPanel = ({
   onGwLevelsObservedVisibleChange,
   onGwLevelsModeledSmaVisibleChange,
   onGwLevelsModeledStoraVisibleChange,
+  onGwLevelsModeledSmaOpacityChange,
+  onGwLevelsModeledStoraOpacityChange,
 }: LayerPanelProps) => {
   return (
     <Card className="absolute top-4 right-4 w-80 bg-card/95 backdrop-blur-sm shadow-lg border-border overflow-hidden">
@@ -276,10 +284,26 @@ export const LayerPanel = ({
           </div>
           
           {gwLevelsModeledSmaVisible && (
-            <div className="mt-2 space-y-2 text-xs">
-              <div className="flex items-center gap-2">
-                <div className="w-16 h-3 bg-gradient-to-r from-red-600 via-yellow-400 to-blue-500 border border-black/30 rounded-sm"></div>
-                <span className="text-muted-foreground">Torrt → Högt</span>
+            <div className="mt-3 space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="gw-sma-opacity" className="text-xs text-muted-foreground">
+                  Transparens: {Math.round(gwLevelsModeledSmaOpacity * 100)}%
+                </Label>
+                <Slider
+                  id="gw-sma-opacity"
+                  min={0}
+                  max={1}
+                  step={0.1}
+                  value={[gwLevelsModeledSmaOpacity]}
+                  onValueChange={([value]) => onGwLevelsModeledSmaOpacityChange(value)}
+                  className="w-full"
+                />
+              </div>
+              <div className="text-xs">
+                <div className="flex items-center gap-2">
+                  <div className="w-16 h-3 bg-gradient-to-r from-red-600 via-yellow-400 to-blue-500 border border-black/30 rounded-sm"></div>
+                  <span className="text-muted-foreground">Torrt → Högt</span>
+                </div>
               </div>
             </div>
           )}
@@ -304,10 +328,26 @@ export const LayerPanel = ({
           </div>
           
           {gwLevelsModeledStoraVisible && (
-            <div className="mt-2 space-y-2 text-xs">
-              <div className="flex items-center gap-2">
-                <div className="w-16 h-3 bg-gradient-to-r from-red-600 via-yellow-400 to-blue-500 border border-black/30 rounded-sm"></div>
-                <span className="text-muted-foreground">Torrt → Högt</span>
+            <div className="mt-3 space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="gw-stora-opacity" className="text-xs text-muted-foreground">
+                  Transparens: {Math.round(gwLevelsModeledStoraOpacity * 100)}%
+                </Label>
+                <Slider
+                  id="gw-stora-opacity"
+                  min={0}
+                  max={1}
+                  step={0.1}
+                  value={[gwLevelsModeledStoraOpacity]}
+                  onValueChange={([value]) => onGwLevelsModeledStoraOpacityChange(value)}
+                  className="w-full"
+                />
+              </div>
+              <div className="text-xs">
+                <div className="flex items-center gap-2">
+                  <div className="w-16 h-3 bg-gradient-to-r from-red-600 via-yellow-400 to-blue-500 border border-black/30 rounded-sm"></div>
+                  <span className="text-muted-foreground">Torrt → Högt</span>
+                </div>
               </div>
             </div>
           )}
