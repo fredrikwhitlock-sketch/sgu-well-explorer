@@ -604,102 +604,146 @@ export const WellPopup = ({ properties, type, analysisResults, onClose }: WellPo
           </>
         ) : (
           <>
-            {properties.id && (
+            {properties.magasinsidentitet && (
               <div>
-                <dt className="text-xs font-medium text-muted-foreground">ID</dt>
-                <dd className="text-sm text-foreground mt-1">{formatValue(properties.id)}</dd>
+                <dt className="text-xs font-medium text-muted-foreground">Magasins-ID</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.magasinsidentitet)}</dd>
               </div>
             )}
 
-            {properties.namn && (
+            {properties.magasinsnamn && (
               <div>
                 <dt className="text-xs font-medium text-muted-foreground">Namn</dt>
-                <dd className="text-sm text-foreground mt-1">{formatValue(properties.namn)}</dd>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.magasinsnamn)}</dd>
               </div>
             )}
 
-            {properties.jordart_txt && (
+            {properties.akvifertyp && (
               <div>
-                <dt className="text-xs font-medium text-muted-foreground">Jordart</dt>
-                <dd className="text-sm text-foreground mt-1">{formatValue(properties.jordart_txt)}</dd>
+                <dt className="text-xs font-medium text-muted-foreground">Akvifertyp</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.akvifertyp)}</dd>
               </div>
             )}
+
+            {properties.genes && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Genes</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.genes)}</dd>
+              </div>
+            )}
+
+            {properties.grvbildningstyp && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Grundvattenbildning</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.grvbildningstyp)}</dd>
+              </div>
+            )}
+
+            {properties.magasinsposition && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Magasinsposition</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.magasinsposition)}</dd>
+              </div>
+            )}
+
+            <Separator />
 
             {properties.geom_area && (
               <div>
                 <dt className="text-xs font-medium text-muted-foreground">Area</dt>
-                <dd className="text-sm text-foreground mt-1">{Math.round(properties.geom_area / 1000)} km²</dd>
+                <dd className="text-sm text-foreground mt-1">{(properties.geom_area / 1000000).toFixed(2)} km²</dd>
+              </div>
+            )}
+
+            {properties.infiltrationsmojligheter && properties.infiltrationsmojligheter !== "bedömning ej utförd" && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Infiltrationsmöjligheter</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.infiltrationsmojligheter)}</dd>
+              </div>
+            )}
+
+            {properties.medelmaktighet_mattad_zon && properties.medelmaktighet_mattad_zon !== "bedömning ej utförd" && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Medelmäktighet mättad zon</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.medelmaktighet_mattad_zon)}</dd>
+              </div>
+            )}
+
+            {properties.medelmaktighet_omattad_zon && properties.medelmaktighet_omattad_zon !== "bedömning ej utförd" && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Medelmäktighet omättad zon</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.medelmaktighet_omattad_zon)}</dd>
+              </div>
+            )}
+
+            {properties.tillrinning_fran_tillrinningsomraden_l_per_s && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Tillrinning från tillrinningsområden</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.tillrinning_fran_tillrinningsomraden_l_per_s)} l/s</dd>
+              </div>
+            )}
+
+            {properties.bergart && properties.bergart !== "bedömning ej utförd" && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Bergart</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.bergart)}</dd>
+              </div>
+            )}
+
+            {properties.geologisk_period && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Geologisk period</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.geologisk_period)}</dd>
               </div>
             )}
 
             <Separator />
 
-            {properties.uttagsmangd && (
+            {properties.geometrikvalitet && (
               <div>
-                <dt className="text-xs font-medium text-muted-foreground">Uttagsmängd</dt>
-                <dd className="text-sm text-foreground mt-1">{formatValue(properties.uttagsmangd)} m³/år</dd>
+                <dt className="text-xs font-medium text-muted-foreground">Geometrikvalitet</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.geometrikvalitet)}</dd>
               </div>
             )}
 
-            {properties.bildningspotential && (
+            {properties.karteringsprocess && (
               <div>
-                <dt className="text-xs font-medium text-muted-foreground">Bildningspotential</dt>
-                <dd className="text-sm text-foreground mt-1">{formatValue(properties.bildningspotential)} m³/år</dd>
+                <dt className="text-xs font-medium text-muted-foreground">Karteringsprocess</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.karteringsprocess)}</dd>
               </div>
             )}
 
-            {properties.magasinsvolym && (
+            {properties.anmarkning_grundvattenmagasin && (
               <div>
-                <dt className="text-xs font-medium text-muted-foreground">Magasinsvolym</dt>
-                <dd className="text-sm text-foreground mt-1">{formatValue(properties.magasinsvolym)} m³</dd>
-              </div>
-            )}
-
-            {properties.omsattningstid && (
-              <div>
-                <dt className="text-xs font-medium text-muted-foreground">Omsättningstid</dt>
-                <dd className="text-sm text-foreground mt-1">{formatValue(properties.omsattningstid)} år</dd>
-              </div>
-            )}
-
-            {properties.skyddsniva && (
-              <div>
-                <dt className="text-xs font-medium text-muted-foreground">Skyddsnivå</dt>
-                <dd className="text-sm text-foreground mt-1">{formatValue(properties.skyddsniva)}</dd>
-              </div>
-            )}
-
-            {properties.kommunnamn && (
-              <div>
-                <dt className="text-xs font-medium text-muted-foreground">Kommun</dt>
-                <dd className="text-sm text-foreground mt-1">{formatValue(properties.kommunnamn)}</dd>
+                <dt className="text-xs font-medium text-muted-foreground">Anmärkning</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.anmarkning_grundvattenmagasin)}</dd>
               </div>
             )}
 
             <Separator />
 
-            {properties.url && (
+            {properties.lank_magasinsbeskrivning && (
               <div className="mt-2">
                 <a 
-                  href={properties.url} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-sm text-sgu-link hover:underline inline-flex items-center gap-1"
-                >
-                  Mer information <ExternalLink className="w-3 h-3" />
-                </a>
-              </div>
-            )}
-
-            {properties.id && (
-              <div className="mt-2">
-                <a 
-                  href={`https://apps.sgu.se/grundvattenmagasin/${properties.id}`} 
+                  href={properties.lank_magasinsbeskrivning} 
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="text-sm text-sgu-link hover:underline inline-flex items-center gap-1"
                 >
                   Magasinsbeskrivning <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+            )}
+
+            {properties.unik_magasinsidentitet && (
+              <div className="mt-2">
+                <a 
+                  href={`https://apps.sgu.se/grundvattenmagasin/${properties.unik_magasinsidentitet}`} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-sm text-sgu-link hover:underline inline-flex items-center gap-1"
+                >
+                  Öppna i SGU:s magasinsvisare <ExternalLink className="w-3 h-3" />
                 </a>
               </div>
             )}
