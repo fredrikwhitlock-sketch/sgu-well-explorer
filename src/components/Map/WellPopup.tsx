@@ -24,6 +24,48 @@ export const WellPopup = ({ properties, type, analysisResults, onClose }: WellPo
     return value.startsWith('http://') || value.startsWith('https://');
   };
 
+  const parseHtmlLinks = (text: string): React.ReactNode => {
+    // Match <a href="...">text</a> patterns
+    const linkRegex = /<a\s+href=["']([^"']+)["'][^>]*>([^<]*)<\/a>/gi;
+    const parts: React.ReactNode[] = [];
+    let lastIndex = 0;
+    let match;
+    let keyIndex = 0;
+
+    while ((match = linkRegex.exec(text)) !== null) {
+      // Add text before the link
+      if (match.index > lastIndex) {
+        parts.push(text.substring(lastIndex, match.index));
+      }
+      // Add the link
+      const [, href, linkText] = match;
+      parts.push(
+        <a
+          key={keyIndex++}
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-sgu-link hover:underline inline-flex items-center gap-1"
+        >
+          {linkText || 'Länk'} <ExternalLink className="w-3 h-3" />
+        </a>
+      );
+      lastIndex = match.index + match[0].length;
+    }
+
+    // Add remaining text
+    if (lastIndex < text.length) {
+      parts.push(text.substring(lastIndex));
+    }
+
+    return parts.length > 0 ? parts : text;
+  };
+
+  const containsHtmlLinks = (value: any): boolean => {
+    if (typeof value !== 'string') return false;
+    return /<a\s+href=/i.test(value);
+  };
+
   const renderValue = (value: any, label?: string): React.ReactNode => {
     const formatted = formatValue(value);
     if (isUrl(value)) {
@@ -177,6 +219,8 @@ export const WellPopup = ({ properties, type, analysisResults, onClose }: WellPo
                     >
                       Öppna länk <ExternalLink className="w-3 h-3" />
                     </a>
+                  ) : containsHtmlLinks(properties.notering) ? (
+                    parseHtmlLinks(properties.notering)
                   ) : formatValue(properties.notering)}
                 </dd>
               </div>
@@ -588,6 +632,52 @@ export const WellPopup = ({ properties, type, analysisResults, onClose }: WellPo
               </div>
             )}
 
+            <Separator />
+
+            {properties.uttagsmangd && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Uttagsmängd</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.uttagsmangd)} m³/år</dd>
+              </div>
+            )}
+
+            {properties.bildningspotential && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Bildningspotential</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.bildningspotential)} m³/år</dd>
+              </div>
+            )}
+
+            {properties.magasinsvolym && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Magasinsvolym</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.magasinsvolym)} m³</dd>
+              </div>
+            )}
+
+            {properties.omsattningstid && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Omsättningstid</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.omsattningstid)} år</dd>
+              </div>
+            )}
+
+            {properties.skyddsniva && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Skyddsnivå</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.skyddsniva)}</dd>
+              </div>
+            )}
+
+            {properties.kommunnamn && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Kommun</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.kommunnamn)}</dd>
+              </div>
+            )}
+
+            <Separator />
+
             {properties.url && (
               <div className="mt-2">
                 <a 
@@ -597,6 +687,19 @@ export const WellPopup = ({ properties, type, analysisResults, onClose }: WellPo
                   className="text-sm text-sgu-link hover:underline inline-flex items-center gap-1"
                 >
                   Mer information <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+            )}
+
+            {properties.id && (
+              <div className="mt-2">
+                <a 
+                  href={`https://apps.sgu.se/grundvattenmagasin/${properties.id}`} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-sm text-sgu-link hover:underline inline-flex items-center gap-1"
+                >
+                  Magasinsbeskrivning <ExternalLink className="w-3 h-3" />
                 </a>
               </div>
             )}
