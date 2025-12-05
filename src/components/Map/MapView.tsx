@@ -170,7 +170,7 @@ export const MapView = () => {
           const maxLat = (Math.atan(Math.exp((maxY / 20037508.34) * Math.PI)) * 360 / Math.PI) - 90;
           
           const bbox = `${minLon},${minLat},${maxLon},${maxLat}`;
-          const url = `https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar/items?f=json&bbox=${bbox}&limit=2000`;
+          const url = `https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar/items?f=json&bbox=${bbox}&limit=50000`;
           
           const response = await fetch(url);
           
