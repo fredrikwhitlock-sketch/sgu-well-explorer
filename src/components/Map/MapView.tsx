@@ -615,36 +615,6 @@ export const MapView = () => {
       }
     });
 
-    // Reload wells when map view changes (zoom/pan) - progressive loading
-    let lastWellsExtent: string | null = null;
-    let lastWellsZoom: number | null = null;
-    
-    map.on("moveend", () => {
-      if (wellsLayerRef.current?.getVisible() && wellsLayerRef.current.getSource()) {
-        const view = map.getView();
-        const currentZoom = view.getZoom() || 0;
-        const extent = view.calculateExtent();
-        const extentKey = extent.map(v => Math.round(v / 1000)).join(',');
-        
-        // Reload if zoom changed significantly (more than 0.5) or extent changed notably
-        const zoomChanged = lastWellsZoom === null || Math.abs(currentZoom - lastWellsZoom) > 0.5;
-        const extentChanged = lastWellsExtent !== extentKey;
-        
-        if (zoomChanged || extentChanged) {
-          lastWellsExtent = extentKey;
-          lastWellsZoom = currentZoom;
-          
-          // Clear and reload wells for current extent
-          wellsLayerRef.current.getSource()?.clear();
-          wellsLayerRef.current.getSource()?.loadFeatures(
-            extent,
-            view.getResolution() || 1,
-            view.getProjection()
-          );
-        }
-      }
-    });
-
     toast.success("Karta laddad!");
 
     return () => {
