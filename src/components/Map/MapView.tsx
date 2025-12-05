@@ -193,8 +193,8 @@ export const MapView = () => {
             wellsSource.addFeatures(features);
             setWellsLoaded(wellsSource.getFeatures().length);
             
-            if (data.features.length >= 2000) {
-              toast.info("Visar max 2000 brunnar. Zooma in för fler detaljer.");
+            if (data.features.length >= 50000) {
+              toast.info("Visar max 50 000 brunnar. Zooma in för fler detaljer.");
             }
           }
         } catch (error) {
