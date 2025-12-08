@@ -23,17 +23,6 @@ import { toast } from "sonner";
 proj4.defs("EPSG:3006", "+proj=utm +zone=33 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs");
 register(proj4);
 
-// Function to get color based on fill degree (fyllnadsgrad) - red (dry) to blue (high levels)
-const getGwFillColor = (fillDegree: number | undefined, opacity: number = 0.7) => {
-  if (fillDegree === undefined || fillDegree === null) return `rgba(128, 128, 128, ${opacity})`; // Gray for missing data
-  if (fillDegree < 10) return `rgba(180, 30, 30, ${opacity})`; // Dark red - very dry
-  if (fillDegree < 25) return `rgba(239, 68, 68, ${opacity})`; // Red - dry
-  if (fillDegree < 40) return `rgba(249, 115, 22, ${opacity})`; // Orange
-  if (fillDegree < 60) return `rgba(250, 204, 21, ${opacity})`; // Yellow - normal
-  if (fillDegree < 75) return `rgba(132, 204, 22, ${opacity})`; // Yellow-green
-  if (fillDegree < 90) return `rgba(34, 197, 94, ${opacity})`; // Green - wet
-  return `rgba(59, 130, 246, ${opacity})`; // Blue - very wet
-};
 
 export const MapView = () => {
   const mapRef = useRef<HTMLDivElement>(null);
@@ -43,7 +32,7 @@ export const MapView = () => {
   const [aquifersVisible, setAquifersVisible] = useState(false);
   const [aquifersOpacity, setAquifersOpacity] = useState(0.5);
   const [coordinates, setCoordinates] = useState<[number, number] | null>(null);
-  const [selectedFeature, setSelectedFeature] = useState<{ properties: Record<string, any>; type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwLevelsModeled'; analysisResults?: any[] } | null>(null);
+  const [selectedFeature, setSelectedFeature] = useState<{ properties: Record<string, any>; type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality'; analysisResults?: any[] } | null>(null);
   const [loadingSources, setLoadingSources] = useState(false);
   const [loadingWells, setLoadingWells] = useState(false);
   const [loadingAquifers, setLoadingAquifers] = useState(false);
@@ -52,26 +41,19 @@ export const MapView = () => {
   const [aquifersLoaded, setAquifersLoaded] = useState(0);
   const [waterBodiesVisible, setWaterBodiesVisible] = useState(false);
   const [gwLevelsObservedVisible, setGwLevelsObservedVisible] = useState(false);
-  const [gwLevelsModeledSmaVisible, setGwLevelsModeledSmaVisible] = useState(false);
-  const [gwLevelsModeledStoraVisible, setGwLevelsModeledStoraVisible] = useState(false);
-  const [gwLevelsModeledSmaOpacity, setGwLevelsModeledSmaOpacity] = useState(0.6);
-  const [gwLevelsModeledStoraOpacity, setGwLevelsModeledStoraOpacity] = useState(0.6);
+  const [gwQualityVisible, setGwQualityVisible] = useState(false);
   const [loadingWaterBodies, setLoadingWaterBodies] = useState(false);
   const [loadingGwLevelsObserved, setLoadingGwLevelsObserved] = useState(false);
-  const [loadingGwLevelsModeled, setLoadingGwLevelsModeled] = useState(false);
+  const [loadingGwQuality, setLoadingGwQuality] = useState(false);
   const [waterBodiesLoaded, setWaterBodiesLoaded] = useState(0);
   const [gwLevelsObservedLoaded, setGwLevelsObservedLoaded] = useState(0);
-  const [gwLevelsModeledLoaded, setGwLevelsModeledLoaded] = useState(0);
+  const [gwQualityLoaded, setGwQualityLoaded] = useState(0);
   const sourcesLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const wellsLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const aquifersLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const waterBodiesLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const gwLevelsObservedLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
-  const gwLevelsModeledSmaLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
-  const gwLevelsModeledStoraLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
-
-  // Cache for HYPE level data - using globalThis.Map to avoid conflict with OL Map
-  const hypeLevelDataRef = useRef<globalThis.Map<string, any>>(new globalThis.Map());
+  const gwQualityLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
 
   useEffect(() => {
     if (!mapRef.current) return;
@@ -431,132 +413,72 @@ export const MapView = () => {
     });
     gwLevelsObservedLayerRef.current = gwLevelsObservedLayer;
 
-    // Shared source for HYPE areas
-    const gwLevelsModeledSource = new VectorSource({
+    // OGC API Features layer for Grundvattenkvalitet (groundwater quality sampling sites)
+    const gwQualitySource = new VectorSource({
       format: new GeoJSON(),
-    });
-
-    // Function to load HYPE areas with latest level data
-    const loadHypeData = async () => {
-      try {
-        setLoadingGwLevelsModeled(true);
-        setGwLevelsModeledLoaded(0);
-        console.log("Loading HYPE areas from OGC API...");
-        
-        // First, load all areas
-        const areaFeatures = await fetchAllPages(
-          `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/omraden/items?f=json`,
-          (count) => setGwLevelsModeledLoaded(count)
-        );
-        
-        console.log(`Received ${areaFeatures.length} HYPE areas`);
-        
-        if (areaFeatures.length > 0) {
-          // Fetch the latest groundwater level data (sorted by date descending)
-          console.log("Loading latest HYPE level data...");
-          const levelResponse = await fetch(
-            `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/grundvattennivaer_tidigare/items?f=json&limit=10000&sortby=-datum`
+      loader: async () => {
+        try {
+          setLoadingGwQuality(true);
+          setGwQualityLoaded(0);
+          console.log("Loading groundwater quality sites from OGC API...");
+          
+          const allFeatures = await fetchAllPages(
+            `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser/ogc/features/v1/collections/provplatser/items?f=json`,
+            (count) => setGwQualityLoaded(count)
           );
           
-          let levelDataMap = new globalThis.Map<string, any>();
-          if (levelResponse.ok) {
-            const levelData = await levelResponse.json();
-            console.log(`Received ${levelData.features?.length || 0} level records`);
+          // Filter out features without geometry
+          const featuresWithGeometry = allFeatures.filter(f => f.geometry !== null);
+          console.log(`Received ${featuresWithGeometry.length} groundwater quality sites with geometry`);
+          
+          if (featuresWithGeometry.length > 0) {
+            const features = new GeoJSON().readFeatures(
+              { type: "FeatureCollection", features: featuresWithGeometry },
+              {
+                dataProjection: "EPSG:4326",
+                featureProjection: "EPSG:3857",
+              }
+            );
             
-            // Create a map of omrade_id to latest level data
-            if (levelData.features) {
-              for (const feature of levelData.features) {
-                const omradeId = feature.properties?.omrade_id;
-                if (omradeId && !levelDataMap.has(omradeId)) {
-                  levelDataMap.set(omradeId, feature.properties);
-                }
-              }
+            gwQualitySource.addFeatures(features);
+            setGwQualityLoaded(features.length);
+            
+            if (gwQualityLayerRef.current) {
+              gwQualityLayerRef.current.setVisible(true);
+              gwQualityLayerRef.current.changed();
             }
+            
+            toast.success(`Laddade ${features.length} provplatser för grundvattenkvalitet`);
           }
-          
-          hypeLevelDataRef.current = levelDataMap;
-          console.log(`Mapped level data for ${levelDataMap.size} areas`);
-          
-          // Merge area features with level data
-          const mergedFeatures = areaFeatures.map(feature => {
-            const omradeId = feature.properties?.omrade_id;
-            const levelData = levelDataMap.get(omradeId);
-            return {
-              ...feature,
-              properties: {
-                ...feature.properties,
-                ...levelData,
-              }
-            };
-          });
-          
-          const features = new GeoJSON().readFeatures(
-            { type: "FeatureCollection", features: mergedFeatures },
-            {
-              dataProjection: "EPSG:4326",
-              featureProjection: "EPSG:3857",
-            }
-          );
-          
-          gwLevelsModeledSource.addFeatures(features);
-          setGwLevelsModeledLoaded(features.length);
-          
-          toast.success(`Laddade ${features.length} HYPE-områden med nivådata`);
+        } catch (error) {
+          console.error("Error loading groundwater quality sites:", error);
+          toast.error("Kunde inte ladda grundvattenkvalitet");
+        } finally {
+          setLoadingGwQuality(false);
         }
-      } catch (error) {
-        console.error("Error loading HYPE data:", error);
-        toast.error("Kunde inte ladda modellerade grundvattennivåer");
-      } finally {
-        setLoadingGwLevelsModeled(false);
-      }
-    };
-
-    // Layer for small aquifers (små magasin)
-    const gwLevelsModeledSmaLayer = new VectorLayer({
-      source: gwLevelsModeledSource,
-      visible: gwLevelsModeledSmaVisible,
-      opacity: gwLevelsModeledSmaOpacity,
-      style: (feature: Feature) => {
-        const props = feature.getProperties();
-        const fillDegree = props.fyllnadsgrad_sma;
-        return new Style({
-          stroke: new Stroke({
-            color: "rgba(0, 0, 0, 0.5)",
-            width: 1,
-          }),
-          fill: new Fill({
-            color: getGwFillColor(fillDegree, 1),
-          }),
-        });
       },
     });
-    gwLevelsModeledSmaLayerRef.current = gwLevelsModeledSmaLayer;
 
-    // Layer for large aquifers (stora magasin)
-    const gwLevelsModeledStoraLayer = new VectorLayer({
-      source: gwLevelsModeledSource,
-      visible: gwLevelsModeledStoraVisible,
-      opacity: gwLevelsModeledStoraOpacity,
-      style: (feature: Feature) => {
-        const props = feature.getProperties();
-        const fillDegree = props.fyllnadsgrad_stora;
-        return new Style({
+    const gwQualityLayer = new VectorLayer({
+      source: gwQualitySource,
+      visible: gwQualityVisible,
+      style: new Style({
+        image: new Circle({
+          radius: 6,
+          fill: new Fill({ color: "rgba(234, 88, 12, 0.8)" }), // Orange color
           stroke: new Stroke({
-            color: "rgba(0, 0, 0, 0.5)",
-            width: 1,
+            color: "rgba(255, 255, 255, 0.8)",
+            width: 2,
           }),
-          fill: new Fill({
-            color: getGwFillColor(fillDegree, 1),
-          }),
-        });
-      },
+        }),
+      }),
     });
-    gwLevelsModeledStoraLayerRef.current = gwLevelsModeledStoraLayer;
+    gwQualityLayerRef.current = gwQualityLayer;
 
     // Create map
     const map = new OLMap({
       target: mapRef.current,
-      layers: [osmLayer, waterBodiesLayer, aquifersLayer, gwLevelsModeledStoraLayer, gwLevelsModeledSmaLayer, gwLevelsObservedLayer, wellsLayer, sourcesLayer],
+      layers: [osmLayer, waterBodiesLayer, aquifersLayer, gwQualityLayer, gwLevelsObservedLayer, wellsLayer, sourcesLayer],
       view: new View({
         center: [1784000, 8347000], // Uppsala center in Web Mercator
         zoom: 11,
@@ -578,7 +500,7 @@ export const MapView = () => {
       // Change cursor when hovering over features
       const pixel = map.getEventPixel(evt.originalEvent);
       const hit = map.hasFeatureAtPixel(pixel, {
-        layerFilter: (layer) => layer === sourcesLayer || layer === wellsLayer || layer === aquifersLayer || layer === waterBodiesLayer || layer === gwLevelsObservedLayer || layer === gwLevelsModeledSmaLayer || layer === gwLevelsModeledStoraLayer,
+        layerFilter: (layer) => layer === sourcesLayer || layer === wellsLayer || layer === aquifersLayer || layer === waterBodiesLayer || layer === gwLevelsObservedLayer || layer === gwQualityLayer,
       });
       map.getTargetElement().style.cursor = hit ? "pointer" : "";
     });
@@ -586,7 +508,7 @@ export const MapView = () => {
     // Handle feature clicks
     map.on("click", async (evt) => {
       const features = map.getFeaturesAtPixel(evt.pixel, {
-        layerFilter: (layer) => layer === sourcesLayer || layer === wellsLayer || layer === aquifersLayer || layer === waterBodiesLayer || layer === gwLevelsObservedLayer || layer === gwLevelsModeledSmaLayer || layer === gwLevelsModeledStoraLayer,
+        layerFilter: (layer) => layer === sourcesLayer || layer === wellsLayer || layer === aquifersLayer || layer === waterBodiesLayer || layer === gwLevelsObservedLayer || layer === gwQualityLayer,
       });
       
       if (features && features.length > 0) {
@@ -597,19 +519,19 @@ export const MapView = () => {
         const pixel = evt.pixel;
         const clickedLayers: any[] = [];
         map.forEachFeatureAtPixel(pixel, (f, layer) => {
-          if (layer === sourcesLayer || layer === wellsLayer || layer === aquifersLayer || layer === waterBodiesLayer || layer === gwLevelsObservedLayer || layer === gwLevelsModeledSmaLayer || layer === gwLevelsModeledStoraLayer) {
+          if (layer === sourcesLayer || layer === wellsLayer || layer === aquifersLayer || layer === waterBodiesLayer || layer === gwLevelsObservedLayer || layer === gwQualityLayer) {
             clickedLayers.push({ feature: f, layer });
           }
         });
         
         if (clickedLayers.length > 0) {
           const { layer } = clickedLayers[0];
-          let type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwLevelsModeled' = 'source';
+          let type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' = 'source';
           if (layer === wellsLayer) type = 'well';
           else if (layer === aquifersLayer) type = 'aquifer';
           else if (layer === waterBodiesLayer) type = 'waterBody';
           else if (layer === gwLevelsObservedLayer) type = 'gwLevelsObserved';
-          else if (layer === gwLevelsModeledSmaLayer || layer === gwLevelsModeledStoraLayer) type = 'gwLevelsModeled';
+          else if (layer === gwQualityLayer) type = 'gwQuality';
           setSelectedFeature({ properties, type });
         }
       }
@@ -701,125 +623,19 @@ export const MapView = () => {
     }
   }, [gwLevelsObservedVisible]);
 
-  // Update HYPE layers visibility and load data when either is enabled
+  // Update Groundwater Quality visibility and load data when enabled
   useEffect(() => {
-    const shouldLoad = gwLevelsModeledSmaVisible || gwLevelsModeledStoraVisible;
-    const sourceEmpty = gwLevelsModeledSmaLayerRef.current?.getSource()?.getFeatures().length === 0;
-    
-    if (shouldLoad && sourceEmpty && gwLevelsModeledSmaLayerRef.current) {
-      // Load HYPE data using the dedicated loader
-      const source = gwLevelsModeledSmaLayerRef.current.getSource();
-      if (source && source.getFeatures().length === 0) {
-        // Trigger load manually since both layers share the same source
-        (async () => {
-          try {
-            setLoadingGwLevelsModeled(true);
-            setGwLevelsModeledLoaded(0);
-            
-            // Helper function to fetch all pages
-            const fetchAllPages = async (baseUrl: string, onProgress?: (count: number) => void): Promise<any[]> => {
-              const allFeatures: any[] = [];
-              let nextUrl: string | null = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}limit=1000`;
-              
-              while (nextUrl) {
-                const response = await fetch(nextUrl);
-                if (!response.ok) break;
-                const data = await response.json();
-                
-                if (data.features) {
-                  allFeatures.push(...data.features);
-                  onProgress?.(allFeatures.length);
-                }
-                
-                nextUrl = null;
-                if (data.links) {
-                  const nextLink = data.links.find((l: any) => l.rel === 'next');
-                  if (nextLink) nextUrl = nextLink.href;
-                }
-              }
-              
-              return allFeatures;
-            };
-            
-            // Load all areas
-            const areaFeatures = await fetchAllPages(
-              `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/omraden/items?f=json`,
-              (count) => setGwLevelsModeledLoaded(count)
-            );
-            
-            // Fetch the latest groundwater level data
-            const levelResponse = await fetch(
-              `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/grundvattennivaer_tidigare/items?f=json&limit=10000&sortby=-datum`
-            );
-            
-            let levelDataMap = new globalThis.Map<string, any>();
-            if (levelResponse.ok) {
-              const levelData = await levelResponse.json();
-              if (levelData.features) {
-                for (const feature of levelData.features) {
-                  const omradeId = feature.properties?.omrade_id;
-                  if (omradeId && !levelDataMap.has(omradeId)) {
-                    levelDataMap.set(omradeId, feature.properties);
-                  }
-                }
-              }
-            }
-            
-            // Merge area features with level data
-            const mergedFeatures = areaFeatures.map(feature => {
-              const omradeId = feature.properties?.omrade_id;
-              const levelData = levelDataMap.get(omradeId);
-              return {
-                ...feature,
-                properties: {
-                  ...feature.properties,
-                  ...levelData,
-                }
-              };
-            });
-            
-            const features = new GeoJSON().readFeatures(
-              { type: "FeatureCollection", features: mergedFeatures },
-              {
-                dataProjection: "EPSG:4326",
-                featureProjection: "EPSG:3857",
-              }
-            );
-            
-            source.addFeatures(features);
-            setGwLevelsModeledLoaded(features.length);
-            toast.success(`Laddade ${features.length} HYPE-områden`);
-          } catch (error) {
-            console.error("Error loading HYPE data:", error);
-            toast.error("Kunde inte ladda modellerade grundvattennivåer");
-          } finally {
-            setLoadingGwLevelsModeled(false);
-          }
-        })();
+    if (gwQualityLayerRef.current) {
+      if (gwQualityVisible && gwQualityLayerRef.current.getSource()?.getFeatures().length === 0) {
+        gwQualityLayerRef.current.getSource()?.loadFeatures(
+          gwQualityLayerRef.current.getSource()!.getExtent(),
+          1,
+          gwQualityLayerRef.current.getSource()!.getProjection()
+        );
       }
+      gwQualityLayerRef.current.setVisible(gwQualityVisible);
     }
-    
-    if (gwLevelsModeledSmaLayerRef.current) {
-      gwLevelsModeledSmaLayerRef.current.setVisible(gwLevelsModeledSmaVisible);
-    }
-    if (gwLevelsModeledStoraLayerRef.current) {
-      gwLevelsModeledStoraLayerRef.current.setVisible(gwLevelsModeledStoraVisible);
-    }
-  }, [gwLevelsModeledSmaVisible, gwLevelsModeledStoraVisible]);
-
-  // Update HYPE small aquifers opacity
-  useEffect(() => {
-    if (gwLevelsModeledSmaLayerRef.current) {
-      gwLevelsModeledSmaLayerRef.current.setOpacity(gwLevelsModeledSmaOpacity);
-    }
-  }, [gwLevelsModeledSmaOpacity]);
-
-  // Update HYPE large aquifers opacity
-  useEffect(() => {
-    if (gwLevelsModeledStoraLayerRef.current) {
-      gwLevelsModeledStoraLayerRef.current.setOpacity(gwLevelsModeledStoraOpacity);
-    }
-  }, [gwLevelsModeledStoraOpacity]);
+  }, [gwQualityVisible]);
 
   const handleSearchResult = (coordinates: [number, number], zoom?: number) => {
     if (mapInstanceRef.current) {
@@ -844,31 +660,25 @@ export const MapView = () => {
         aquifersOpacity={aquifersOpacity}
         waterBodiesVisible={waterBodiesVisible}
         gwLevelsObservedVisible={gwLevelsObservedVisible}
-        gwLevelsModeledSmaVisible={gwLevelsModeledSmaVisible}
-        gwLevelsModeledStoraVisible={gwLevelsModeledStoraVisible}
-        gwLevelsModeledSmaOpacity={gwLevelsModeledSmaOpacity}
-        gwLevelsModeledStoraOpacity={gwLevelsModeledStoraOpacity}
+        gwQualityVisible={gwQualityVisible}
         sourcesLoaded={sourcesLoaded}
         wellsLoaded={wellsLoaded}
         aquifersLoaded={aquifersLoaded}
         waterBodiesLoaded={waterBodiesLoaded}
         gwLevelsObservedLoaded={gwLevelsObservedLoaded}
-        gwLevelsModeledLoaded={gwLevelsModeledLoaded}
+        gwQualityLoaded={gwQualityLoaded}
         onSourcesVisibleChange={setSourcesVisible}
         onWellsVisibleChange={setWellsVisible}
         onAquifersVisibleChange={setAquifersVisible}
         onAquifersOpacityChange={setAquifersOpacity}
         onWaterBodiesVisibleChange={setWaterBodiesVisible}
         onGwLevelsObservedVisibleChange={setGwLevelsObservedVisible}
-        onGwLevelsModeledSmaVisibleChange={setGwLevelsModeledSmaVisible}
-        onGwLevelsModeledStoraVisibleChange={setGwLevelsModeledStoraVisible}
-        onGwLevelsModeledSmaOpacityChange={setGwLevelsModeledSmaOpacity}
-        onGwLevelsModeledStoraOpacityChange={setGwLevelsModeledStoraOpacity}
+        onGwQualityVisibleChange={setGwQualityVisible}
       />
       
       <CoordinateDisplay coordinates={coordinates} />
       
-      {(loadingSources || loadingWells || loadingAquifers || loadingWaterBodies || loadingGwLevelsObserved || loadingGwLevelsModeled) && (
+      {(loadingSources || loadingWells || loadingAquifers || loadingWaterBodies || loadingGwLevelsObserved || loadingGwQuality) && (
         <div className="absolute top-20 left-1/2 transform -translate-x-1/2 bg-background/95 backdrop-blur-sm p-4 rounded-lg shadow-lg border z-10 min-w-[300px]">
           <div className="space-y-3">
             {loadingSources && (
@@ -926,11 +736,11 @@ export const MapView = () => {
                 </div>
               </div>
             )}
-            {loadingGwLevelsModeled && (
+            {loadingGwQuality && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="font-medium">Laddar modellerade grundvattennivåer...</span>
-                  <span className="text-muted-foreground">{gwLevelsModeledLoaded} områden</span>
+                  <span className="font-medium">Laddar grundvattenkvalitet...</span>
+                  <span className="text-muted-foreground">{gwQualityLoaded} provplatser</span>
                 </div>
                 <div className="w-full bg-secondary rounded-full h-2 overflow-hidden">
                   <div className="h-full bg-primary transition-all duration-300 rounded-full animate-pulse" style={{ width: '100%' }} />
