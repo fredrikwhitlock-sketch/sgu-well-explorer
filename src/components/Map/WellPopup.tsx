@@ -526,78 +526,141 @@ export const WellPopup = ({ properties, type, analysisResults, onClose }: WellPo
               </div>
             )}
           </>
-        ) : type === 'gwLevelsModeled' ? (
+        ) : type === 'gwQuality' ? (
           <>
-            {properties.omrade_id && (
+            {properties.platsbeteckning && (
               <div>
-                <dt className="text-xs font-medium text-muted-foreground">Område-ID</dt>
-                <dd className="text-sm text-foreground mt-1">{formatValue(properties.omrade_id)}</dd>
+                <dt className="text-xs font-medium text-muted-foreground">Platsbeteckning</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.platsbeteckning)}</dd>
               </div>
             )}
 
-            {properties.datum && (
+            {properties.provplatsnamn && (
               <div>
-                <dt className="text-xs font-medium text-muted-foreground">Senaste data</dt>
-                <dd className="text-sm text-foreground mt-1">{formatValue(properties.datum)}</dd>
+                <dt className="text-xs font-medium text-muted-foreground">Provplatsnamn</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.provplatsnamn)}</dd>
               </div>
             )}
 
-            <Separator className="my-3" />
-            
-            <div className="text-xs font-semibold text-foreground mb-2">Små magasin</div>
-
-            {properties.fyllnadsgrad_sma !== undefined && (
+            {properties.provplatstyp_tx && (
               <div>
-                <dt className="text-xs font-medium text-muted-foreground">Fyllnadsgrad</dt>
-                <dd className={`text-sm mt-1 font-medium ${getSituationColor(properties.fyllnadsgrad_sma)}`}>
-                  {formatValue(properties.fyllnadsgrad_sma)}% - {getSituationLabel(properties.fyllnadsgrad_sma)}
-                </dd>
+                <dt className="text-xs font-medium text-muted-foreground">Provplatstyp</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.provplatstyp_tx)}</dd>
               </div>
             )}
 
-            {properties.grundvattensituation_sma !== undefined && (
+            {properties.provplatskat_bedgr_tx && (
               <div>
-                <dt className="text-xs font-medium text-muted-foreground">Grundvattensituation</dt>
-                <dd className={`text-sm mt-1 font-medium ${getSituationColor(properties.grundvattensituation_sma)}`}>
-                  {formatValue(properties.grundvattensituation_sma)}% - {getSituationLabel(properties.grundvattensituation_sma)}
-                </dd>
+                <dt className="text-xs font-medium text-muted-foreground">Kategori</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.provplatskat_bedgr_tx)}</dd>
               </div>
             )}
 
             <Separator className="my-3" />
-            
-            <div className="text-xs font-semibold text-foreground mb-2">Stora magasin</div>
 
-            {properties.fyllnadsgrad_stora !== undefined && (
+            {properties.kommun && (
               <div>
-                <dt className="text-xs font-medium text-muted-foreground">Fyllnadsgrad</dt>
-                <dd className={`text-sm mt-1 font-medium ${getSituationColor(properties.fyllnadsgrad_stora)}`}>
-                  {formatValue(properties.fyllnadsgrad_stora)}% - {getSituationLabel(properties.fyllnadsgrad_stora)}
-                </dd>
+                <dt className="text-xs font-medium text-muted-foreground">Kommun</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.kommun)}</dd>
               </div>
             )}
 
-            {properties.grundvattensituation_stora !== undefined && (
+            {properties.lan && (
               <div>
-                <dt className="text-xs font-medium text-muted-foreground">Grundvattensituation</dt>
-                <dd className={`text-sm mt-1 font-medium ${getSituationColor(properties.grundvattensituation_stora)}`}>
-                  {formatValue(properties.grundvattensituation_stora)}% - {getSituationLabel(properties.grundvattensituation_stora)}
-                </dd>
+                <dt className="text-xs font-medium text-muted-foreground">Län</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.lan)}</dd>
+              </div>
+            )}
+
+            {properties.vattendistrikt_tx && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Vattendistrikt</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.vattendistrikt_tx)}</dd>
+              </div>
+            )}
+
+            <Separator className="my-3" />
+
+            {properties.akvifer_tx && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Akvifer</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.akvifer_tx)}</dd>
+              </div>
+            )}
+
+            {properties.genes_jord_tx && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Jordart (genes)</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.genes_jord_tx)}</dd>
+              </div>
+            )}
+
+            {properties.gvmiljo_bedgr_tx && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Grundvattenmiljö</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.gvmiljo_bedgr_tx)}</dd>
+              </div>
+            )}
+
+            {properties.geohylag_tx && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Geohydrologiskt läge</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.geohylag_tx)}</dd>
+              </div>
+            )}
+
+            <Separator className="my-3" />
+
+            {properties.antal_prov && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Antal prover</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.antal_prov)}</dd>
+              </div>
+            )}
+
+            {properties.fdat && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Första provdatum</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.fdat)}</dd>
+              </div>
+            )}
+
+            {properties.tdat && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Senaste provdatum</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.tdat)}</dd>
+              </div>
+            )}
+
+            {properties.programkoppl && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Programkoppling</dt>
+                <dd className="text-sm text-foreground mt-1 text-xs">{formatValue(properties.programkoppl)}</dd>
               </div>
             )}
 
             <Separator className="my-3" />
 
             <div className="space-y-2">
-              <div className="text-xs font-semibold text-foreground">Hämta tidsserie</div>
-              {properties.omrade_id && (
+              <div className="text-xs font-semibold text-foreground">Hämta analysresultat</div>
+              {properties.analyser_csv && (
                 <a 
-                  href={`https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/grundvattennivaer_tidigare/items?f=csv&omrade_id=${properties.omrade_id}`}
+                  href={properties.analyser_csv}
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="text-sm text-sgu-link hover:underline inline-flex items-center gap-1"
                 >
-                  Ladda ner tidsserie (CSV) <ExternalLink className="w-3 h-3" />
+                  Ladda ner analysresultat (CSV) <ExternalLink className="w-3 h-3" />
+                </a>
+              )}
+              {properties.analyser_json && (
+                <a 
+                  href={properties.analyser_json}
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-sm text-sgu-link hover:underline inline-flex items-center gap-1 ml-2"
+                >
+                  JSON <ExternalLink className="w-3 h-3" />
                 </a>
               )}
             </div>
