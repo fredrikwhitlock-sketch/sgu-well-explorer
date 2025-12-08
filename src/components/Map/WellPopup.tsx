@@ -5,7 +5,7 @@ import { Separator } from "@/components/ui/separator";
 
 interface WellPopupProps {
   properties: Record<string, any>;
-  type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwLevelsModeled';
+  type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality';
   analysisResults?: any[];
   onClose: () => void;
 }
@@ -88,7 +88,7 @@ export const WellPopup = ({ properties, type, analysisResults, onClose }: WellPo
     if (type === 'aquifer') return 'Grundvattenmagasin';
     if (type === 'waterBody') return 'Grundvattenförekomst';
     if (type === 'gwLevelsObserved') return 'Observerad grundvattennivå';
-    if (type === 'gwLevelsModeled') return 'Modellerad grundvattennivå (HYPE)';
+    if (type === 'gwQuality') return 'Grundvattenkvalitet - Provplats';
     return 'Källinformation';
   };
 

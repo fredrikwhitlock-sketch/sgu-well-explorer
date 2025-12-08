@@ -11,26 +11,20 @@ interface LayerPanelProps {
   aquifersOpacity: number;
   waterBodiesVisible: boolean;
   gwLevelsObservedVisible: boolean;
-  gwLevelsModeledSmaVisible: boolean;
-  gwLevelsModeledStoraVisible: boolean;
-  gwLevelsModeledSmaOpacity: number;
-  gwLevelsModeledStoraOpacity: number;
+  gwQualityVisible: boolean;
   sourcesLoaded: number;
   wellsLoaded: number;
   aquifersLoaded: number;
   waterBodiesLoaded: number;
   gwLevelsObservedLoaded: number;
-  gwLevelsModeledLoaded: number;
+  gwQualityLoaded: number;
   onSourcesVisibleChange: (visible: boolean) => void;
   onWellsVisibleChange: (visible: boolean) => void;
   onAquifersVisibleChange: (visible: boolean) => void;
   onAquifersOpacityChange: (opacity: number) => void;
   onWaterBodiesVisibleChange: (visible: boolean) => void;
   onGwLevelsObservedVisibleChange: (visible: boolean) => void;
-  onGwLevelsModeledSmaVisibleChange: (visible: boolean) => void;
-  onGwLevelsModeledStoraVisibleChange: (visible: boolean) => void;
-  onGwLevelsModeledSmaOpacityChange: (opacity: number) => void;
-  onGwLevelsModeledStoraOpacityChange: (opacity: number) => void;
+  onGwQualityVisibleChange: (visible: boolean) => void;
 }
 
 export const LayerPanel = ({
@@ -40,26 +34,20 @@ export const LayerPanel = ({
   aquifersOpacity,
   waterBodiesVisible,
   gwLevelsObservedVisible,
-  gwLevelsModeledSmaVisible,
-  gwLevelsModeledStoraVisible,
-  gwLevelsModeledSmaOpacity,
-  gwLevelsModeledStoraOpacity,
+  gwQualityVisible,
   sourcesLoaded,
   wellsLoaded,
   aquifersLoaded,
   waterBodiesLoaded,
   gwLevelsObservedLoaded,
-  gwLevelsModeledLoaded,
+  gwQualityLoaded,
   onSourcesVisibleChange,
   onWellsVisibleChange,
   onAquifersVisibleChange,
   onAquifersOpacityChange,
   onWaterBodiesVisibleChange,
   onGwLevelsObservedVisibleChange,
-  onGwLevelsModeledSmaVisibleChange,
-  onGwLevelsModeledStoraVisibleChange,
-  onGwLevelsModeledSmaOpacityChange,
-  onGwLevelsModeledStoraOpacityChange,
+  onGwQualityVisibleChange,
 }: LayerPanelProps) => {
   return (
     <Card className="absolute top-4 right-4 w-80 bg-card/95 backdrop-blur-sm shadow-lg border-border overflow-hidden">
@@ -265,106 +253,41 @@ export const LayerPanel = ({
           )}
         </div>
 
-        {/* Modeled Groundwater Levels - Small Aquifers */}
+        {/* Groundwater Quality Layer Control */}
         <div className="space-y-3 pt-4 border-t border-border">
           <div className="flex items-center justify-between">
             <div className="space-y-1">
-              <Label htmlFor="gw-modeled-sma-layer" className="text-sm font-medium">
-                HYPE - Små magasin
+              <Label htmlFor="gw-quality-layer" className="text-sm font-medium">
+                Grundvattenkvalitet
               </Label>
               <p className="text-xs text-muted-foreground">
-                Beräknad fyllnadsgrad {gwLevelsModeledLoaded > 0 && `(${gwLevelsModeledLoaded})`}
+                Provplatser {gwQualityLoaded > 0 && `(${gwQualityLoaded})`}
               </p>
             </div>
             <Switch
-              id="gw-modeled-sma-layer"
-              checked={gwLevelsModeledSmaVisible}
-              onCheckedChange={onGwLevelsModeledSmaVisibleChange}
+              id="gw-quality-layer"
+              checked={gwQualityVisible}
+              onCheckedChange={onGwQualityVisibleChange}
             />
           </div>
           
-          {gwLevelsModeledSmaVisible && (
-            <div className="mt-3 space-y-3">
-              <div className="space-y-2">
-                <Label htmlFor="gw-sma-opacity" className="text-xs text-muted-foreground">
-                  Transparens: {Math.round(gwLevelsModeledSmaOpacity * 100)}%
-                </Label>
-                <Slider
-                  id="gw-sma-opacity"
-                  min={0}
-                  max={1}
-                  step={0.1}
-                  value={[gwLevelsModeledSmaOpacity]}
-                  onValueChange={([value]) => onGwLevelsModeledSmaOpacityChange(value)}
-                  className="w-full"
-                />
+          {gwQualityVisible && (
+            <div className="mt-2 space-y-2 text-xs">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-[rgb(234,88,12)]" />
+                <span className="text-muted-foreground">Klickbara provplatser</span>
               </div>
-              <div className="text-xs">
-                <div className="flex items-center gap-2">
-                  <div className="w-16 h-3 bg-gradient-to-r from-red-600 via-yellow-400 to-blue-500 border border-black/30 rounded-sm"></div>
-                  <span className="text-muted-foreground">Torrt → Högt</span>
-                </div>
-              </div>
+              <a 
+                href="https://resource.sgu.se/dokument/produkter/grundvattenkvalitet-analysresultat-provplatser-beskrivning.pdf" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-sgu-link hover:underline inline-flex items-center gap-1"
+              >
+                Produktbeskrivning <ExternalLink className="w-3 h-3" />
+              </a>
             </div>
           )}
         </div>
-
-        {/* Modeled Groundwater Levels - Large Aquifers */}
-        <div className="space-y-3 pt-4 border-t border-border">
-          <div className="flex items-center justify-between">
-            <div className="space-y-1">
-              <Label htmlFor="gw-modeled-stora-layer" className="text-sm font-medium">
-                HYPE - Stora magasin
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                Beräknad fyllnadsgrad {gwLevelsModeledLoaded > 0 && `(${gwLevelsModeledLoaded})`}
-              </p>
-            </div>
-            <Switch
-              id="gw-modeled-stora-layer"
-              checked={gwLevelsModeledStoraVisible}
-              onCheckedChange={onGwLevelsModeledStoraVisibleChange}
-            />
-          </div>
-          
-          {gwLevelsModeledStoraVisible && (
-            <div className="mt-3 space-y-3">
-              <div className="space-y-2">
-                <Label htmlFor="gw-stora-opacity" className="text-xs text-muted-foreground">
-                  Transparens: {Math.round(gwLevelsModeledStoraOpacity * 100)}%
-                </Label>
-                <Slider
-                  id="gw-stora-opacity"
-                  min={0}
-                  max={1}
-                  step={0.1}
-                  value={[gwLevelsModeledStoraOpacity]}
-                  onValueChange={([value]) => onGwLevelsModeledStoraOpacityChange(value)}
-                  className="w-full"
-                />
-              </div>
-              <div className="text-xs">
-                <div className="flex items-center gap-2">
-                  <div className="w-16 h-3 bg-gradient-to-r from-red-600 via-yellow-400 to-blue-500 border border-black/30 rounded-sm"></div>
-                  <span className="text-muted-foreground">Torrt → Högt</span>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {(gwLevelsModeledSmaVisible || gwLevelsModeledStoraVisible) && (
-          <div className="pt-2 text-xs">
-            <a 
-              href="https://resource.sgu.se/dokument/produkter/grundvattennivaer-sgu-hype-omraden-beskrivning.pdf" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="text-sgu-link hover:underline inline-flex items-center gap-1"
-            >
-              HYPE produktbeskrivning <ExternalLink className="w-3 h-3" />
-            </a>
-          </div>
-        )}
       </div>
 
       <div className="p-3 border-t border-border bg-muted/50">
