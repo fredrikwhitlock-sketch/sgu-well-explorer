@@ -1,6 +1,6 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { X, ExternalLink } from "lucide-react";
+import { X, ExternalLink, Download, BarChart3 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 
 interface WellPopupProps {
@@ -525,6 +525,46 @@ export const WellPopup = ({ properties, type, analysisResults, onClose }: WellPo
                 </a>
               </div>
             )}
+
+            <Separator className="my-3" />
+
+            <div className="space-y-2">
+              <div className="text-xs font-semibold text-foreground">Hämta mätdata</div>
+              {properties.platsbeteckning && (
+                <div className="flex flex-wrap gap-2">
+                  <a 
+                    href={`https://api.sgu.se/oppnadata/grundvattennivaer-observerade/ogc/features/v1/collections/matningar/items?f=csv&provplatsid=${properties.provplatsid || properties.platsbeteckning}`}
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-sm text-sgu-link hover:underline inline-flex items-center gap-1"
+                  >
+                    <Download className="w-3 h-3" /> CSV
+                  </a>
+                  <a 
+                    href={`https://api.sgu.se/oppnadata/grundvattennivaer-observerade/ogc/features/v1/collections/matningar/items?f=json&provplatsid=${properties.provplatsid || properties.platsbeteckning}`}
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-sm text-sgu-link hover:underline inline-flex items-center gap-1"
+                  >
+                    JSON
+                  </a>
+                </div>
+              )}
+            </div>
+
+            <Separator className="my-3" />
+
+            <div className="space-y-2">
+              <div className="text-xs font-semibold text-foreground">Statistiska analyser</div>
+              <a 
+                href="https://ground-chem-dash.lovable.app/"
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-sm text-sgu-link hover:underline inline-flex items-center gap-1"
+              >
+                <BarChart3 className="w-3 h-3" /> Öppna statistikverktyg
+              </a>
+            </div>
           </>
         ) : type === 'gwQuality' ? (
           <>
@@ -663,6 +703,20 @@ export const WellPopup = ({ properties, type, analysisResults, onClose }: WellPo
                   JSON <ExternalLink className="w-3 h-3" />
                 </a>
               )}
+            </div>
+
+            <Separator className="my-3" />
+
+            <div className="space-y-2">
+              <div className="text-xs font-semibold text-foreground">Statistiska analyser</div>
+              <a 
+                href="https://ground-chem-dash.lovable.app/"
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-sm text-sgu-link hover:underline inline-flex items-center gap-1"
+              >
+                <BarChart3 className="w-3 h-3" /> Öppna statistikverktyg
+              </a>
             </div>
           </>
         ) : (
