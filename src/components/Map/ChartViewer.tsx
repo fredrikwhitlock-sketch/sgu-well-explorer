@@ -138,15 +138,43 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
     }
   };
 
+  // Helper function to fetch all pages from OGC API
+  const fetchAllPages = async (baseUrl: string): Promise<any[]> => {
+    const allFeatures: any[] = [];
+    let nextUrl: string | null = `${baseUrl}&limit=1000`;
+    
+    while (nextUrl) {
+      const response = await fetch(nextUrl);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      
+      if (data.features) {
+        allFeatures.push(...data.features);
+      }
+      
+      // Check for next page link
+      nextUrl = null;
+      if (data.links) {
+        const nextLink = data.links.find((l: any) => l.rel === 'next');
+        if (nextLink) {
+          nextUrl = nextLink.href;
+        }
+      }
+    }
+    
+    return allFeatures;
+  };
+
   const fetchLevelData = async (location: ChartLocation): Promise<{ date: string; value: number }[]> => {
-    const url = `https://api.sgu.se/oppnadata/grundvattennivaer-observerade/ogc/features/v1/collections/nivaer/items?filter=platsbeteckning%20%3D%20%27${encodeURIComponent(location.platsbeteckning || '')}%27&f=json&limit=5000`;
+    const baseUrl = `https://api.sgu.se/oppnadata/grundvattennivaer-observerade/ogc/features/v1/collections/nivaer/items?filter=platsbeteckning%20%3D%20%27${encodeURIComponent(location.platsbeteckning || '')}%27&f=json`;
     
-    const response = await fetch(url);
-    if (!response.ok) throw new Error("Failed to fetch level data");
+    console.log("Fetching all level data for:", location.platsbeteckning);
+    const allFeatures = await fetchAllPages(baseUrl);
+    console.log("Level data received:", allFeatures.length, "measurements for", location.platsbeteckning);
     
-    const json = await response.json();
-    
-    return (json.features || []).map((f: any) => ({
+    return allFeatures.map((f: any) => ({
       date: f.properties.obsdatum?.split('T')[0] || '',
       value: f.properties.grundvattenniva_m_urok || f.properties.grundvattenniva_m_u_markyta || 0
     })).filter((d: any) => d.date && d.value !== null && d.value !== 0);
@@ -154,25 +182,15 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
 
   const fetchQualityData = async (location: ChartLocation, parameter: string): Promise<{ date: string; value: number }[]> => {
     // Use platsbeteckning for filtering - match exact working URL format
-    // Working example: filter=platsbeteckning=%27HVR-721-X%27
     const platsbeteckning = location.name;
+    const baseUrl = `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser/ogc/features/v1/collections/analysresultat/items?f=json&filter=platsbeteckning=%27${encodeURIComponent(platsbeteckning)}%27`;
     
-    // First fetch all data for this site, then filter by parameter client-side
-    // This avoids potential encoding issues with the AND clause
-    const url = `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser/ogc/features/v1/collections/analysresultat/items?f=json&limit=10000&filter=platsbeteckning=%27${encodeURIComponent(platsbeteckning)}%27`;
-    
-    console.log("Fetching quality data from:", url);
-    const response = await fetch(url);
-    if (!response.ok) {
-      console.error("Quality fetch failed:", response.status, response.statusText);
-      throw new Error("Failed to fetch quality data");
-    }
-    
-    const json = await response.json();
-    console.log("Quality data received:", json.features?.length || 0, "features for", platsbeteckning);
+    console.log("Fetching all quality data for:", platsbeteckning);
+    const allFeatures = await fetchAllPages(baseUrl);
+    console.log("Quality data received:", allFeatures.length, "features for", platsbeteckning);
     
     // Filter by parameter client-side
-    return (json.features || [])
+    return allFeatures
       .filter((f: any) => f.properties.parameter === parameter)
       .map((f: any) => ({
         date: f.properties.provdat?.split('T')[0] || '',
