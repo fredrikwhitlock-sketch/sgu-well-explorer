@@ -533,7 +533,7 @@ export const WellPopup = ({ properties, type, analysisResults, onClose }: WellPo
               {properties.platsbeteckning && (
                 <div className="flex flex-wrap gap-2">
                   <a 
-                    href={`https://api.sgu.se/oppnadata/grundvattennivaer-observerade/ogc/features/v1/collections/matningar/items?f=csv&provplatsid=${properties.provplatsid || properties.platsbeteckning}`}
+                    href={`https://api.sgu.se/oppnadata/grundvattennivaer-observerade/ogc/features/v1/collections/nivaer/items?filter=platsbeteckning%20%3D%20%27${encodeURIComponent(properties.platsbeteckning)}%27&f=text/csv`}
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="text-sm text-sgu-link hover:underline inline-flex items-center gap-1"
@@ -541,7 +541,7 @@ export const WellPopup = ({ properties, type, analysisResults, onClose }: WellPo
                     <Download className="w-3 h-3" /> CSV
                   </a>
                   <a 
-                    href={`https://api.sgu.se/oppnadata/grundvattennivaer-observerade/ogc/features/v1/collections/matningar/items?f=json&provplatsid=${properties.provplatsid || properties.platsbeteckning}`}
+                    href={`https://api.sgu.se/oppnadata/grundvattennivaer-observerade/ogc/features/v1/collections/nivaer/items?filter=platsbeteckning%20%3D%20%27${encodeURIComponent(properties.platsbeteckning)}%27&f=json`}
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="text-sm text-sgu-link hover:underline inline-flex items-center gap-1"
