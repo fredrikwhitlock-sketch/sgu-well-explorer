@@ -17,7 +17,16 @@ import { LayerPanel } from "./LayerPanel";
 import { CoordinateDisplay } from "./CoordinateDisplay";
 import { WellPopup } from "./WellPopup";
 import { SearchControl } from "./SearchControl";
+import { ChartViewer } from "./ChartViewer";
 import { toast } from "sonner";
+
+interface ChartLocation {
+  id: string;
+  name: string;
+  type: 'level' | 'quality';
+  platsbeteckning?: string;
+  provplatsid?: string;
+}
 
 // Define SWEREF99 TM projection
 proj4.defs("EPSG:3006", "+proj=utm +zone=33 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs");
@@ -48,6 +57,9 @@ export const MapView = () => {
   const [waterBodiesLoaded, setWaterBodiesLoaded] = useState(0);
   const [gwLevelsObservedLoaded, setGwLevelsObservedLoaded] = useState(0);
   const [gwQualityLoaded, setGwQualityLoaded] = useState(0);
+  const [chartOpen, setChartOpen] = useState(false);
+  const [chartLocation, setChartLocation] = useState<ChartLocation | null>(null);
+  const [chartLocations, setChartLocations] = useState<ChartLocation[]>([]);
   const sourcesLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const wellsLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const aquifersLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
@@ -757,6 +769,31 @@ export const MapView = () => {
           type={selectedFeature.type}
           analysisResults={selectedFeature.analysisResults}
           onClose={() => setSelectedFeature(null)}
+          chartOpen={chartOpen}
+          chartType={chartLocation?.type || null}
+          onOpenChart={(location) => {
+            setChartLocation(location);
+            setChartLocations([location]);
+            setChartOpen(true);
+          }}
+          onAddToChart={(location) => {
+            if (chartOpen && chartLocation?.type === location.type) {
+              setChartLocations(prev => [...prev, location]);
+            }
+          }}
+        />
+      )}
+
+      {chartOpen && chartLocation && (
+        <ChartViewer
+          initialLocation={chartLocation}
+          locations={chartLocations}
+          onLocationsChange={setChartLocations}
+          onClose={() => {
+            setChartOpen(false);
+            setChartLocation(null);
+            setChartLocations([]);
+          }}
         />
       )}
     </div>
