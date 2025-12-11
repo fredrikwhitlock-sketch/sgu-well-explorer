@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { X, Trash2, Loader2, ExternalLink, GripHorizontal } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Brush, ReferenceArea } from "recharts";
 import { Separator } from "@/components/ui/separator";
 
 interface ChartLocation {
@@ -153,10 +153,13 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
   };
 
   const fetchQualityData = async (location: ChartLocation, parameter: string): Promise<{ date: string; value: number }[]> => {
-    // Use platsbeteckning for filtering, same format as working download links
+    // Use platsbeteckning for filtering - match exact working URL format
+    // Working example: filter=platsbeteckning=%27HVR-721-X%27
     const platsbeteckning = location.name;
-    // Format: filter=platsbeteckning='value' AND parameter='value'
-    const url = `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser/ogc/features/v1/collections/analysresultat/items?f=json&limit=5000&filter=platsbeteckning='${encodeURIComponent(platsbeteckning)}' AND parameter='${encodeURIComponent(parameter)}'`;
+    
+    // First fetch all data for this site, then filter by parameter client-side
+    // This avoids potential encoding issues with the AND clause
+    const url = `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser/ogc/features/v1/collections/analysresultat/items?f=json&limit=10000&filter=platsbeteckning=%27${encodeURIComponent(platsbeteckning)}%27`;
     
     console.log("Fetching quality data from:", url);
     const response = await fetch(url);
@@ -166,12 +169,16 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
     }
     
     const json = await response.json();
-    console.log("Quality data received:", json.features?.length || 0, "features");
+    console.log("Quality data received:", json.features?.length || 0, "features for", platsbeteckning);
     
-    return (json.features || []).map((f: any) => ({
-      date: f.properties.provdat?.split('T')[0] || '',
-      value: f.properties.matvardetal || 0
-    })).filter((d: any) => d.date && d.value !== null && d.value !== 0);
+    // Filter by parameter client-side
+    return (json.features || [])
+      .filter((f: any) => f.properties.parameter === parameter)
+      .map((f: any) => ({
+        date: f.properties.provdat?.split('T')[0] || '',
+        value: parseFloat(f.properties.matvardetal) || 0
+      }))
+      .filter((d: any) => d.date && d.value !== null && !isNaN(d.value));
   };
 
   const removeLocation = (id: string) => {
@@ -283,52 +290,68 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
             Ingen data tillgänglig för vald parameter/plats
           </div>
         ) : (
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis 
-                  dataKey="date" 
-                  tick={{ fontSize: 11 }}
-                  tickFormatter={(value) => {
-                    const date = new Date(value);
-                    return `${date.getFullYear()}`;
-                  }}
-                  className="text-muted-foreground"
-                />
-                <YAxis 
-                  tick={{ fontSize: 11 }}
-                  label={{ 
-                    value: getYAxisLabel(), 
-                    angle: -90, 
-                    position: 'insideLeft',
-                    style: { fontSize: 11 }
-                  }}
-                  className="text-muted-foreground"
-                  reversed={chartType === 'level'}
-                />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'hsl(var(--card))',
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: '8px'
-                  }}
-                  labelFormatter={(value) => `Datum: ${value}`}
-                />
-                <Legend />
-                {locations.map((location, index) => (
-                  <Line
-                    key={location.id}
-                    type="monotone"
-                    dataKey={location.name}
-                    stroke={CHART_COLORS[index % CHART_COLORS.length]}
-                    strokeWidth={2}
-                    dot={false}
-                    connectNulls
+          <div className="space-y-2">
+            <div className="h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis 
+                    dataKey="date" 
+                    tick={{ fontSize: 10 }}
+                    tickFormatter={(value) => {
+                      const date = new Date(value);
+                      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+                    }}
+                    className="text-muted-foreground"
                   />
-                ))}
-              </LineChart>
-            </ResponsiveContainer>
+                  <YAxis 
+                    tick={{ fontSize: 11 }}
+                    label={{ 
+                      value: getYAxisLabel(), 
+                      angle: -90, 
+                      position: 'insideLeft',
+                      style: { fontSize: 11 }
+                    }}
+                    className="text-muted-foreground"
+                    reversed={chartType === 'level'}
+                    domain={['auto', 'auto']}
+                  />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'hsl(var(--card))',
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '8px'
+                    }}
+                    labelFormatter={(value) => `Datum: ${value}`}
+                  />
+                  <Legend />
+                  {locations.map((location, index) => (
+                    <Line
+                      key={location.id}
+                      type="monotone"
+                      dataKey={location.name}
+                      stroke={CHART_COLORS[index % CHART_COLORS.length]}
+                      strokeWidth={2}
+                      dot={chartData.length < 100}
+                      connectNulls
+                    />
+                  ))}
+                  <Brush 
+                    dataKey="date" 
+                    height={30} 
+                    stroke="hsl(var(--primary))"
+                    fill="hsl(var(--muted))"
+                    tickFormatter={(value) => {
+                      const date = new Date(value);
+                      return `${date.getFullYear()}`;
+                    }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            <p className="text-xs text-muted-foreground text-center">
+              Dra i urvalsområdet nedan för att zooma in på en tidsperiod
+            </p>
           </div>
         )}
 
