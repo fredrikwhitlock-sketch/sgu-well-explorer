@@ -107,13 +107,15 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
     const json = await response.json();
     
     return (json.features || []).map((f: any) => ({
-      date: f.properties.datum?.split('T')[0] || '',
-      value: f.properties.niva_under_ref_m || f.properties.niva_under_mark_m || 0
-    })).filter((d: any) => d.date && d.value !== null);
+      date: f.properties.obsdatum?.split('T')[0] || '',
+      value: f.properties.grundvattenniva_m_urok || f.properties.grundvattenniva_m_u_markyta || 0
+    })).filter((d: any) => d.date && d.value !== null && d.value !== 0);
   };
 
   const fetchQualityData = async (location: ChartLocation, parameter: string): Promise<{ date: string; value: number }[]> => {
-    const url = `https://api.sgu.se/oppnadata/grundvattenkvalitet/ogc/features/v1/collections/analysresultat/items?filter=provplatsid%20%3D%20%27${encodeURIComponent(location.provplatsid || '')}%27%20AND%20parameter%20%3D%20%27${encodeURIComponent(parameter)}%27&f=json&limit=5000`;
+    // Use platsbeteckning for filtering, same as the download links
+    const platsbeteckning = location.name;
+    const url = `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser/ogc/features/v1/collections/analysresultat/items?filter=platsbeteckning%3D%27${encodeURIComponent(platsbeteckning)}%27%20AND%20parameter%3D%27${encodeURIComponent(parameter)}%27&f=json&limit=5000`;
     
     const response = await fetch(url);
     if (!response.ok) throw new Error("Failed to fetch quality data");
@@ -122,8 +124,8 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
     
     return (json.features || []).map((f: any) => ({
       date: f.properties.provdat?.split('T')[0] || '',
-      value: f.properties.matvardestal || 0
-    })).filter((d: any) => d.date && d.value !== null);
+      value: f.properties.matvardetal || 0
+    })).filter((d: any) => d.date && d.value !== null && d.value !== 0);
   };
 
   const removeLocation = (id: string) => {
