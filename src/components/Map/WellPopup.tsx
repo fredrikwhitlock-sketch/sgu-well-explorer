@@ -1,6 +1,6 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { X, ExternalLink, Download, BarChart3 } from "lucide-react";
+import { X, ExternalLink, Download, BarChart3, PlusCircle } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 
 interface WellPopupProps {
@@ -8,9 +8,13 @@ interface WellPopupProps {
   type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality';
   analysisResults?: any[];
   onClose: () => void;
+  onOpenChart?: (location: { id: string; name: string; type: 'level' | 'quality'; platsbeteckning?: string; provplatsid?: string }) => void;
+  onAddToChart?: (location: { id: string; name: string; type: 'level' | 'quality'; platsbeteckning?: string; provplatsid?: string }) => void;
+  chartOpen?: boolean;
+  chartType?: 'level' | 'quality' | null;
 }
 
-export const WellPopup = ({ properties, type, analysisResults, onClose }: WellPopupProps) => {
+export const WellPopup = ({ properties, type, analysisResults, onClose, onOpenChart, onAddToChart, chartOpen, chartType }: WellPopupProps) => {
   const formatValue = (value: any): string => {
     if (value === null || value === undefined) return "Ej angivet";
     if (typeof value === "string" && value.includes("T00:00:00Z")) {
@@ -555,6 +559,43 @@ export const WellPopup = ({ properties, type, analysisResults, onClose }: WellPo
             <Separator className="my-3" />
 
             <div className="space-y-2">
+              <div className="text-xs font-semibold text-foreground">Diagram</div>
+              <div className="flex flex-wrap gap-2">
+                {chartOpen && chartType === 'level' ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onAddToChart?.({
+                      id: `${properties.platsbeteckning}-${Date.now()}`,
+                      name: properties.platsbeteckning || properties.obsplatsnamn || 'Station',
+                      type: 'level',
+                      platsbeteckning: properties.platsbeteckning
+                    })}
+                    className="text-xs"
+                  >
+                    <PlusCircle className="w-3 h-3 mr-1" /> Lägg till i diagram
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onOpenChart?.({
+                      id: `${properties.platsbeteckning}-${Date.now()}`,
+                      name: properties.platsbeteckning || properties.obsplatsnamn || 'Station',
+                      type: 'level',
+                      platsbeteckning: properties.platsbeteckning
+                    })}
+                    className="text-xs"
+                  >
+                    <BarChart3 className="w-3 h-3 mr-1" /> Visa diagram
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            <Separator className="my-3" />
+
+            <div className="space-y-2">
               <div className="text-xs font-semibold text-foreground">Statistiska analyser</div>
               <a 
                 href="https://ground-chem-dash.lovable.app/"
@@ -703,6 +744,43 @@ export const WellPopup = ({ properties, type, analysisResults, onClose }: WellPo
                   JSON <ExternalLink className="w-3 h-3" />
                 </a>
               )}
+            </div>
+
+            <Separator className="my-3" />
+
+            <div className="space-y-2">
+              <div className="text-xs font-semibold text-foreground">Diagram</div>
+              <div className="flex flex-wrap gap-2">
+                {chartOpen && chartType === 'quality' ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onAddToChart?.({
+                      id: `${properties.provplatsid}-${Date.now()}`,
+                      name: properties.platsbeteckning || properties.provplatsnamn || 'Provplats',
+                      type: 'quality',
+                      provplatsid: properties.provplatsid
+                    })}
+                    className="text-xs"
+                  >
+                    <PlusCircle className="w-3 h-3 mr-1" /> Lägg till i diagram
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onOpenChart?.({
+                      id: `${properties.provplatsid}-${Date.now()}`,
+                      name: properties.platsbeteckning || properties.provplatsnamn || 'Provplats',
+                      type: 'quality',
+                      provplatsid: properties.provplatsid
+                    })}
+                    className="text-xs"
+                  >
+                    <BarChart3 className="w-3 h-3 mr-1" /> Visa diagram
+                  </Button>
+                )}
+              </div>
             </div>
 
             <Separator className="my-3" />
