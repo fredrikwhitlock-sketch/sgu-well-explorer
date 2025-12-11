@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { X, Trash2, Loader2, ExternalLink } from "lucide-react";
+import { X, Trash2, Loader2, ExternalLink, GripHorizontal } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { Separator } from "@/components/ui/separator";
@@ -58,8 +58,48 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedParameter, setSelectedParameter] = useState("pH");
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragRef = useRef<{ startX: number; startY: number; initialX: number; initialY: number } | null>(null);
   
   const chartType = initialLocation.type;
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    setIsDragging(true);
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      initialX: position.x,
+      initialY: position.y
+    };
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDragging || !dragRef.current) return;
+      const deltaX = e.clientX - dragRef.current.startX;
+      const deltaY = e.clientY - dragRef.current.startY;
+      setPosition({
+        x: dragRef.current.initialX + deltaX,
+        y: dragRef.current.initialY + deltaY
+      });
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+      dragRef.current = null;
+    };
+
+    if (isDragging) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+    }
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging]);
 
   useEffect(() => {
     fetchAllData();
@@ -113,14 +153,20 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
   };
 
   const fetchQualityData = async (location: ChartLocation, parameter: string): Promise<{ date: string; value: number }[]> => {
-    // Use platsbeteckning for filtering, same as the download links
+    // Use platsbeteckning for filtering, same format as working download links
     const platsbeteckning = location.name;
-    const url = `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser/ogc/features/v1/collections/analysresultat/items?filter=platsbeteckning%3D%27${encodeURIComponent(platsbeteckning)}%27%20AND%20parameter%3D%27${encodeURIComponent(parameter)}%27&f=json&limit=5000`;
+    // Format: filter=platsbeteckning='value' AND parameter='value'
+    const url = `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser/ogc/features/v1/collections/analysresultat/items?f=json&limit=5000&filter=platsbeteckning='${encodeURIComponent(platsbeteckning)}' AND parameter='${encodeURIComponent(parameter)}'`;
     
+    console.log("Fetching quality data from:", url);
     const response = await fetch(url);
-    if (!response.ok) throw new Error("Failed to fetch quality data");
+    if (!response.ok) {
+      console.error("Quality fetch failed:", response.status, response.statusText);
+      throw new Error("Failed to fetch quality data");
+    }
     
     const json = await response.json();
+    console.log("Quality data received:", json.features?.length || 0, "features");
     
     return (json.features || []).map((f: any) => ({
       date: f.properties.provdat?.split('T')[0] || '',
@@ -143,15 +189,29 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
   };
 
   return (
-    <Card className="absolute top-20 left-4 right-4 md:left-auto md:right-20 md:w-[700px] max-h-[calc(100vh-120px)] overflow-y-auto bg-card/95 backdrop-blur-sm shadow-lg border-border z-50">
-      <div className="sticky top-0 bg-sgu-maroon border-b border-border p-4 flex items-center justify-between z-10">
-        <h3 className="font-semibold text-lg text-white">
-          {chartType === 'level' ? 'Grundvattennivå - Diagram' : 'Grundvattenkvalitet - Diagram'}
-        </h3>
+    <Card 
+      className="fixed md:w-[700px] max-h-[calc(100vh-120px)] overflow-y-auto bg-card/95 backdrop-blur-sm shadow-lg border-border z-50"
+      style={{ 
+        top: `calc(80px + ${position.y}px)`, 
+        left: `calc(50% + ${position.x}px)`,
+        transform: 'translateX(-50%)',
+        cursor: isDragging ? 'grabbing' : 'default'
+      }}
+    >
+      <div 
+        className="sticky top-0 bg-sgu-maroon border-b border-border p-4 flex items-center justify-between z-10 cursor-grab select-none"
+        onMouseDown={handleMouseDown}
+      >
+        <div className="flex items-center gap-2">
+          <GripHorizontal className="h-4 w-4 text-white/60" />
+          <h3 className="font-semibold text-lg text-white">
+            {chartType === 'level' ? 'Grundvattennivå - Diagram' : 'Grundvattenkvalitet - Diagram'}
+          </h3>
+        </div>
         <Button
           variant="ghost"
           size="sm"
-          onClick={onClose}
+          onClick={(e) => { e.stopPropagation(); onClose(); }}
           className="h-8 w-8 p-0 text-white hover:bg-sgu-dark-maroon"
         >
           <X className="h-4 w-4" />
