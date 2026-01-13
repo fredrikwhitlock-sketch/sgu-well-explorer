@@ -182,46 +182,58 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
   };
 
   const fetchQualityData = async (location: ChartLocation, parameter: string): Promise<{ date: string; value: number }[]> => {
-    // Use platsbeteckning for filtering - match exact working URL format with spaces around =
-    // Working example: filter=platsbeteckning%20%3D%20%2795_1%27
     const platsbeteckning = location.name;
-    const baseUrl = `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser/ogc/features/v1/collections/analysresultat/items?f=json&filter=platsbeteckning%20%3D%20%27${encodeURIComponent(platsbeteckning)}%27`;
 
-    console.log("Fetching all quality data for:", platsbeteckning);
-    const allFeatures = await fetchAllPages(baseUrl);
-    console.log("Quality data received:", allFeatures.length, "features for", platsbeteckning);
+    // To avoid hitting any server-side caps on large result sets, we filter as narrowly as possible:
+    // 1) provplatsid (if available) / annars platsbeteckning
+    // 2) parameter (server-side) 
+    const siteClause = location.provplatsid
+      ? `provplatsid = '${location.provplatsid}'`
+      : `platsbeteckning = '${platsbeteckning}'`;
 
     // Populate parameter dropdown from real API values (avoids mismatches like "Konduktivitet" vs actual parameter names)
-    if (availableQualityParameters.length === 0 && allFeatures.length > 0) {
-      const unique = Array.from(
-        new Set(
-          allFeatures
-            .map((f: any) => String(f?.properties?.parameter ?? "").trim())
-            .filter(Boolean)
-        )
-      ).sort((a, b) => a.localeCompare(b, "sv"));
+    // We only fetch the FIRST page for this, to keep it cheap.
+    if (availableQualityParameters.length === 0) {
+      const paramsUrl = `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser/ogc/features/v1/collections/analysresultat/items?f=json&limit=1000&filter=${encodeURIComponent(siteClause)}`;
+      try {
+        const resp = await fetch(paramsUrl);
+        if (resp.ok) {
+          const json = await resp.json();
+          const features = json.features || [];
+          const unique = Array.from(
+            new Set<string>(
+              features
+                .map((f: any) => String(f?.properties?.parameter ?? "").trim())
+                .filter(Boolean)
+            )
+          ).sort((a: string, b: string) => a.localeCompare(b, "sv"));
 
-      const mapped = unique.map((p) => {
-        const known = QUALITY_PARAMETERS.find((kp) => kp.value === p);
-        return { value: p, label: known?.label ?? p };
-      });
+          const mapped: Array<{ value: string; label: string }> = unique.map((p: string) => {
+            const known = QUALITY_PARAMETERS.find((kp) => kp.value === p);
+            return { value: p, label: known?.label ?? p };
+          });
 
-      setAvailableQualityParameters(mapped);
-      if (!unique.includes(parameter)) {
-        setSelectedParameter(unique[0]);
+          if (mapped.length > 0) {
+            setAvailableQualityParameters(mapped);
+            if (!unique.includes(parameter)) {
+              setSelectedParameter(unique[0]);
+            }
+          }
+        }
+      } catch (e) {
+        // Non-fatal – chart can still load using current selection
+        console.warn("Failed to build parameter list for quality chart", e);
       }
     }
 
-    const norm = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
-    const wanted = norm(parameter);
+    const filter = `${siteClause} AND parameter = '${parameter}'`;
+    const baseUrl = `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser/ogc/features/v1/collections/analysresultat/items?f=json&filter=${encodeURIComponent(filter)}`;
 
-    // Filter by parameter client-side (with a forgiving match, since API strings vary)
+    console.log("Fetching quality data from:", baseUrl);
+    const allFeatures = await fetchAllPages(baseUrl);
+    console.log("Quality data received:", allFeatures.length, "features for", platsbeteckning, "parameter", parameter);
+
     return allFeatures
-      .filter((f: any) => {
-        const p = String(f?.properties?.parameter ?? "");
-        const pn = norm(p);
-        return pn === wanted || pn.includes(wanted) || wanted.includes(pn);
-      })
       .map((f: any) => {
         const raw = String(f?.properties?.matvardetal ?? "").trim();
         const normalizedNumber = raw
@@ -230,7 +242,7 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
           .replace(",", ".");
 
         return {
-          date: f.properties.provdat?.split('T')[0] || '',
+          date: f?.properties?.provdat?.split("T")[0] || "",
           value: Number.parseFloat(normalizedNumber)
         };
       })
