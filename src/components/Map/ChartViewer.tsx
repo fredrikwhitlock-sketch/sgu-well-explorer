@@ -58,6 +58,7 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedParameter, setSelectedParameter] = useState("pH");
+  const [availableQualityParameters, setAvailableQualityParameters] = useState<Array<{ value: string; label: string }>>([]);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef<{ startX: number; startY: number; initialX: number; initialY: number } | null>(null);
@@ -185,19 +186,55 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
     // Working example: filter=platsbeteckning%20%3D%20%2795_1%27
     const platsbeteckning = location.name;
     const baseUrl = `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser/ogc/features/v1/collections/analysresultat/items?f=json&filter=platsbeteckning%20%3D%20%27${encodeURIComponent(platsbeteckning)}%27`;
-    
+
     console.log("Fetching all quality data for:", platsbeteckning);
     const allFeatures = await fetchAllPages(baseUrl);
     console.log("Quality data received:", allFeatures.length, "features for", platsbeteckning);
-    
-    // Filter by parameter client-side
+
+    // Populate parameter dropdown from real API values (avoids mismatches like "Konduktivitet" vs actual parameter names)
+    if (availableQualityParameters.length === 0 && allFeatures.length > 0) {
+      const unique = Array.from(
+        new Set(
+          allFeatures
+            .map((f: any) => String(f?.properties?.parameter ?? "").trim())
+            .filter(Boolean)
+        )
+      ).sort((a, b) => a.localeCompare(b, "sv"));
+
+      const mapped = unique.map((p) => {
+        const known = QUALITY_PARAMETERS.find((kp) => kp.value === p);
+        return { value: p, label: known?.label ?? p };
+      });
+
+      setAvailableQualityParameters(mapped);
+      if (!unique.includes(parameter)) {
+        setSelectedParameter(unique[0]);
+      }
+    }
+
+    const norm = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
+    const wanted = norm(parameter);
+
+    // Filter by parameter client-side (with a forgiving match, since API strings vary)
     return allFeatures
-      .filter((f: any) => f.properties.parameter === parameter)
-      .map((f: any) => ({
-        date: f.properties.provdat?.split('T')[0] || '',
-        value: parseFloat(f.properties.matvardetal) || 0
-      }))
-      .filter((d: any) => d.date && d.value !== null && !isNaN(d.value));
+      .filter((f: any) => {
+        const p = String(f?.properties?.parameter ?? "");
+        const pn = norm(p);
+        return pn === wanted || pn.includes(wanted) || wanted.includes(pn);
+      })
+      .map((f: any) => {
+        const raw = String(f?.properties?.matvardetal ?? "").trim();
+        const normalizedNumber = raw
+          .replace(/^</, "") // handle values like "<0,1"
+          .replace(/\s/g, "")
+          .replace(",", ".");
+
+        return {
+          date: f.properties.provdat?.split('T')[0] || '',
+          value: Number.parseFloat(normalizedNumber)
+        };
+      })
+      .filter((d: any) => d.date && d.value !== null && !Number.isNaN(d.value));
   };
 
   const removeLocation = (id: string) => {
@@ -210,8 +247,9 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
     if (chartType === 'level') {
       return "Nivå under ref (m)";
     }
-    const param = QUALITY_PARAMETERS.find(p => p.value === selectedParameter);
-    return param?.label || selectedParameter;
+    const known = QUALITY_PARAMETERS.find(p => p.value === selectedParameter);
+    const fromApi = availableQualityParameters.find(p => p.value === selectedParameter);
+    return known?.label || fromApi?.label || selectedParameter;
   };
 
   return (
@@ -253,7 +291,7 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
                 <SelectValue placeholder="Välj parameter" />
               </SelectTrigger>
               <SelectContent>
-                {QUALITY_PARAMETERS.map(param => (
+                {(availableQualityParameters.length > 0 ? availableQualityParameters : QUALITY_PARAMETERS).map(param => (
                   <SelectItem key={param.value} value={param.value}>
                     {param.label}
                   </SelectItem>
