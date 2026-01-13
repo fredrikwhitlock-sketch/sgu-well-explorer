@@ -181,9 +181,10 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
   };
 
   const fetchQualityData = async (location: ChartLocation, parameter: string): Promise<{ date: string; value: number }[]> => {
-    // Use platsbeteckning for filtering - match exact working URL format
+    // Use platsbeteckning for filtering - match exact working URL format with spaces around =
+    // Working example: filter=platsbeteckning%20%3D%20%2795_1%27
     const platsbeteckning = location.name;
-    const baseUrl = `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser/ogc/features/v1/collections/analysresultat/items?f=json&filter=platsbeteckning=%27${encodeURIComponent(platsbeteckning)}%27`;
+    const baseUrl = `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser/ogc/features/v1/collections/analysresultat/items?f=json&filter=platsbeteckning%20%3D%20%27${encodeURIComponent(platsbeteckning)}%27`;
     
     console.log("Fetching all quality data for:", platsbeteckning);
     const allFeatures = await fetchAllPages(baseUrl);
