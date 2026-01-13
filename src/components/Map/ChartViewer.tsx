@@ -143,18 +143,18 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
   const fetchAllPages = async (baseUrl: string): Promise<any[]> => {
     const allFeatures: any[] = [];
     let nextUrl: string | null = `${baseUrl}&limit=1000`;
-    
+
     while (nextUrl) {
       const response = await fetch(nextUrl);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
-      
+
       if (data.features) {
         allFeatures.push(...data.features);
       }
-      
+
       // Check for next page link
       nextUrl = null;
       if (data.links) {
@@ -164,9 +164,12 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
         }
       }
     }
-    
+
     return allFeatures;
   };
+
+  // NOTE: encodeURIComponent does NOT encode apostrophes (') which SGU's OGC API examples use as %27.
+  const encodeOgcFilter = (filter: string) => encodeURIComponent(filter).replace(/'/g, "%27");
 
   const fetchLevelData = async (location: ChartLocation): Promise<{ date: string; value: number }[]> => {
     const baseUrl = `https://api.sgu.se/oppnadata/grundvattennivaer-observerade/ogc/features/v1/collections/nivaer/items?filter=platsbeteckning%20%3D%20%27${encodeURIComponent(location.platsbeteckning || '')}%27&f=json`;
@@ -194,7 +197,7 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
     // Populate parameter dropdown from real API values (avoids mismatches like "Konduktivitet" vs actual parameter names)
     // We only fetch the FIRST page for this, to keep it cheap.
     if (availableQualityParameters.length === 0) {
-      const paramsUrl = `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser/ogc/features/v1/collections/analysresultat/items?f=json&limit=1000&filter=${encodeURIComponent(siteClause)}`;
+      const paramsUrl = `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser/ogc/features/v1/collections/analysresultat/items?f=json&limit=1000&filter=${encodeOgcFilter(siteClause)}`;
       try {
         const resp = await fetch(paramsUrl);
         if (resp.ok) {
@@ -227,7 +230,7 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
     }
 
     const filter = `${siteClause} AND parameter = '${parameter}'`;
-    const baseUrl = `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser/ogc/features/v1/collections/analysresultat/items?f=json&filter=${encodeURIComponent(filter)}`;
+    const baseUrl = `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser/ogc/features/v1/collections/analysresultat/items?f=json&filter=${encodeOgcFilter(filter)}`;
 
     console.log("Fetching quality data from:", baseUrl);
     const allFeatures = await fetchAllPages(baseUrl);
@@ -310,6 +313,9 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
                 ))}
               </SelectContent>
             </Select>
+            <p className="text-xs text-muted-foreground">
+              Parametrar från API: {availableQualityParameters.length > 0 ? `${availableQualityParameters.length} st (t.ex. ${availableQualityParameters.slice(0, 8).map(p => p.value).join(", ")}${availableQualityParameters.length > 8 ? "…" : ""})` : "(hämtas…)"}
+            </p>
           </div>
         )}
 
