@@ -593,19 +593,6 @@ export const WellPopup = ({ properties, type, analysisResults, onClose, onOpenCh
               </div>
             </div>
 
-            <Separator className="my-3" />
-
-            <div className="space-y-2">
-              <div className="text-xs font-semibold text-foreground">Statistiska analyser</div>
-              <a 
-                href="https://ground-chem-dash.lovable.app/"
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-sm text-sgu-link hover:underline inline-flex items-center gap-1"
-              >
-                <BarChart3 className="w-3 h-3" /> Öppna statistikverktyg
-              </a>
-            </div>
           </>
         ) : type === 'gwQuality' ? (
           <>
