@@ -430,19 +430,6 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
           </div>
         )}
 
-        <Separator />
-
-        <div className="space-y-2">
-          <div className="text-xs font-semibold text-foreground">Ytterligare analyser</div>
-          <a 
-            href="https://ground-chem-dash.lovable.app/"
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="text-sm text-sgu-link hover:underline inline-flex items-center gap-1"
-          >
-            Öppna statistikverktyg för mer avancerade analyser <ExternalLink className="w-3 h-3" />
-          </a>
-        </div>
       </div>
     </Card>
   );
