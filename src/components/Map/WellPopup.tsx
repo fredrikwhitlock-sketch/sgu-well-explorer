@@ -647,6 +647,22 @@ export const WellPopup = ({ properties, type, analysisResults, onClose, onOpenCh
               </div>
             )}
 
+            {properties.eucd_gwb && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Grundvattenförekomst (EU-kod)</dt>
+                <dd className="text-sm text-foreground mt-1">
+                  <a 
+                    href={`https://viss.lansstyrelsen.se/Waters.aspx?waterMSCD=${properties.eucd_gwb.trim()}`}
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-sgu-link hover:underline inline-flex items-center gap-1"
+                  >
+                    {formatValue(properties.eucd_gwb.trim())} <ExternalLink className="w-3 h-3" />
+                  </a>
+                </dd>
+              </div>
+            )}
+
             <Separator className="my-3" />
 
             {properties.akvifer_tx && (
