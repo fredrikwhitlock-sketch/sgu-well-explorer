@@ -180,7 +180,7 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
     
     return allFeatures.map((f: any) => ({
       date: f.properties.obsdatum?.split('T')[0] || '',
-      value: f.properties.grundvattenniva_m_urok || f.properties.grundvattenniva_m_u_markyta || 0
+      value: f.properties.grundvattenniva_m_u_markyta ?? f.properties.grundvattenniva_m_urok ?? 0
     })).filter((d: any) => d.date && d.value !== null && d.value !== 0);
   };
 
@@ -260,7 +260,7 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
 
   const getYAxisLabel = () => {
     if (chartType === 'level') {
-      return "Nivå under ref (m)";
+      return "Nivå under markyta (m)";
     }
     const known = QUALITY_PARAMETERS.find(p => p.value === selectedParameter);
     const fromApi = availableQualityParameters.find(p => p.value === selectedParameter);
