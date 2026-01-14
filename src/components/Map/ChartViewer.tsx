@@ -385,6 +385,7 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
                       value: getYAxisLabel(), 
                       angle: -90, 
                       position: 'insideLeft',
+                      dy: 40,
                       style: { fontSize: 11 }
                     }}
                     className="text-muted-foreground"
