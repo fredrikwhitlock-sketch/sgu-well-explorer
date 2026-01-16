@@ -727,26 +727,28 @@ export const WellPopup = ({ properties, type, analysisResults, onClose, onOpenCh
 
             <div className="space-y-2">
               <div className="text-xs font-semibold text-foreground">Hämta analysresultat</div>
-              {properties.analyser_csv && (
-                <a 
-                  href={properties.analyser_csv}
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-sm text-sgu-link hover:underline inline-flex items-center gap-1"
-                >
-                  Ladda ner analysresultat (CSV) <ExternalLink className="w-3 h-3" />
-                </a>
-              )}
-              {properties.analyser_json && (
-                <a 
-                  href={properties.analyser_json}
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-sm text-sgu-link hover:underline inline-flex items-center gap-1 ml-2"
-                >
-                  JSON <ExternalLink className="w-3 h-3" />
-                </a>
-              )}
+              <div className="flex flex-wrap gap-2">
+                {properties.nationellt_provplatsid && (
+                  <a 
+                    href={`https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/analysresultat/items?f=csv&filter=nationellt_provplatsid%20%3D%20${properties.nationellt_provplatsid}&limit=10000`}
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-sm text-sgu-link hover:underline inline-flex items-center gap-1"
+                  >
+                    <Download className="w-3 h-3" /> CSV
+                  </a>
+                )}
+                {properties.nationellt_provplatsid && (
+                  <a 
+                    href={`https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/analysresultat/items?f=json&filter=nationellt_provplatsid%20%3D%20${properties.nationellt_provplatsid}&limit=10000`}
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-sm text-sgu-link hover:underline inline-flex items-center gap-1"
+                  >
+                    <Download className="w-3 h-3" /> JSON
+                  </a>
+                )}
+              </div>
             </div>
 
             <Separator className="my-3" />
