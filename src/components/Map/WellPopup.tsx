@@ -759,10 +759,10 @@ export const WellPopup = ({ properties, type, analysisResults, onClose, onOpenCh
                     variant="outline"
                     size="sm"
                     onClick={() => onAddToChart?.({
-                      id: `${properties.provplatsid}-${Date.now()}`,
+                      id: `${properties.nationellt_provplatsid}-${Date.now()}`,
                       name: properties.platsbeteckning || properties.provplatsnamn || 'Provplats',
                       type: 'quality',
-                      provplatsid: properties.provplatsid
+                      provplatsid: properties.nationellt_provplatsid
                     })}
                     className="text-xs"
                   >
@@ -773,10 +773,10 @@ export const WellPopup = ({ properties, type, analysisResults, onClose, onOpenCh
                     variant="outline"
                     size="sm"
                     onClick={() => onOpenChart?.({
-                      id: `${properties.provplatsid}-${Date.now()}`,
+                      id: `${properties.nationellt_provplatsid}-${Date.now()}`,
                       name: properties.platsbeteckning || properties.provplatsnamn || 'Provplats',
                       type: 'quality',
-                      provplatsid: properties.provplatsid
+                      provplatsid: properties.nationellt_provplatsid
                     })}
                     className="text-xs"
                   >
