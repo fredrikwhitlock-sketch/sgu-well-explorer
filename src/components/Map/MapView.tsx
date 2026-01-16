@@ -434,8 +434,9 @@ export const MapView = () => {
           setGwQualityLoaded(0);
           console.log("Loading groundwater quality sites from OGC API...");
           
+          // Use API v2 for groundwater quality
           const allFeatures = await fetchAllPages(
-            `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser/ogc/features/v1/collections/provplatser/items?f=json`,
+            `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/provplatser/items?f=json`,
             (count) => setGwQualityLoaded(count)
           );
           

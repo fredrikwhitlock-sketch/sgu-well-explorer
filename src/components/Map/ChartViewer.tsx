@@ -185,19 +185,22 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
   };
 
   const fetchQualityData = async (location: ChartLocation, parameter: string): Promise<{ date: string; value: number }[]> => {
-    const platsbeteckning = location.name;
+    // API v2 uses nationellt_provplatsid as the key between provplatser and analysresultat
+    const nationelltProvplatsid = location.provplatsid;
+    const locationName = location.name;
 
-    // To avoid hitting any server-side caps on large result sets, we filter as narrowly as possible:
-    // 1) provplatsid (if available) / annars platsbeteckning
-    // 2) parameter (server-side) 
-    const siteClause = location.provplatsid
-      ? `provplatsid = '${location.provplatsid}'`
-      : `platsbeteckning = '${platsbeteckning}'`;
+    if (!nationelltProvplatsid) {
+      console.warn("No nationellt_provplatsid available for location:", locationName);
+      return [];
+    }
 
-    // Populate parameter dropdown from real API values (avoids mismatches like "Konduktivitet" vs actual parameter names)
-    // We only fetch the FIRST page for this, to keep it cheap.
+    // Build filter using nationellt_provplatsid (integer in v2)
+    const siteClause = `nationellt_provplatsid = ${nationelltProvplatsid}`;
+
+    // Populate parameter dropdown from real API values
+    // API v2 uses 'parameternamn' instead of 'parameter'
     if (availableQualityParameters.length === 0) {
-      const paramsUrl = `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser/ogc/features/v1/collections/analysresultat/items?f=json&limit=1000&filter=${encodeOgcFilter(siteClause)}`;
+      const paramsUrl = `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/analysresultat/items?f=json&limit=1000&filter=${encodeOgcFilter(siteClause)}`;
       try {
         const resp = await fetch(paramsUrl);
         if (resp.ok) {
@@ -206,7 +209,7 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
           const unique = Array.from(
             new Set<string>(
               features
-                .map((f: any) => String(f?.properties?.parameter ?? "").trim())
+                .map((f: any) => String(f?.properties?.parameternamn ?? "").trim())
                 .filter(Boolean)
             )
           ).sort((a: string, b: string) => a.localeCompare(b, "sv"));
@@ -229,12 +232,13 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
       }
     }
 
-    const filter = `${siteClause} AND parameter = '${parameter}'`;
-    const baseUrl = `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser/ogc/features/v1/collections/analysresultat/items?f=json&filter=${encodeOgcFilter(filter)}`;
+    // API v2 uses 'parameternamn' instead of 'parameter'
+    const filter = `${siteClause} AND parameternamn = '${parameter}'`;
+    const baseUrl = `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/analysresultat/items?f=json&filter=${encodeOgcFilter(filter)}`;
 
-    console.log("Fetching quality data from:", baseUrl);
+    console.log("Fetching quality data (v2) from:", baseUrl);
     const allFeatures = await fetchAllPages(baseUrl);
-    console.log("Quality data received:", allFeatures.length, "features for", platsbeteckning, "parameter", parameter);
+    console.log("Quality data received:", allFeatures.length, "features for", locationName, "parameter", parameter);
 
     return allFeatures
       .map((f: any) => {
@@ -245,7 +249,8 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
           .replace(",", ".");
 
         return {
-          date: f?.properties?.provdat?.split("T")[0] || "",
+          // API v2 uses 'provtagningsdatum' instead of 'provdat'
+          date: f?.properties?.provtagningsdatum?.split("T")[0] || "",
           value: Number.parseFloat(normalizedNumber)
         };
       })
