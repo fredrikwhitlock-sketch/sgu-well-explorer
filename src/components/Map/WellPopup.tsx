@@ -5,7 +5,7 @@ import { Separator } from "@/components/ui/separator";
 
 interface WellPopupProps {
   properties: Record<string, any>;
-  type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality';
+  type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType';
   analysisResults?: any[];
   onClose: () => void;
   onOpenChart?: (location: { id: string; name: string; type: 'level' | 'quality'; platsbeteckning?: string; provplatsid?: string }) => void;
