@@ -154,12 +154,24 @@ export const MapView = () => {
     });
     sourcesLayerRef.current = sourcesLayer;
 
+    // Minimum zoom level for loading wells and soil types (to avoid loading too much data)
+    const MIN_ZOOM_FOR_WELLS = 10;
+    const MIN_ZOOM_FOR_SOIL_TYPES = 11;
+
     // OGC API Features layer for Brunnar (wells) - bbox-filtered
     const wellsSource = new VectorSource({
       format: new GeoJSON(),
       strategy: (extent) => [extent],
       loader: async (extent) => {
         try {
+          // Check zoom level before loading
+          const currentZoom = mapInstanceRef.current?.getView().getZoom() || 0;
+          if (currentZoom < MIN_ZOOM_FOR_WELLS) {
+            console.log(`Zoom level ${currentZoom} is too low for wells (min: ${MIN_ZOOM_FOR_WELLS})`);
+            setLoadingWells(false);
+            return;
+          }
+          
           setLoadingWells(true);
           console.log("Loading wells from OGC API with bbox...");
           
@@ -319,6 +331,14 @@ export const MapView = () => {
       strategy: (extent) => [extent],
       loader: async (extent) => {
         try {
+          // Check zoom level before loading
+          const currentZoom = mapInstanceRef.current?.getView().getZoom() || 0;
+          if (currentZoom < MIN_ZOOM_FOR_SOIL_TYPES) {
+            console.log(`Zoom level ${currentZoom} is too low for soil types (min: ${MIN_ZOOM_FOR_SOIL_TYPES})`);
+            setLoadingSoilTypes(false);
+            return;
+          }
+          
           setLoadingSoilTypes(true);
           console.log("Loading soil types from OGC API with bbox...");
           
@@ -652,13 +672,18 @@ export const MapView = () => {
     if (wellsLayerRef.current) {
       wellsLayerRef.current.setVisible(wellsVisible);
       if (wellsVisible && mapInstanceRef.current) {
-        const extent = mapInstanceRef.current.getView().calculateExtent();
-        wellsLayerRef.current.getSource()?.clear();
-        wellsLayerRef.current.getSource()?.loadFeatures(
-          extent,
-          1,
-          wellsLayerRef.current.getSource()!.getProjection()
-        );
+        const currentZoom = mapInstanceRef.current.getView().getZoom() || 0;
+        if (currentZoom < 10) {
+          toast.info("Zooma in för att ladda brunnar (minst zoomnivå 10)");
+        } else {
+          const extent = mapInstanceRef.current.getView().calculateExtent();
+          wellsLayerRef.current.getSource()?.clear();
+          wellsLayerRef.current.getSource()?.loadFeatures(
+            extent,
+            1,
+            wellsLayerRef.current.getSource()!.getProjection()
+          );
+        }
       }
     }
   }, [wellsVisible]);
@@ -689,13 +714,18 @@ export const MapView = () => {
     if (soilTypesLayerRef.current) {
       soilTypesLayerRef.current.setVisible(soilTypesVisible);
       if (soilTypesVisible && mapInstanceRef.current) {
-        const extent = mapInstanceRef.current.getView().calculateExtent();
-        soilTypesLayerRef.current.getSource()?.clear();
-        soilTypesLayerRef.current.getSource()?.loadFeatures(
-          extent,
-          1,
-          soilTypesLayerRef.current.getSource()!.getProjection()
-        );
+        const currentZoom = mapInstanceRef.current.getView().getZoom() || 0;
+        if (currentZoom < 11) {
+          toast.info("Zooma in för att ladda jordarter (minst zoomnivå 11)");
+        } else {
+          const extent = mapInstanceRef.current.getView().calculateExtent();
+          soilTypesLayerRef.current.getSource()?.clear();
+          soilTypesLayerRef.current.getSource()?.loadFeatures(
+            extent,
+            1,
+            soilTypesLayerRef.current.getSource()!.getProjection()
+          );
+        }
       }
     }
   }, [soilTypesVisible]);
