@@ -17,6 +17,7 @@ import { LayerPanel } from "./LayerPanel";
 import { CoordinateDisplay } from "./CoordinateDisplay";
 import { WellPopup } from "./WellPopup";
 import { SearchControl } from "./SearchControl";
+import { ZoomIndicator } from "./ZoomIndicator";
 import { ChartViewer } from "./ChartViewer";
 import { toast } from "sonner";
 import { getSoilTypeColor } from "@/lib/soilTypeColors";
@@ -66,6 +67,7 @@ export const MapView = () => {
   const [chartOpen, setChartOpen] = useState(false);
   const [chartLocation, setChartLocation] = useState<ChartLocation | null>(null);
   const [chartLocations, setChartLocations] = useState<ChartLocation[]>([]);
+  const [currentZoom, setCurrentZoom] = useState(11);
   const sourcesLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const wellsLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const aquifersLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
@@ -646,6 +648,30 @@ export const MapView = () => {
       }
     });
 
+    // Update zoom level state on zoom change and reload layers when zoom threshold is crossed
+    map.getView().on('change:resolution', () => {
+      const zoom = map.getView().getZoom() || 0;
+      setCurrentZoom(zoom);
+      
+      // Reload wells when zoom crosses threshold and layer is visible
+      if (wellsLayerRef.current?.getVisible() && zoom >= 10) {
+        const source = wellsLayerRef.current.getSource();
+        if (source && source.getFeatures().length === 0) {
+          const extent = map.getView().calculateExtent();
+          source.loadFeatures(extent, 1, source.getProjection());
+        }
+      }
+      
+      // Reload soil types when zoom crosses threshold and layer is visible
+      if (soilTypesLayerRef.current?.getVisible() && zoom >= 11) {
+        const source = soilTypesLayerRef.current.getSource();
+        if (source && source.getFeatures().length === 0) {
+          const extent = map.getView().calculateExtent();
+          source.loadFeatures(extent, 1, source.getProjection());
+        }
+      }
+    });
+
     toast.success("Karta laddad!");
 
     return () => {
@@ -824,6 +850,8 @@ export const MapView = () => {
       />
       
       <CoordinateDisplay coordinates={coordinates} />
+      
+      <ZoomIndicator zoom={currentZoom} />
       
       {(loadingSources || loadingWells || loadingAquifers || loadingSoilTypes || loadingWaterBodies || loadingGwLevelsObserved || loadingGwQuality) && (
         <div className="absolute top-20 left-1/2 transform -translate-x-1/2 bg-background/95 backdrop-blur-sm p-4 rounded-lg shadow-lg border z-10 min-w-[300px]">
