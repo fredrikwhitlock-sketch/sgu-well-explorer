@@ -157,8 +157,8 @@ export const MapView = () => {
     sourcesLayerRef.current = sourcesLayer;
 
     // Minimum zoom level for loading wells and soil types (to avoid loading too much data)
-    const MIN_ZOOM_FOR_WELLS = 10;
-    const MIN_ZOOM_FOR_SOIL_TYPES = 11;
+    const MIN_ZOOM_FOR_WELLS = 12;
+    const MIN_ZOOM_FOR_SOIL_TYPES = 12;
 
     // OGC API Features layer for Brunnar (wells) - bbox-filtered
     const wellsSource = new VectorSource({
@@ -352,7 +352,7 @@ export const MapView = () => {
           const maxLat = (Math.atan(Math.exp((maxY / 20037508.34) * Math.PI)) * 360 / Math.PI) - 90;
           
           const bbox = `${minLon},${minLat},${maxLon},${maxLat}`;
-          const url = `https://api.sgu.se/oppnadata/jordarter25k-100k/ogc/features/v1/collections/grundlager/items?f=json&bbox=${bbox}&limit=5000`;
+          const url = `https://api.sgu.se/oppnadata/jordarter25k-100k/ogc/features/v1/collections/grundlager/items?f=json&bbox=${bbox}&limit=20000`;
           
           const response = await fetch(url);
           
@@ -375,8 +375,8 @@ export const MapView = () => {
             soilTypesSource.addFeatures(features);
             setSoilTypesLoaded(soilTypesSource.getFeatures().length);
             
-            if (data.features.length >= 5000) {
-              toast.info("Visar max 5 000 jordarter. Zooma in för fler detaljer.");
+            if (data.features.length >= 20000) {
+              toast.info("Visar max 20 000 jordarter. Zooma in för fler detaljer.");
             }
           }
         } catch (error) {
@@ -654,7 +654,7 @@ export const MapView = () => {
       setCurrentZoom(zoom);
       
       // Reload wells when zoom crosses threshold and layer is visible
-      if (wellsLayerRef.current?.getVisible() && zoom >= 10) {
+      if (wellsLayerRef.current?.getVisible() && zoom >= 12) {
         const source = wellsLayerRef.current.getSource();
         if (source && source.getFeatures().length === 0) {
           const extent = map.getView().calculateExtent();
@@ -663,7 +663,7 @@ export const MapView = () => {
       }
       
       // Reload soil types when zoom crosses threshold and layer is visible
-      if (soilTypesLayerRef.current?.getVisible() && zoom >= 11) {
+      if (soilTypesLayerRef.current?.getVisible() && zoom >= 12) {
         const source = soilTypesLayerRef.current.getSource();
         if (source && source.getFeatures().length === 0) {
           const extent = map.getView().calculateExtent();
@@ -699,8 +699,8 @@ export const MapView = () => {
       wellsLayerRef.current.setVisible(wellsVisible);
       if (wellsVisible && mapInstanceRef.current) {
         const currentZoom = mapInstanceRef.current.getView().getZoom() || 0;
-        if (currentZoom < 10) {
-          toast.info("Zooma in för att ladda brunnar (minst zoomnivå 10)");
+        if (currentZoom < 12) {
+          toast.info("Zooma in för att ladda brunnar (minst zoomnivå 12)");
         } else {
           const extent = mapInstanceRef.current.getView().calculateExtent();
           wellsLayerRef.current.getSource()?.clear();
@@ -741,8 +741,8 @@ export const MapView = () => {
       soilTypesLayerRef.current.setVisible(soilTypesVisible);
       if (soilTypesVisible && mapInstanceRef.current) {
         const currentZoom = mapInstanceRef.current.getView().getZoom() || 0;
-        if (currentZoom < 11) {
-          toast.info("Zooma in för att ladda jordarter (minst zoomnivå 11)");
+        if (currentZoom < 12) {
+          toast.info("Zooma in för att ladda jordarter (minst zoomnivå 12)");
         } else {
           const extent = mapInstanceRef.current.getView().calculateExtent();
           soilTypesLayerRef.current.getSource()?.clear();
