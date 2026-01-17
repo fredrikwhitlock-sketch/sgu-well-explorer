@@ -41,7 +41,8 @@ export const MapView = () => {
   const [aquifersVisible, setAquifersVisible] = useState(false);
   const [aquifersOpacity, setAquifersOpacity] = useState(0.5);
   const [coordinates, setCoordinates] = useState<[number, number] | null>(null);
-  const [selectedFeature, setSelectedFeature] = useState<{ properties: Record<string, any>; type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality'; analysisResults?: any[] } | null>(null);
+  const [selectedFeatures, setSelectedFeatures] = useState<{ properties: Record<string, any>; type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality'; analysisResults?: any[] }[]>([]);
+  const [selectedFeatureIndex, setSelectedFeatureIndex] = useState(0);
   const [loadingSources, setLoadingSources] = useState(false);
   const [loadingWells, setLoadingWells] = useState(false);
   const [loadingAquifers, setLoadingAquifers] = useState(false);
@@ -518,35 +519,26 @@ export const MapView = () => {
       map.getTargetElement().style.cursor = hit ? "pointer" : "";
     });
 
-    // Handle feature clicks
+    // Handle feature clicks - collect all features at the same location
     map.on("click", async (evt) => {
-      const features = map.getFeaturesAtPixel(evt.pixel, {
-        layerFilter: (layer) => layer === sourcesLayer || layer === wellsLayer || layer === aquifersLayer || layer === waterBodiesLayer || layer === gwLevelsObservedLayer || layer === gwQualityLayer,
-      });
+      const clickedItems: { properties: Record<string, any>; type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' }[] = [];
       
-      if (features && features.length > 0) {
-        const feature = features[0];
-        const properties = feature.getProperties();
-        
-        // Determine feature type based on layer
-        const pixel = evt.pixel;
-        const clickedLayers: any[] = [];
-        map.forEachFeatureAtPixel(pixel, (f, layer) => {
-          if (layer === sourcesLayer || layer === wellsLayer || layer === aquifersLayer || layer === waterBodiesLayer || layer === gwLevelsObservedLayer || layer === gwQualityLayer) {
-            clickedLayers.push({ feature: f, layer });
-          }
-        });
-        
-        if (clickedLayers.length > 0) {
-          const { layer } = clickedLayers[0];
+      map.forEachFeatureAtPixel(evt.pixel, (f, layer) => {
+        if (layer === sourcesLayer || layer === wellsLayer || layer === aquifersLayer || layer === waterBodiesLayer || layer === gwLevelsObservedLayer || layer === gwQualityLayer) {
+          const properties = f.getProperties();
           let type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' = 'source';
           if (layer === wellsLayer) type = 'well';
           else if (layer === aquifersLayer) type = 'aquifer';
           else if (layer === waterBodiesLayer) type = 'waterBody';
           else if (layer === gwLevelsObservedLayer) type = 'gwLevelsObserved';
           else if (layer === gwQualityLayer) type = 'gwQuality';
-          setSelectedFeature({ properties, type });
+          clickedItems.push({ properties, type });
         }
+      });
+      
+      if (clickedItems.length > 0) {
+        setSelectedFeatures(clickedItems);
+        setSelectedFeatureIndex(0);
       }
     });
 
@@ -764,12 +756,15 @@ export const MapView = () => {
         </div>
       )}
       
-      {selectedFeature && (
+      {selectedFeatures.length > 0 && (
         <WellPopup
-          properties={selectedFeature.properties}
-          type={selectedFeature.type}
-          analysisResults={selectedFeature.analysisResults}
-          onClose={() => setSelectedFeature(null)}
+          properties={selectedFeatures[selectedFeatureIndex].properties}
+          type={selectedFeatures[selectedFeatureIndex].type}
+          analysisResults={selectedFeatures[selectedFeatureIndex].analysisResults}
+          onClose={() => {
+            setSelectedFeatures([]);
+            setSelectedFeatureIndex(0);
+          }}
           chartOpen={chartOpen}
           chartType={chartLocation?.type || null}
           onOpenChart={(location) => {
@@ -782,6 +777,9 @@ export const MapView = () => {
               setChartLocations(prev => [...prev, location]);
             }
           }}
+          totalFeatures={selectedFeatures.length}
+          currentFeatureIndex={selectedFeatureIndex}
+          onNavigateFeature={(index) => setSelectedFeatureIndex(index)}
         />
       )}
 

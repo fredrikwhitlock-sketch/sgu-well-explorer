@@ -1,6 +1,6 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { X, ExternalLink, Download, BarChart3, PlusCircle } from "lucide-react";
+import { X, ExternalLink, Download, BarChart3, PlusCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 
 interface WellPopupProps {
@@ -12,9 +12,24 @@ interface WellPopupProps {
   onAddToChart?: (location: { id: string; name: string; type: 'level' | 'quality'; platsbeteckning?: string; provplatsid?: string }) => void;
   chartOpen?: boolean;
   chartType?: 'level' | 'quality' | null;
+  totalFeatures?: number;
+  currentFeatureIndex?: number;
+  onNavigateFeature?: (index: number) => void;
 }
 
-export const WellPopup = ({ properties, type, analysisResults, onClose, onOpenChart, onAddToChart, chartOpen, chartType }: WellPopupProps) => {
+export const WellPopup = ({ 
+  properties, 
+  type, 
+  analysisResults, 
+  onClose, 
+  onOpenChart, 
+  onAddToChart, 
+  chartOpen, 
+  chartType,
+  totalFeatures = 1,
+  currentFeatureIndex = 0,
+  onNavigateFeature
+}: WellPopupProps) => {
   const formatValue = (value: any): string => {
     if (value === null || value === undefined) return "Ej angivet";
     if (typeof value === "string" && value.includes("T00:00:00Z")) {
@@ -119,15 +134,46 @@ export const WellPopup = ({ properties, type, analysisResults, onClose, onOpenCh
   return (
     <Card className="absolute top-20 right-4 w-96 max-h-[calc(100vh-120px)] overflow-y-auto bg-card/95 backdrop-blur-sm shadow-lg border-border">
       <div className="sticky top-0 bg-sgu-maroon border-b border-border p-4 flex items-center justify-between z-10">
-        <h3 className="font-semibold text-lg text-white">{title}</h3>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onClose}
-          className="h-8 w-8 p-0 text-white hover:bg-sgu-dark-maroon"
-        >
-          <X className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center gap-2">
+          <h3 className="font-semibold text-lg text-white">{title}</h3>
+          {totalFeatures > 1 && (
+            <span className="text-sm text-white/70">
+              ({currentFeatureIndex + 1}/{totalFeatures})
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1">
+          {totalFeatures > 1 && onNavigateFeature && (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onNavigateFeature(currentFeatureIndex > 0 ? currentFeatureIndex - 1 : totalFeatures - 1)}
+                className="h-8 w-8 p-0 text-white hover:bg-sgu-dark-maroon"
+                title="Föregående objekt"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onNavigateFeature(currentFeatureIndex < totalFeatures - 1 ? currentFeatureIndex + 1 : 0)}
+                className="h-8 w-8 p-0 text-white hover:bg-sgu-dark-maroon"
+                title="Nästa objekt"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onClose}
+            className="h-8 w-8 p-0 text-white hover:bg-sgu-dark-maroon"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
       
       <div className="p-4 space-y-3">
