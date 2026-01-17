@@ -1,6 +1,7 @@
+import { useState, useRef, useCallback, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { X, ExternalLink, Download, BarChart3, PlusCircle, ChevronLeft, ChevronRight } from "lucide-react";
+import { X, ExternalLink, Download, BarChart3, PlusCircle, ChevronLeft, ChevronRight, GripHorizontal } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 
 interface WellPopupProps {
@@ -30,6 +31,51 @@ export const WellPopup = ({
   currentFeatureIndex = 0,
   onNavigateFeature
 }: WellPopupProps) => {
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragRef = useRef<{ startX: number; startY: number; initialX: number; initialY: number } | null>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      initialX: position.x,
+      initialY: position.y
+    };
+  }, [position]);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDragging || !dragRef.current) return;
+      
+      const deltaX = e.clientX - dragRef.current.startX;
+      const deltaY = e.clientY - dragRef.current.startY;
+      
+      setPosition({
+        x: dragRef.current.initialX + deltaX,
+        y: dragRef.current.initialY + deltaY
+      });
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+      dragRef.current = null;
+    };
+
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging]);
+
   const formatValue = (value: any): string => {
     if (value === null || value === undefined) return "Ej angivet";
     if (typeof value === "string" && value.includes("T00:00:00Z")) {
@@ -133,9 +179,20 @@ export const WellPopup = ({
   };
 
   return (
-    <Card className="absolute top-20 right-4 w-96 max-h-[calc(100vh-120px)] overflow-y-auto bg-card/95 backdrop-blur-sm shadow-lg border-border">
-      <div className="sticky top-0 bg-sgu-maroon border-b border-border p-4 flex items-center justify-between z-10">
+    <Card 
+      ref={cardRef}
+      className="absolute top-20 right-4 w-96 max-h-[calc(100vh-120px)] overflow-y-auto bg-card/95 backdrop-blur-sm shadow-lg border-border"
+      style={{ 
+        transform: `translate(${position.x}px, ${position.y}px)`,
+        cursor: isDragging ? 'grabbing' : 'default'
+      }}
+    >
+      <div 
+        className="sticky top-0 bg-sgu-maroon border-b border-border p-4 flex items-center justify-between z-10 cursor-grab active:cursor-grabbing select-none"
+        onMouseDown={handleMouseDown}
+      >
         <div className="flex items-center gap-2">
+          <GripHorizontal className="h-4 w-4 text-white/50" />
           <h3 className="font-semibold text-lg text-white">{title}</h3>
           {totalFeatures > 1 && (
             <span className="text-sm text-white/70">
@@ -143,7 +200,7 @@ export const WellPopup = ({
             </span>
           )}
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1" onMouseDown={(e) => e.stopPropagation()}>
           {totalFeatures > 1 && onNavigateFeature && (
             <>
               <Button
