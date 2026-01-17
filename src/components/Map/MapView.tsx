@@ -313,6 +313,83 @@ export const MapView = () => {
     });
     aquifersLayerRef.current = aquifersLayer;
 
+    // OGC API Features layer for Jordarter (soil types) - bbox-filtered
+    const soilTypesSource = new VectorSource({
+      format: new GeoJSON(),
+      strategy: (extent) => [extent],
+      loader: async (extent) => {
+        try {
+          setLoadingSoilTypes(true);
+          console.log("Loading soil types from OGC API with bbox...");
+          
+          // Convert Web Mercator extent to WGS84 bbox
+          const [minX, minY, maxX, maxY] = extent;
+          const minLon = (minX / 20037508.34) * 180;
+          const maxLon = (maxX / 20037508.34) * 180;
+          const minLat = (Math.atan(Math.exp((minY / 20037508.34) * Math.PI)) * 360 / Math.PI) - 90;
+          const maxLat = (Math.atan(Math.exp((maxY / 20037508.34) * Math.PI)) * 360 / Math.PI) - 90;
+          
+          const bbox = `${minLon},${minLat},${maxLon},${maxLat}`;
+          const url = `https://api.sgu.se/oppnadata/jordarter25k-100k/ogc/features/v1/collections/grundlager/items?f=json&bbox=${bbox}&limit=5000`;
+          
+          const response = await fetch(url);
+          
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          
+          const data = await response.json();
+          console.log(`Received ${data.features?.length || 0} soil type features`);
+          
+          if (data.features && data.features.length > 0) {
+            const features = new GeoJSON().readFeatures(
+              { type: "FeatureCollection", features: data.features },
+              {
+                dataProjection: "EPSG:4326",
+                featureProjection: "EPSG:3857",
+              }
+            );
+            
+            soilTypesSource.addFeatures(features);
+            setSoilTypesLoaded(soilTypesSource.getFeatures().length);
+            
+            if (data.features.length >= 5000) {
+              toast.info("Visar max 5 000 jordarter. Zooma in för fler detaljer.");
+            }
+          }
+        } catch (error) {
+          console.error("Error loading soil types:", error);
+          toast.error("Kunde inte ladda jordarter från OGC API");
+        } finally {
+          setLoadingSoilTypes(false);
+        }
+      },
+    });
+
+    // Style function for soil types based on jg2 code
+    const soilTypeStyleFunction = (feature: any) => {
+      const jg2 = feature.get('jg2') || 0;
+      const colorInfo = getSoilTypeColor(jg2);
+      
+      return new Style({
+        stroke: new Stroke({
+          color: colorInfo.stroke,
+          width: 1,
+        }),
+        fill: new Fill({
+          color: colorInfo.fill,
+        }),
+      });
+    };
+
+    const soilTypesLayer = new VectorLayer({
+      source: soilTypesSource,
+      visible: soilTypesVisible,
+      opacity: soilTypesOpacity,
+      style: soilTypeStyleFunction,
+    });
+    soilTypesLayerRef.current = soilTypesLayer;
+
     // OGC API Features layer for Grundvattenförekomster (water bodies) - No limit
     const waterBodiesSource = new VectorSource({
       format: new GeoJSON(),
@@ -498,7 +575,7 @@ export const MapView = () => {
     // Create map
     const map = new OLMap({
       target: mapRef.current,
-      layers: [osmLayer, waterBodiesLayer, aquifersLayer, gwQualityLayer, gwLevelsObservedLayer, wellsLayer, sourcesLayer],
+      layers: [osmLayer, soilTypesLayer, waterBodiesLayer, aquifersLayer, gwQualityLayer, gwLevelsObservedLayer, wellsLayer, sourcesLayer],
       view: new View({
         center: [1784000, 8347000], // Uppsala center in Web Mercator
         zoom: 11,
@@ -520,24 +597,25 @@ export const MapView = () => {
       // Change cursor when hovering over features
       const pixel = map.getEventPixel(evt.originalEvent);
       const hit = map.hasFeatureAtPixel(pixel, {
-        layerFilter: (layer) => layer === sourcesLayer || layer === wellsLayer || layer === aquifersLayer || layer === waterBodiesLayer || layer === gwLevelsObservedLayer || layer === gwQualityLayer,
+        layerFilter: (layer) => layer === sourcesLayer || layer === wellsLayer || layer === aquifersLayer || layer === waterBodiesLayer || layer === gwLevelsObservedLayer || layer === gwQualityLayer || layer === soilTypesLayer,
       });
       map.getTargetElement().style.cursor = hit ? "pointer" : "";
     });
 
     // Handle feature clicks - collect all features at the same location
     map.on("click", async (evt) => {
-      const clickedItems: { properties: Record<string, any>; type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' }[] = [];
+      const clickedItems: { properties: Record<string, any>; type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType' }[] = [];
       
       map.forEachFeatureAtPixel(evt.pixel, (f, layer) => {
-        if (layer === sourcesLayer || layer === wellsLayer || layer === aquifersLayer || layer === waterBodiesLayer || layer === gwLevelsObservedLayer || layer === gwQualityLayer) {
+        if (layer === sourcesLayer || layer === wellsLayer || layer === aquifersLayer || layer === waterBodiesLayer || layer === gwLevelsObservedLayer || layer === gwQualityLayer || layer === soilTypesLayer) {
           const properties = f.getProperties();
-          let type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' = 'source';
+          let type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType' = 'source';
           if (layer === wellsLayer) type = 'well';
           else if (layer === aquifersLayer) type = 'aquifer';
           else if (layer === waterBodiesLayer) type = 'waterBody';
           else if (layer === gwLevelsObservedLayer) type = 'gwLevelsObserved';
           else if (layer === gwQualityLayer) type = 'gwQuality';
+          else if (layer === soilTypesLayer) type = 'soilType';
           clickedItems.push({ properties, type });
         }
       });
@@ -606,6 +684,29 @@ export const MapView = () => {
     }
   }, [aquifersOpacity]);
 
+  // Update Soil Types visibility and reload data when enabled
+  useEffect(() => {
+    if (soilTypesLayerRef.current) {
+      soilTypesLayerRef.current.setVisible(soilTypesVisible);
+      if (soilTypesVisible && mapInstanceRef.current) {
+        const extent = mapInstanceRef.current.getView().calculateExtent();
+        soilTypesLayerRef.current.getSource()?.clear();
+        soilTypesLayerRef.current.getSource()?.loadFeatures(
+          extent,
+          1,
+          soilTypesLayerRef.current.getSource()!.getProjection()
+        );
+      }
+    }
+  }, [soilTypesVisible]);
+
+  // Update Soil Types opacity
+  useEffect(() => {
+    if (soilTypesLayerRef.current) {
+      soilTypesLayerRef.current.setOpacity(soilTypesOpacity);
+    }
+  }, [soilTypesOpacity]);
+
   // Update Water Bodies visibility and load data when enabled
   useEffect(() => {
     if (waterBodiesLayerRef.current) {
@@ -669,12 +770,15 @@ export const MapView = () => {
         wellsVisible={wellsVisible}
         aquifersVisible={aquifersVisible}
         aquifersOpacity={aquifersOpacity}
+        soilTypesVisible={soilTypesVisible}
+        soilTypesOpacity={soilTypesOpacity}
         waterBodiesVisible={waterBodiesVisible}
         gwLevelsObservedVisible={gwLevelsObservedVisible}
         gwQualityVisible={gwQualityVisible}
         sourcesLoaded={sourcesLoaded}
         wellsLoaded={wellsLoaded}
         aquifersLoaded={aquifersLoaded}
+        soilTypesLoaded={soilTypesLoaded}
         waterBodiesLoaded={waterBodiesLoaded}
         gwLevelsObservedLoaded={gwLevelsObservedLoaded}
         gwQualityLoaded={gwQualityLoaded}
@@ -682,6 +786,8 @@ export const MapView = () => {
         onWellsVisibleChange={setWellsVisible}
         onAquifersVisibleChange={setAquifersVisible}
         onAquifersOpacityChange={setAquifersOpacity}
+        onSoilTypesVisibleChange={setSoilTypesVisible}
+        onSoilTypesOpacityChange={setSoilTypesOpacity}
         onWaterBodiesVisibleChange={setWaterBodiesVisible}
         onGwLevelsObservedVisibleChange={setGwLevelsObservedVisible}
         onGwQualityVisibleChange={setGwQualityVisible}
@@ -689,7 +795,7 @@ export const MapView = () => {
       
       <CoordinateDisplay coordinates={coordinates} />
       
-      {(loadingSources || loadingWells || loadingAquifers || loadingWaterBodies || loadingGwLevelsObserved || loadingGwQuality) && (
+      {(loadingSources || loadingWells || loadingAquifers || loadingSoilTypes || loadingWaterBodies || loadingGwLevelsObserved || loadingGwQuality) && (
         <div className="absolute top-20 left-1/2 transform -translate-x-1/2 bg-background/95 backdrop-blur-sm p-4 rounded-lg shadow-lg border z-10 min-w-[300px]">
           <div className="space-y-3">
             {loadingSources && (
@@ -719,6 +825,17 @@ export const MapView = () => {
                 <div className="flex items-center justify-between text-sm">
                   <span className="font-medium">Laddar grundvattenmagasin...</span>
                   <span className="text-muted-foreground">{aquifersLoaded} magasin</span>
+                </div>
+                <div className="w-full bg-secondary rounded-full h-2 overflow-hidden">
+                  <div className="h-full bg-primary transition-all duration-300 rounded-full animate-pulse" style={{ width: '100%' }} />
+                </div>
+              </div>
+            )}
+            {loadingSoilTypes && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium">Laddar jordarter...</span>
+                  <span className="text-muted-foreground">{soilTypesLoaded} polygoner</span>
                 </div>
                 <div className="w-full bg-secondary rounded-full h-2 overflow-hidden">
                   <div className="h-full bg-primary transition-all duration-300 rounded-full animate-pulse" style={{ width: '100%' }} />

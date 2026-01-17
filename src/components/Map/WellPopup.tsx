@@ -108,6 +108,7 @@ export const WellPopup = ({
     if (type === 'waterBody') return 'Grundvattenförekomst';
     if (type === 'gwLevelsObserved') return 'Observerad grundvattennivå';
     if (type === 'gwQuality') return 'Grundvattenkvalitet - Provplats';
+    if (type === 'soilType') return 'Jordartsinformation';
     return 'Källinformation';
   };
 
@@ -845,6 +846,89 @@ export const WellPopup = ({
                 className="text-sm text-sgu-link hover:underline inline-flex items-center gap-1"
               >
                 <BarChart3 className="w-3 h-3" /> Öppna statistikverktyg
+              </a>
+            </div>
+          </>
+        ) : type === 'soilType' ? (
+          <>
+            {/* Main soil type info */}
+            {properties.jg2_tx && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Jordart</dt>
+                <dd className="text-lg font-semibold text-foreground mt-1">{formatValue(properties.jg2_tx)}</dd>
+              </div>
+            )}
+
+            {properties.jg2 && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Jordartskod (JG2)</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.jg2)}</dd>
+              </div>
+            )}
+
+            {properties.symbol && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Symbolkod</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.symbol)}</dd>
+              </div>
+            )}
+
+            <Separator className="my-3" />
+
+            {properties.kartering && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Kartering</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.kartering)}</dd>
+              </div>
+            )}
+
+            {properties.karttyp && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Karttyp</dt>
+                <dd className="text-sm text-foreground mt-1">
+                  {properties.karttyp === 5 ? '1:25 000' : 
+                   properties.karttyp === 10 ? '1:50 000' : 
+                   properties.karttyp === 20 ? '1:100 000' : 
+                   formatValue(properties.karttyp)}
+                </dd>
+              </div>
+            )}
+
+            <Separator className="my-3" />
+
+            {properties.geom_area && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Area</dt>
+                <dd className="text-sm text-foreground mt-1">
+                  {properties.geom_area > 1000000 
+                    ? `${(properties.geom_area / 1000000).toFixed(2)} km²`
+                    : `${(properties.geom_area / 10000).toFixed(2)} ha`}
+                </dd>
+              </div>
+            )}
+
+            {properties.geom_length && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Omkrets</dt>
+                <dd className="text-sm text-foreground mt-1">
+                  {properties.geom_length > 1000 
+                    ? `${(properties.geom_length / 1000).toFixed(2)} km`
+                    : `${properties.geom_length.toFixed(0)} m`}
+                </dd>
+              </div>
+            )}
+
+            <Separator className="my-3" />
+
+            <div className="space-y-2">
+              <div className="text-xs font-semibold text-foreground">Mer information</div>
+              <a 
+                href="https://www.sgu.se/produkter-och-tjanster/geologiska-data/jordarter--geologiska-data/jordartsdata/"
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-sm text-sgu-link hover:underline inline-flex items-center gap-1"
+              >
+                Om SGU:s jordartsdata <ExternalLink className="w-3 h-3" />
               </a>
             </div>
           </>
