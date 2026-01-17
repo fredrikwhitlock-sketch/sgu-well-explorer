@@ -3,18 +3,22 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { Layers, ExternalLink } from "lucide-react";
+import { SOIL_TYPE_CATEGORIES } from "@/lib/soilTypeColors";
 
 interface LayerPanelProps {
   sourcesVisible: boolean;
   wellsVisible: boolean;
   aquifersVisible: boolean;
   aquifersOpacity: number;
+  soilTypesVisible: boolean;
+  soilTypesOpacity: number;
   waterBodiesVisible: boolean;
   gwLevelsObservedVisible: boolean;
   gwQualityVisible: boolean;
   sourcesLoaded: number;
   wellsLoaded: number;
   aquifersLoaded: number;
+  soilTypesLoaded: number;
   waterBodiesLoaded: number;
   gwLevelsObservedLoaded: number;
   gwQualityLoaded: number;
@@ -22,6 +26,8 @@ interface LayerPanelProps {
   onWellsVisibleChange: (visible: boolean) => void;
   onAquifersVisibleChange: (visible: boolean) => void;
   onAquifersOpacityChange: (opacity: number) => void;
+  onSoilTypesVisibleChange: (visible: boolean) => void;
+  onSoilTypesOpacityChange: (opacity: number) => void;
   onWaterBodiesVisibleChange: (visible: boolean) => void;
   onGwLevelsObservedVisibleChange: (visible: boolean) => void;
   onGwQualityVisibleChange: (visible: boolean) => void;
@@ -32,12 +38,15 @@ export const LayerPanel = ({
   wellsVisible,
   aquifersVisible,
   aquifersOpacity,
+  soilTypesVisible,
+  soilTypesOpacity,
   waterBodiesVisible,
   gwLevelsObservedVisible,
   gwQualityVisible,
   sourcesLoaded,
   wellsLoaded,
   aquifersLoaded,
+  soilTypesLoaded,
   waterBodiesLoaded,
   gwLevelsObservedLoaded,
   gwQualityLoaded,
@@ -45,6 +54,8 @@ export const LayerPanel = ({
   onWellsVisibleChange,
   onAquifersVisibleChange,
   onAquifersOpacityChange,
+  onSoilTypesVisibleChange,
+  onSoilTypesOpacityChange,
   onWaterBodiesVisibleChange,
   onGwLevelsObservedVisibleChange,
   onGwQualityVisibleChange,
@@ -134,6 +145,69 @@ export const LayerPanel = ({
                 </div>
                 <a 
                   href="https://www.sgu.se/produkter-och-tjanster/geologiska-data/grundvatten--geologiska-data/" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-sgu-link hover:underline inline-flex items-center gap-1 mt-2"
+                >
+                  Produktbeskrivning <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Soil Types Layer Control */}
+        <div className="space-y-3 pt-4 border-t border-border">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label htmlFor="soiltypes-layer" className="text-sm font-medium">
+                Jordarter 1:25k-100k
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Grundlager {soilTypesLoaded > 0 && `(${soilTypesLoaded})`}
+              </p>
+            </div>
+            <Switch
+              id="soiltypes-layer"
+              checked={soilTypesVisible}
+              onCheckedChange={onSoilTypesVisibleChange}
+            />
+          </div>
+          
+          {soilTypesVisible && (
+            <div className="mt-3 space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="soiltypes-opacity" className="text-xs text-muted-foreground">
+                  Transparens: {Math.round(soilTypesOpacity * 100)}%
+                </Label>
+                <Slider
+                  id="soiltypes-opacity"
+                  min={0}
+                  max={1}
+                  step={0.1}
+                  value={[soilTypesOpacity]}
+                  onValueChange={([value]) => onSoilTypesOpacityChange(value)}
+                  className="w-full"
+                />
+              </div>
+              <div className="text-xs space-y-1">
+                <div className="font-medium text-muted-foreground mb-2">Jordartskategorier:</div>
+                <div className="grid grid-cols-2 gap-1">
+                  {SOIL_TYPE_CATEGORIES.slice(0, 8).map((cat) => (
+                    <div key={cat.code} className="flex items-center gap-1">
+                      <div 
+                        className="w-3 h-3 rounded-sm border" 
+                        style={{ 
+                          backgroundColor: cat.fill, 
+                          borderColor: cat.stroke 
+                        }} 
+                      />
+                      <span className="text-muted-foreground text-[10px] truncate">{cat.name}</span>
+                    </div>
+                  ))}
+                </div>
+                <a 
+                  href="https://www.sgu.se/produkter-och-tjanster/geologiska-data/jordarter--geologiska-data/jordartsdata/" 
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="text-sgu-link hover:underline inline-flex items-center gap-1 mt-2"
