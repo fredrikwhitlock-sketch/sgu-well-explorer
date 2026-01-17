@@ -19,6 +19,7 @@ import { WellPopup } from "./WellPopup";
 import { SearchControl } from "./SearchControl";
 import { ChartViewer } from "./ChartViewer";
 import { toast } from "sonner";
+import { getSoilTypeColor } from "@/lib/soilTypeColors";
 
 interface ChartLocation {
   id: string;
@@ -40,15 +41,19 @@ export const MapView = () => {
   const [wellsVisible, setWellsVisible] = useState(false);
   const [aquifersVisible, setAquifersVisible] = useState(false);
   const [aquifersOpacity, setAquifersOpacity] = useState(0.5);
+  const [soilTypesVisible, setSoilTypesVisible] = useState(false);
+  const [soilTypesOpacity, setSoilTypesOpacity] = useState(0.7);
   const [coordinates, setCoordinates] = useState<[number, number] | null>(null);
-  const [selectedFeatures, setSelectedFeatures] = useState<{ properties: Record<string, any>; type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality'; analysisResults?: any[] }[]>([]);
+  const [selectedFeatures, setSelectedFeatures] = useState<{ properties: Record<string, any>; type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType'; analysisResults?: any[] }[]>([]);
   const [selectedFeatureIndex, setSelectedFeatureIndex] = useState(0);
   const [loadingSources, setLoadingSources] = useState(false);
   const [loadingWells, setLoadingWells] = useState(false);
   const [loadingAquifers, setLoadingAquifers] = useState(false);
+  const [loadingSoilTypes, setLoadingSoilTypes] = useState(false);
   const [sourcesLoaded, setSourcesLoaded] = useState(0);
   const [wellsLoaded, setWellsLoaded] = useState(0);
   const [aquifersLoaded, setAquifersLoaded] = useState(0);
+  const [soilTypesLoaded, setSoilTypesLoaded] = useState(0);
   const [waterBodiesVisible, setWaterBodiesVisible] = useState(false);
   const [gwLevelsObservedVisible, setGwLevelsObservedVisible] = useState(false);
   const [gwQualityVisible, setGwQualityVisible] = useState(false);
@@ -64,6 +69,7 @@ export const MapView = () => {
   const sourcesLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const wellsLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const aquifersLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
+  const soilTypesLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const waterBodiesLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const gwLevelsObservedLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const gwQualityLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
