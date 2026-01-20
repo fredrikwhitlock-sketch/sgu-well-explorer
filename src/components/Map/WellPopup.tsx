@@ -352,12 +352,6 @@ export const WellPopup = ({
           </>
         ) : type === 'well' ? (
           <>
-            {properties.obsplatsid && (
-              <div>
-                <dt className="text-xs font-medium text-muted-foreground">Observationsplats-ID</dt>
-                <dd className="text-sm text-foreground mt-1">{formatValue(properties.obsplatsid)}</dd>
-              </div>
-            )}
 
             {properties.brunnsid && (
               <div>
