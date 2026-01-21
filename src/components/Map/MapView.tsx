@@ -38,8 +38,6 @@ register(proj4);
 export const MapView = () => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<OLMap | null>(null);
-  const lastWellsLoadKeyRef = useRef<string | null>(null);
-  const lastSoilTypesLoadKeyRef = useRef<string | null>(null);
   const [sourcesVisible, setSourcesVisible] = useState(false);
   const [wellsVisible, setWellsVisible] = useState(false);
   const [aquifersVisible, setAquifersVisible] = useState(false);
@@ -77,6 +75,8 @@ export const MapView = () => {
   const waterBodiesLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const gwLevelsObservedLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const gwQualityLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
+  const loadWellsForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
+  const loadSoilTypesForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
 
   useEffect(() => {
     if (!mapRef.current) return;
@@ -162,66 +162,100 @@ export const MapView = () => {
     const MIN_ZOOM_FOR_WELLS = 12;
     const MIN_ZOOM_FOR_SOIL_TYPES = 12;
 
-    // OGC API Features layer for Brunnar (wells) - bbox-filtered
+    // Track loaded extents to avoid duplicate loading
+    const loadedWellExtentsRef: string[] = [];
+    const loadedSoilExtentsRef: string[] = [];
+    
+    const extentToGridKey = (extent: number[]) => {
+      // Create a grid key based on ~5km grid cells
+      const gridSize = 5000;
+      const minXGrid = Math.floor(extent[0] / gridSize);
+      const minYGrid = Math.floor(extent[1] / gridSize);
+      const maxXGrid = Math.ceil(extent[2] / gridSize);
+      const maxYGrid = Math.ceil(extent[3] / gridSize);
+      return `${minXGrid},${minYGrid},${maxXGrid},${maxYGrid}`;
+    };
+
+    // OGC API Features layer for Brunnar (wells) - accumulative loading
     const wellsSource = new VectorSource({
       format: new GeoJSON(),
-      strategy: (extent) => [extent],
-      loader: async (extent) => {
-        try {
-          // Check zoom level before loading
-          const currentZoom = mapInstanceRef.current?.getView().getZoom() || 0;
-          if (currentZoom < MIN_ZOOM_FOR_WELLS) {
-            console.log(`Zoom level ${currentZoom} is too low for wells (min: ${MIN_ZOOM_FOR_WELLS})`);
-            setLoadingWells(false);
-            return;
-          }
-          
-          setLoadingWells(true);
-          console.log("Loading wells from OGC API with bbox...");
-          
-          // Convert Web Mercator extent to WGS84 bbox
-          const [minX, minY, maxX, maxY] = extent;
-          const minLon = (minX / 20037508.34) * 180;
-          const maxLon = (maxX / 20037508.34) * 180;
-          const minLat = (Math.atan(Math.exp((minY / 20037508.34) * Math.PI)) * 360 / Math.PI) - 90;
-          const maxLat = (Math.atan(Math.exp((maxY / 20037508.34) * Math.PI)) * 360 / Math.PI) - 90;
-          
-          const bbox = `${minLon},${minLat},${maxLon},${maxLat}`;
-          const url = `https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar/items?f=json&bbox=${bbox}&limit=50000`;
-          
-          const response = await fetch(url);
-          
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-          
-          const data = await response.json();
-          console.log(`Received ${data.features?.length || 0} wells`);
-          
-          if (data.features && data.features.length > 0) {
-            const features = new GeoJSON().readFeatures(
-              { type: "FeatureCollection", features: data.features },
-              {
-                dataProjection: "EPSG:4326",
-                featureProjection: "EPSG:3857",
-              }
-            );
-            
-            wellsSource.addFeatures(features);
-            setWellsLoaded(wellsSource.getFeatures().length);
-            
-            if (data.features.length >= 50000) {
-              toast.info("Visar max 50 000 brunnar. Zooma in för fler detaljer.");
-            }
-          }
-        } catch (error) {
-          console.error("Error loading wells:", error);
-          toast.error("Kunde inte ladda brunnar från OGC API");
-        } finally {
-          setLoadingWells(false);
-        }
-      },
     });
+    
+    const loadWellsForExtent = async (extent: number[]) => {
+      try {
+        // Check zoom level before loading
+        const currentZoom = mapInstanceRef.current?.getView().getZoom() || 0;
+        if (currentZoom < MIN_ZOOM_FOR_WELLS) {
+          console.log(`Zoom level ${currentZoom} is too low for wells (min: ${MIN_ZOOM_FOR_WELLS})`);
+          return;
+        }
+        
+        // Check if this extent area has already been loaded
+        const gridKey = extentToGridKey(extent);
+        if (loadedWellExtentsRef.includes(gridKey)) {
+          console.log(`Wells for extent ${gridKey} already loaded, skipping`);
+          return;
+        }
+        
+        setLoadingWells(true);
+        console.log("Loading wells from OGC API with bbox...");
+        
+        // Convert Web Mercator extent to WGS84 bbox
+        const [minX, minY, maxX, maxY] = extent;
+        const minLon = (minX / 20037508.34) * 180;
+        const maxLon = (maxX / 20037508.34) * 180;
+        const minLat = (Math.atan(Math.exp((minY / 20037508.34) * Math.PI)) * 360 / Math.PI) - 90;
+        const maxLat = (Math.atan(Math.exp((maxY / 20037508.34) * Math.PI)) * 360 / Math.PI) - 90;
+        
+        const bbox = `${minLon},${minLat},${maxLon},${maxLat}`;
+        const url = `https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar/items?f=json&bbox=${bbox}&limit=50000`;
+        
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log(`Received ${data.features?.length || 0} wells`);
+        
+        if (data.features && data.features.length > 0) {
+          const features = new GeoJSON().readFeatures(
+            { type: "FeatureCollection", features: data.features },
+            {
+              dataProjection: "EPSG:4326",
+              featureProjection: "EPSG:3857",
+            }
+          );
+          
+          // Only add features that don't already exist (by brunnsid)
+          const existingIds = new Set(wellsSource.getFeatures().map(f => f.get('brunnsid')));
+          const newFeatures = features.filter(f => !existingIds.has(f.get('brunnsid')));
+          
+          if (newFeatures.length > 0) {
+            wellsSource.addFeatures(newFeatures);
+            console.log(`Added ${newFeatures.length} new wells (${features.length - newFeatures.length} duplicates skipped)`);
+          }
+          
+          setWellsLoaded(wellsSource.getFeatures().length);
+          loadedWellExtentsRef.push(gridKey);
+          
+          if (data.features.length >= 50000) {
+            toast.info("Visar max 50 000 brunnar per område. Zooma in för fler detaljer.");
+          }
+        } else {
+          // Mark as loaded even if empty to avoid retrying
+          loadedWellExtentsRef.push(gridKey);
+        }
+      } catch (error) {
+        console.error("Error loading wells:", error);
+        toast.error("Kunde inte ladda brunnar från OGC API");
+      } finally {
+        setLoadingWells(false);
+      }
+    };
+    
+    loadWellsForExtentRef.current = loadWellsForExtent;
 
     const wellsLayer = new VectorLayer({
       source: wellsSource,
@@ -329,68 +363,80 @@ export const MapView = () => {
     });
     aquifersLayerRef.current = aquifersLayer;
 
-    // OGC API Features layer for Jordarter (soil types) - bbox-filtered
+    // OGC API Features layer for Jordarter (soil types) - accumulative loading
     const soilTypesSource = new VectorSource({
       format: new GeoJSON(),
-      strategy: (extent) => [extent],
-      loader: async (extent) => {
-        try {
-          // Check zoom level before loading
-          const currentZoom = mapInstanceRef.current?.getView().getZoom() || 0;
-          if (currentZoom < MIN_ZOOM_FOR_SOIL_TYPES) {
-            console.log(`Zoom level ${currentZoom} is too low for soil types (min: ${MIN_ZOOM_FOR_SOIL_TYPES})`);
-            setLoadingSoilTypes(false);
-            return;
-          }
-          
-          setLoadingSoilTypes(true);
-          console.log("Loading soil types from OGC API with bbox...");
-          
-          // Convert Web Mercator extent to WGS84 bbox
-          const [minX, minY, maxX, maxY] = extent;
-          const minLon = (minX / 20037508.34) * 180;
-          const maxLon = (maxX / 20037508.34) * 180;
-          const minLat = (Math.atan(Math.exp((minY / 20037508.34) * Math.PI)) * 360 / Math.PI) - 90;
-          const maxLat = (Math.atan(Math.exp((maxY / 20037508.34) * Math.PI)) * 360 / Math.PI) - 90;
-          
-          const bbox = `${minLon},${minLat},${maxLon},${maxLat}`;
-          const url = `https://api.sgu.se/oppnadata/jordarter25k-100k/ogc/features/v1/collections/grundlager/items?f=json&bbox=${bbox}&limit=20000`;
-          
-          const response = await fetch(url);
-          
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-          
-          const data = await response.json();
-          console.log(`Received ${data.features?.length || 0} soil type features`);
-          
-          if (data.features && data.features.length > 0) {
-            const features = new GeoJSON().readFeatures(
-              { type: "FeatureCollection", features: data.features },
-              {
-                dataProjection: "EPSG:4326",
-                featureProjection: "EPSG:3857",
-              }
-            );
-            
-            soilTypesSource.addFeatures(features);
-            setSoilTypesLoaded(soilTypesSource.getFeatures().length);
-            
-            if (data.features.length >= 20000) {
-              toast.info("Visar max 20 000 jordarter. Zooma in för fler detaljer.");
-            }
-          }
-        } catch (error) {
-          console.error("Error loading soil types:", error);
-          toast.error("Kunde inte ladda jordarter från OGC API");
-        } finally {
-          setLoadingSoilTypes(false);
-        }
-      },
     });
+    
+    const loadSoilTypesForExtent = async (extent: number[]) => {
+      try {
+        // Check zoom level before loading
+        const currentZoom = mapInstanceRef.current?.getView().getZoom() || 0;
+        if (currentZoom < MIN_ZOOM_FOR_SOIL_TYPES) {
+          console.log(`Zoom level ${currentZoom} is too low for soil types (min: ${MIN_ZOOM_FOR_SOIL_TYPES})`);
+          return;
+        }
+        
+        // Check if this extent area has already been loaded
+        const gridKey = extentToGridKey(extent);
+        if (loadedSoilExtentsRef.includes(gridKey)) {
+          console.log(`Soil types for extent ${gridKey} already loaded, skipping`);
+          return;
+        }
+        
+        setLoadingSoilTypes(true);
+        console.log("Loading soil types from OGC API with bbox...");
+        
+        // Convert Web Mercator extent to WGS84 bbox
+        const [minX, minY, maxX, maxY] = extent;
+        const minLon = (minX / 20037508.34) * 180;
+        const maxLon = (maxX / 20037508.34) * 180;
+        const minLat = (Math.atan(Math.exp((minY / 20037508.34) * Math.PI)) * 360 / Math.PI) - 90;
+        const maxLat = (Math.atan(Math.exp((maxY / 20037508.34) * Math.PI)) * 360 / Math.PI) - 90;
+        
+        const bbox = `${minLon},${minLat},${maxLon},${maxLat}`;
+        const url = `https://api.sgu.se/oppnadata/jordarter25k-100k/ogc/features/v1/collections/grundlager/items?f=json&bbox=${bbox}&limit=20000`;
+        
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log(`Received ${data.features?.length || 0} soil type features`);
+        
+        if (data.features && data.features.length > 0) {
+          const features = new GeoJSON().readFeatures(
+            { type: "FeatureCollection", features: data.features },
+            {
+              dataProjection: "EPSG:4326",
+              featureProjection: "EPSG:3857",
+            }
+          );
+          
+          // Add all features (polygons may overlap between areas, that's OK)
+          soilTypesSource.addFeatures(features);
+          setSoilTypesLoaded(soilTypesSource.getFeatures().length);
+          loadedSoilExtentsRef.push(gridKey);
+          
+          if (data.features.length >= 20000) {
+            toast.info("Visar max 20 000 jordarter per område. Zooma in för fler detaljer.");
+          }
+        } else {
+          // Mark as loaded even if empty
+          loadedSoilExtentsRef.push(gridKey);
+        }
+      } catch (error) {
+        console.error("Error loading soil types:", error);
+        toast.error("Kunde inte ladda jordarter från OGC API");
+      } finally {
+        setLoadingSoilTypes(false);
+      }
+    };
+    
+    loadSoilTypesForExtentRef.current = loadSoilTypesForExtent;
 
-    // Style function for soil types based on jg2 code
     const soilTypeStyleFunction = (feature: any) => {
       const jg2 = feature.get('jg2') || 0;
       const colorInfo = getSoilTypeColor(jg2);
@@ -650,47 +696,28 @@ export const MapView = () => {
       }
     });
 
-    // Track previous zoom to detect threshold crossing
-    let previousZoom = map.getView().getZoom() || 0;
-
-    const extentToKey = (extent: number[], zoom: number) => {
-      // Reduce noise: bucket extent values to ~50m and zoom to 0.1 steps
-      const bucketed = extent.map((v) => Math.round(v / 50));
-      const zoomBucket = Math.round(zoom * 10) / 10;
-      return `${zoomBucket}|${bucketed.join(',')}`;
-    };
-    
-    // Update zoom level state on zoom change and reload layers when zoom threshold is crossed
+    // Update zoom level state on zoom change
     map.getView().on('change:resolution', () => {
       const zoom = map.getView().getZoom() || 0;
       setCurrentZoom(zoom);
+    });
+    
+    // Load data when map movement ends (panning or zooming)
+    map.on('moveend', () => {
+      const zoom = map.getView().getZoom() || 0;
       
-      // Force a reload when the view extent meaningfully changes (zooming changes extent even without panning)
+      // Load data when zoom >= 12 and layer is visible
       if (zoom >= 12) {
         const extent = map.getView().calculateExtent();
 
-        if (wellsLayerRef.current?.getVisible()) {
-          const source = wellsLayerRef.current.getSource();
-          const key = extentToKey(extent, zoom);
-          if (source && lastWellsLoadKeyRef.current !== key) {
-            lastWellsLoadKeyRef.current = key;
-            source.clear();
-            source.loadFeatures(extent, 1, source.getProjection());
-          }
+        if (wellsLayerRef.current?.getVisible() && loadWellsForExtentRef.current) {
+          loadWellsForExtentRef.current(extent);
         }
 
-        if (soilTypesLayerRef.current?.getVisible()) {
-          const source = soilTypesLayerRef.current.getSource();
-          const key = extentToKey(extent, zoom);
-          if (source && lastSoilTypesLoadKeyRef.current !== key) {
-            lastSoilTypesLoadKeyRef.current = key;
-            source.clear();
-            source.loadFeatures(extent, 1, source.getProjection());
-          }
+        if (soilTypesLayerRef.current?.getVisible() && loadSoilTypesForExtentRef.current) {
+          loadSoilTypesForExtentRef.current(extent);
         }
       }
-      
-      previousZoom = zoom;
     });
 
     toast.success("Karta laddad!");
@@ -714,22 +741,17 @@ export const MapView = () => {
     }
   }, [sourcesVisible]);
 
-  // Update Wells visibility and reload data when enabled
+  // Update Wells visibility and load data when enabled
   useEffect(() => {
     if (wellsLayerRef.current) {
       wellsLayerRef.current.setVisible(wellsVisible);
-      if (wellsVisible && mapInstanceRef.current) {
+      if (wellsVisible && mapInstanceRef.current && loadWellsForExtentRef.current) {
         const currentZoom = mapInstanceRef.current.getView().getZoom() || 0;
         if (currentZoom < 12) {
           toast.info("Zooma in för att ladda brunnar (minst zoomnivå 12)");
         } else {
           const extent = mapInstanceRef.current.getView().calculateExtent();
-          wellsLayerRef.current.getSource()?.clear();
-          wellsLayerRef.current.getSource()?.loadFeatures(
-            extent,
-            1,
-            wellsLayerRef.current.getSource()!.getProjection()
-          );
+          loadWellsForExtentRef.current(extent);
         }
       }
     }
@@ -756,22 +778,17 @@ export const MapView = () => {
     }
   }, [aquifersOpacity]);
 
-  // Update Soil Types visibility and reload data when enabled
+  // Update Soil Types visibility and load data when enabled
   useEffect(() => {
     if (soilTypesLayerRef.current) {
       soilTypesLayerRef.current.setVisible(soilTypesVisible);
-      if (soilTypesVisible && mapInstanceRef.current) {
+      if (soilTypesVisible && mapInstanceRef.current && loadSoilTypesForExtentRef.current) {
         const currentZoom = mapInstanceRef.current.getView().getZoom() || 0;
         if (currentZoom < 12) {
           toast.info("Zooma in för att ladda jordarter (minst zoomnivå 12)");
         } else {
           const extent = mapInstanceRef.current.getView().calculateExtent();
-          soilTypesLayerRef.current.getSource()?.clear();
-          soilTypesLayerRef.current.getSource()?.loadFeatures(
-            extent,
-            1,
-            soilTypesLayerRef.current.getSource()!.getProjection()
-          );
+          loadSoilTypesForExtentRef.current(extent);
         }
       }
     }
