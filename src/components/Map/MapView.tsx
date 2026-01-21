@@ -38,6 +38,8 @@ register(proj4);
 export const MapView = () => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<OLMap | null>(null);
+  const lastWellsLoadKeyRef = useRef<string | null>(null);
+  const lastSoilTypesLoadKeyRef = useRef<string | null>(null);
   const [sourcesVisible, setSourcesVisible] = useState(false);
   const [wellsVisible, setWellsVisible] = useState(false);
   const [aquifersVisible, setAquifersVisible] = useState(false);
@@ -650,50 +652,41 @@ export const MapView = () => {
 
     // Track previous zoom to detect threshold crossing
     let previousZoom = map.getView().getZoom() || 0;
+
+    const extentToKey = (extent: number[], zoom: number) => {
+      // Reduce noise: bucket extent values to ~50m and zoom to 0.1 steps
+      const bucketed = extent.map((v) => Math.round(v / 50));
+      const zoomBucket = Math.round(zoom * 10) / 10;
+      return `${zoomBucket}|${bucketed.join(',')}`;
+    };
     
     // Update zoom level state on zoom change and reload layers when zoom threshold is crossed
     map.getView().on('change:resolution', () => {
       const zoom = map.getView().getZoom() || 0;
       setCurrentZoom(zoom);
       
-      // Check if we just crossed the zoom threshold from below to above
-      const crossedThresholdUp = previousZoom < 12 && zoom >= 12;
-      // Check if we just crossed the zoom threshold from above to below
-      const crossedThresholdDown = previousZoom >= 12 && zoom < 12;
-      
-      // Clear wells data when zooming below threshold to ensure fresh load when zooming back in
-      if (crossedThresholdDown && wellsLayerRef.current) {
-        const source = wellsLayerRef.current.getSource();
-        if (source) {
-          source.clear();
-          setWellsLoaded(0);
+      // Force a reload when the view extent meaningfully changes (zooming changes extent even without panning)
+      if (zoom >= 12) {
+        const extent = map.getView().calculateExtent();
+
+        if (wellsLayerRef.current?.getVisible()) {
+          const source = wellsLayerRef.current.getSource();
+          const key = extentToKey(extent, zoom);
+          if (source && lastWellsLoadKeyRef.current !== key) {
+            lastWellsLoadKeyRef.current = key;
+            source.clear();
+            source.loadFeatures(extent, 1, source.getProjection());
+          }
         }
-      }
-      
-      // Clear soil types data when zooming below threshold
-      if (crossedThresholdDown && soilTypesLayerRef.current) {
-        const source = soilTypesLayerRef.current.getSource();
-        if (source) {
-          source.clear();
-          setSoilTypesLoaded(0);
-        }
-      }
-      
-      // Reload wells when zoom crosses threshold upward and layer is visible
-      if (wellsLayerRef.current?.getVisible() && zoom >= 12 && crossedThresholdUp) {
-        const source = wellsLayerRef.current.getSource();
-        if (source) {
-          const extent = map.getView().calculateExtent();
-          source.loadFeatures(extent, 1, source.getProjection());
-        }
-      }
-      
-      // Reload soil types when zoom crosses threshold upward and layer is visible
-      if (soilTypesLayerRef.current?.getVisible() && zoom >= 12 && crossedThresholdUp) {
-        const source = soilTypesLayerRef.current.getSource();
-        if (source) {
-          const extent = map.getView().calculateExtent();
-          source.loadFeatures(extent, 1, source.getProjection());
+
+        if (soilTypesLayerRef.current?.getVisible()) {
+          const source = soilTypesLayerRef.current.getSource();
+          const key = extentToKey(extent, zoom);
+          if (source && lastSoilTypesLoadKeyRef.current !== key) {
+            lastSoilTypesLoadKeyRef.current = key;
+            source.clear();
+            source.loadFeatures(extent, 1, source.getProjection());
+          }
         }
       }
       
