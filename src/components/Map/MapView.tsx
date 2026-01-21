@@ -656,24 +656,42 @@ export const MapView = () => {
       const zoom = map.getView().getZoom() || 0;
       setCurrentZoom(zoom);
       
-      // Check if we just crossed the zoom threshold from below
-      const justCrossedThreshold = previousZoom < 12 && zoom >= 12;
+      // Check if we just crossed the zoom threshold from below to above
+      const crossedThresholdUp = previousZoom < 12 && zoom >= 12;
+      // Check if we just crossed the zoom threshold from above to below
+      const crossedThresholdDown = previousZoom >= 12 && zoom < 12;
       
-      // Reload wells when zoom crosses threshold and layer is visible
-      if (wellsLayerRef.current?.getVisible() && zoom >= 12) {
+      // Clear wells data when zooming below threshold to ensure fresh load when zooming back in
+      if (crossedThresholdDown && wellsLayerRef.current) {
         const source = wellsLayerRef.current.getSource();
-        if (source && (source.getFeatures().length === 0 || justCrossedThreshold)) {
+        if (source) {
           source.clear();
+          setWellsLoaded(0);
+        }
+      }
+      
+      // Clear soil types data when zooming below threshold
+      if (crossedThresholdDown && soilTypesLayerRef.current) {
+        const source = soilTypesLayerRef.current.getSource();
+        if (source) {
+          source.clear();
+          setSoilTypesLoaded(0);
+        }
+      }
+      
+      // Reload wells when zoom crosses threshold upward and layer is visible
+      if (wellsLayerRef.current?.getVisible() && zoom >= 12 && crossedThresholdUp) {
+        const source = wellsLayerRef.current.getSource();
+        if (source) {
           const extent = map.getView().calculateExtent();
           source.loadFeatures(extent, 1, source.getProjection());
         }
       }
       
-      // Reload soil types when zoom crosses threshold and layer is visible
-      if (soilTypesLayerRef.current?.getVisible() && zoom >= 12) {
+      // Reload soil types when zoom crosses threshold upward and layer is visible
+      if (soilTypesLayerRef.current?.getVisible() && zoom >= 12 && crossedThresholdUp) {
         const source = soilTypesLayerRef.current.getSource();
-        if (source && (source.getFeatures().length === 0 || justCrossedThreshold)) {
-          source.clear();
+        if (source) {
           const extent = map.getView().calculateExtent();
           source.loadFeatures(extent, 1, source.getProjection());
         }
