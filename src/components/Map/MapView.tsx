@@ -648,15 +648,22 @@ export const MapView = () => {
       }
     });
 
+    // Track previous zoom to detect threshold crossing
+    let previousZoom = map.getView().getZoom() || 0;
+    
     // Update zoom level state on zoom change and reload layers when zoom threshold is crossed
     map.getView().on('change:resolution', () => {
       const zoom = map.getView().getZoom() || 0;
       setCurrentZoom(zoom);
       
+      // Check if we just crossed the zoom threshold from below
+      const justCrossedThreshold = previousZoom < 12 && zoom >= 12;
+      
       // Reload wells when zoom crosses threshold and layer is visible
       if (wellsLayerRef.current?.getVisible() && zoom >= 12) {
         const source = wellsLayerRef.current.getSource();
-        if (source && source.getFeatures().length === 0) {
+        if (source && (source.getFeatures().length === 0 || justCrossedThreshold)) {
+          source.clear();
           const extent = map.getView().calculateExtent();
           source.loadFeatures(extent, 1, source.getProjection());
         }
@@ -665,11 +672,14 @@ export const MapView = () => {
       // Reload soil types when zoom crosses threshold and layer is visible
       if (soilTypesLayerRef.current?.getVisible() && zoom >= 12) {
         const source = soilTypesLayerRef.current.getSource();
-        if (source && source.getFeatures().length === 0) {
+        if (source && (source.getFeatures().length === 0 || justCrossedThreshold)) {
+          source.clear();
           const extent = map.getView().calculateExtent();
           source.loadFeatures(extent, 1, source.getProjection());
         }
       }
+      
+      previousZoom = zoom;
     });
 
     toast.success("Karta laddad!");
