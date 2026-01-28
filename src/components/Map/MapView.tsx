@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import OLMap from "ol/Map";
 import View from "ol/View";
 import TileLayer from "ol/layer/Tile";
+import ImageLayer from "ol/layer/Image";
 import VectorLayer from "ol/layer/Vector";
 import OSM from "ol/source/OSM";
+import ImageWMS from "ol/source/ImageWMS";
 import VectorSource from "ol/source/Vector";
 import GeoJSON from "ol/format/GeoJSON";
 import { register } from "ol/proj/proj4";
@@ -44,6 +46,11 @@ export const MapView = () => {
   const [aquifersOpacity, setAquifersOpacity] = useState(0.5);
   const [soilTypesVisible, setSoilTypesVisible] = useState(false);
   const [soilTypesOpacity, setSoilTypesOpacity] = useState(0.7);
+  // Lantmäteriet WMS layers
+  const [topoWebbVisible, setTopoWebbVisible] = useState(false);
+  const [ortofotoVisible, setOrtofotoVisible] = useState(false);
+  const [terrangskuggningVisible, setTerrangskuggningVisible] = useState(false);
+  const [terrangskuggningOpacity, setTerrangskuggningOpacity] = useState(0.5);
   const [coordinates, setCoordinates] = useState<[number, number] | null>(null);
   const [selectedFeatures, setSelectedFeatures] = useState<{ properties: Record<string, any>; type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType'; analysisResults?: any[] }[]>([]);
   const [selectedFeatureIndex, setSelectedFeatureIndex] = useState(0);
@@ -77,6 +84,10 @@ export const MapView = () => {
   const gwQualityLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const loadWellsForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
   const loadSoilTypesForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
+  // Lantmäteriet WMS layer refs
+  const topoWebbLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
+  const ortofotoLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
+  const terrangskuggningLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
 
   useEffect(() => {
     if (!mapRef.current) return;
@@ -91,6 +102,41 @@ export const MapView = () => {
     const osmLayer = new TileLayer({
       source: new OSM(),
     });
+
+    // Lantmäteriet WMS layers (inserted below OSM, above vector layers)
+    const topoWebbLayer = new ImageLayer({
+      source: new ImageWMS({
+        url: 'https://minkarta.lantmateriet.se/map/topowebb',
+        params: { 'LAYERS': 'topowebbkartan', 'VERSION': '1.1.1' },
+        ratio: 1,
+        serverType: 'geoserver',
+      }),
+      visible: topoWebbVisible,
+    });
+    topoWebbLayerRef.current = topoWebbLayer;
+
+    const ortofotoLayer = new ImageLayer({
+      source: new ImageWMS({
+        url: 'https://minkarta.lantmateriet.se/map/ortofoto',
+        params: { 'LAYERS': 'Ortofoto_0.5,Ortofoto_0.4,Ortofoto_0.25,Ortofoto_0.16', 'VERSION': '1.1.1' },
+        ratio: 1,
+        serverType: 'geoserver',
+      }),
+      visible: ortofotoVisible,
+    });
+    ortofotoLayerRef.current = ortofotoLayer;
+
+    const terrangskuggningLayer = new ImageLayer({
+      source: new ImageWMS({
+        url: 'https://minkarta.lantmateriet.se/map/hojdmodell',
+        params: { 'LAYERS': 'terrangskuggning', 'VERSION': '1.1.1' },
+        ratio: 1,
+        serverType: 'geoserver',
+      }),
+      visible: terrangskuggningVisible,
+      opacity: terrangskuggningOpacity,
+    });
+    terrangskuggningLayerRef.current = terrangskuggningLayer;
 
     // OGC API Features layer for Källor (sources)
     const sourcesSource = new VectorSource({
@@ -645,7 +691,7 @@ export const MapView = () => {
     // Create map
     const map = new OLMap({
       target: mapRef.current,
-      layers: [osmLayer, soilTypesLayer, waterBodiesLayer, aquifersLayer, gwQualityLayer, gwLevelsObservedLayer, wellsLayer, sourcesLayer],
+      layers: [osmLayer, topoWebbLayer, ortofotoLayer, terrangskuggningLayer, soilTypesLayer, waterBodiesLayer, aquifersLayer, gwQualityLayer, gwLevelsObservedLayer, wellsLayer, sourcesLayer],
       view: new View({
         center: [1784000, 8347000], // Uppsala center in Web Mercator
         zoom: 11,
@@ -843,6 +889,34 @@ export const MapView = () => {
     }
   }, [gwQualityVisible]);
 
+  // Update Lantmäteriet Topografisk Webbkarta visibility
+  useEffect(() => {
+    if (topoWebbLayerRef.current) {
+      topoWebbLayerRef.current.setVisible(topoWebbVisible);
+    }
+  }, [topoWebbVisible]);
+
+  // Update Lantmäteriet Ortofoto visibility
+  useEffect(() => {
+    if (ortofotoLayerRef.current) {
+      ortofotoLayerRef.current.setVisible(ortofotoVisible);
+    }
+  }, [ortofotoVisible]);
+
+  // Update Lantmäteriet Terrängskuggning visibility
+  useEffect(() => {
+    if (terrangskuggningLayerRef.current) {
+      terrangskuggningLayerRef.current.setVisible(terrangskuggningVisible);
+    }
+  }, [terrangskuggningVisible]);
+
+  // Update Lantmäteriet Terrängskuggning opacity
+  useEffect(() => {
+    if (terrangskuggningLayerRef.current) {
+      terrangskuggningLayerRef.current.setOpacity(terrangskuggningOpacity);
+    }
+  }, [terrangskuggningOpacity]);
+
   const handleSearchResult = (coordinates: [number, number], zoom?: number) => {
     if (mapInstanceRef.current) {
       mapInstanceRef.current.getView().animate({
@@ -869,6 +943,10 @@ export const MapView = () => {
         waterBodiesVisible={waterBodiesVisible}
         gwLevelsObservedVisible={gwLevelsObservedVisible}
         gwQualityVisible={gwQualityVisible}
+        topoWebbVisible={topoWebbVisible}
+        ortofotoVisible={ortofotoVisible}
+        terrangskuggningVisible={terrangskuggningVisible}
+        terrangskuggningOpacity={terrangskuggningOpacity}
         sourcesLoaded={sourcesLoaded}
         wellsLoaded={wellsLoaded}
         aquifersLoaded={aquifersLoaded}
@@ -885,6 +963,10 @@ export const MapView = () => {
         onWaterBodiesVisibleChange={setWaterBodiesVisible}
         onGwLevelsObservedVisibleChange={setGwLevelsObservedVisible}
         onGwQualityVisibleChange={setGwQualityVisible}
+        onTopoWebbVisibleChange={setTopoWebbVisible}
+        onOrtofotoVisibleChange={setOrtofotoVisible}
+        onTerrangskuggningVisibleChange={setTerrangskuggningVisible}
+        onTerrangskuggningOpacityChange={setTerrangskuggningOpacity}
       />
       
       <CoordinateDisplay coordinates={coordinates} />

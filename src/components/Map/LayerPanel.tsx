@@ -15,6 +15,11 @@ interface LayerPanelProps {
   waterBodiesVisible: boolean;
   gwLevelsObservedVisible: boolean;
   gwQualityVisible: boolean;
+  // Lantmäteriet WMS layers
+  topoWebbVisible: boolean;
+  ortofotoVisible: boolean;
+  terrangskuggningVisible: boolean;
+  terrangskuggningOpacity: number;
   sourcesLoaded: number;
   wellsLoaded: number;
   aquifersLoaded: number;
@@ -31,6 +36,11 @@ interface LayerPanelProps {
   onWaterBodiesVisibleChange: (visible: boolean) => void;
   onGwLevelsObservedVisibleChange: (visible: boolean) => void;
   onGwQualityVisibleChange: (visible: boolean) => void;
+  // Lantmäteriet WMS layer callbacks
+  onTopoWebbVisibleChange: (visible: boolean) => void;
+  onOrtofotoVisibleChange: (visible: boolean) => void;
+  onTerrangskuggningVisibleChange: (visible: boolean) => void;
+  onTerrangskuggningOpacityChange: (opacity: number) => void;
 }
 
 export const LayerPanel = ({
@@ -43,6 +53,10 @@ export const LayerPanel = ({
   waterBodiesVisible,
   gwLevelsObservedVisible,
   gwQualityVisible,
+  topoWebbVisible,
+  ortofotoVisible,
+  terrangskuggningVisible,
+  terrangskuggningOpacity,
   sourcesLoaded,
   wellsLoaded,
   aquifersLoaded,
@@ -59,6 +73,10 @@ export const LayerPanel = ({
   onWaterBodiesVisibleChange,
   onGwLevelsObservedVisibleChange,
   onGwQualityVisibleChange,
+  onTopoWebbVisibleChange,
+  onOrtofotoVisibleChange,
+  onTerrangskuggningVisibleChange,
+  onTerrangskuggningOpacityChange,
 }: LayerPanelProps) => {
   return (
     <Card className="absolute top-4 right-4 w-80 bg-card/95 backdrop-blur-sm shadow-lg border-border overflow-hidden">
@@ -362,6 +380,123 @@ export const LayerPanel = ({
             </div>
           )}
         </div>
+
+        {/* Lantmäteriet WMS Section Header */}
+        <div className="pt-4 border-t-2 border-primary/30">
+          <h4 className="text-sm font-semibold text-primary mb-3">Lantmäteriet bakgrundskartor</h4>
+        </div>
+
+        {/* Topografisk Webbkarta Layer Control */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label htmlFor="topowebb-layer" className="text-sm font-medium">
+                Topografisk webbkarta
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Lantmäteriets topografiska karta
+              </p>
+            </div>
+            <Switch
+              id="topowebb-layer"
+              checked={topoWebbVisible}
+              onCheckedChange={onTopoWebbVisibleChange}
+            />
+          </div>
+          
+          {topoWebbVisible && (
+            <div className="mt-2 text-xs">
+              <a 
+                href="https://www.lantmateriet.se/sv/geodata/vara-produkter/produktlista/topografisk-webbkarta-visning/" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-sgu-link hover:underline inline-flex items-center gap-1"
+              >
+                Produktbeskrivning <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+          )}
+        </div>
+
+        {/* Ortofoto Layer Control */}
+        <div className="space-y-3 pt-4 border-t border-border">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label htmlFor="ortofoto-layer" className="text-sm font-medium">
+                Ortofoto
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Flygbilder över Sverige
+              </p>
+            </div>
+            <Switch
+              id="ortofoto-layer"
+              checked={ortofotoVisible}
+              onCheckedChange={onOrtofotoVisibleChange}
+            />
+          </div>
+          
+          {ortofotoVisible && (
+            <div className="mt-2 text-xs">
+              <a 
+                href="https://www.lantmateriet.se/sv/geodata/vara-produkter/produktlista/ortofoto/" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-sgu-link hover:underline inline-flex items-center gap-1"
+              >
+                Produktbeskrivning <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+          )}
+        </div>
+
+        {/* Terrängskuggning Layer Control */}
+        <div className="space-y-3 pt-4 border-t border-border">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label htmlFor="terrangskuggning-layer" className="text-sm font-medium">
+                Terrängskuggning
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Höjdmodell med skuggning
+              </p>
+            </div>
+            <Switch
+              id="terrangskuggning-layer"
+              checked={terrangskuggningVisible}
+              onCheckedChange={onTerrangskuggningVisibleChange}
+            />
+          </div>
+          
+          {terrangskuggningVisible && (
+            <div className="mt-3 space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="terrangskuggning-opacity" className="text-xs text-muted-foreground">
+                  Transparens: {Math.round(terrangskuggningOpacity * 100)}%
+                </Label>
+                <Slider
+                  id="terrangskuggning-opacity"
+                  min={0}
+                  max={1}
+                  step={0.1}
+                  value={[terrangskuggningOpacity]}
+                  onValueChange={([value]) => onTerrangskuggningOpacityChange(value)}
+                  className="w-full"
+                />
+              </div>
+              <div className="text-xs">
+                <a 
+                  href="https://www.lantmateriet.se/sv/geodata/vara-produkter/produktlista/hojdmodell/" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-sgu-link hover:underline inline-flex items-center gap-1"
+                >
+                  Produktbeskrivning <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="p-3 border-t border-border bg-muted/50">
@@ -377,6 +512,15 @@ export const LayerPanel = ({
             className="text-sgu-link hover:underline"
           >
             SGU
+          </a>
+          {" / "}
+          <a 
+            href="https://www.lantmateriet.se" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="text-sgu-link hover:underline"
+          >
+            Lantmäteriet
           </a>
         </p>
       </div>
