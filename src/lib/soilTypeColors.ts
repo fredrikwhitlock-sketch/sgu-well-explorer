@@ -1,79 +1,189 @@
-// SGU Jordarter färgschema baserat på officiell kartvisare
-// jg2 = jordartskod
+// SGU Jordarter officiellt färgschema
+// Baserat på SGU:s WMS-stil för jordarter 1:25 000-1:100 000
+// https://maps3.sgu.se/geoserver/jord/wms
+
+// Konvertera hex till rgba
+const hexToRgba = (hex: string, alpha: number = 0.8): string => {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
+const hexToRgbaStroke = (hex: string): string => {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${Math.max(0, r - 40)}, ${Math.max(0, g - 40)}, ${Math.max(0, b - 40)}, 1)`;
+};
+
+// Officiella SGU-färger från WMS-stilen
+const SGU_COLORS = {
+  moran: '#96C147',           // Morän - grön
+  moranLera: '#DFEDF7',       // Moränlera - ljusblå
+  isalvs: '#F3943E',          // Isälvssediment - orange
+  postglacialSand: '#FFECA3', // Postglacial sand-grus - ljusgul
+  lera: '#F9C39C',            // Lera/Silt - rosa/laxfärg
+  svamsediment: '#DFC3A2',    // Svämsediment - beige
+  alvsediment: '#E99CBA',     // Älvsediment - rosa
+  berg: '#E7E2F1',            // Berg - ljuslila/grå
+  sedimentartBerg: '#DE3534', // Sedimentärt berg - röd
+  diabas: '#0B88C5',          // Fanerozoisk diabas - blå
+  fyllning: '#B84E94',        // Fyllning - magenta
+  vatten: '#1E90FF',          // Vatten - blå
+  torv: '#CA9661',            // Torv/Mosse - brun
+  karrtorv: '#D8B78F',        // Kärrtorv - ljusbrun
+  gyttja: '#D8B78F',          // Gyttja - ljusbrun  
+  kalktuff: '#BE874D',        // Kalktuff - mörkbrun
+  blockmark: '#C8C8C8',       // Blockmark - grå
+  oklassat: '#FFFFFF',        // Oklassat - vit
+};
 
 export const SOIL_TYPE_COLORS: Record<number, { fill: string; stroke: string; name: string }> = {
-  // Morän (100-serien)
-  100: { fill: 'rgba(255, 204, 153, 0.7)', stroke: 'rgba(204, 153, 102, 1)', name: 'Morän' },
-  101: { fill: 'rgba(255, 204, 153, 0.7)', stroke: 'rgba(204, 153, 102, 1)', name: 'Morän, sandig-moig' },
-  102: { fill: 'rgba(255, 204, 153, 0.7)', stroke: 'rgba(204, 153, 102, 1)', name: 'Morän, sandig' },
-  103: { fill: 'rgba(255, 230, 179, 0.7)', stroke: 'rgba(204, 179, 128, 1)', name: 'Morän, moig' },
-  104: { fill: 'rgba(255, 204, 153, 0.7)', stroke: 'rgba(204, 153, 102, 1)', name: 'Morän, lerig' },
-  105: { fill: 'rgba(255, 185, 130, 0.7)', stroke: 'rgba(204, 140, 90, 1)', name: 'Morän, siltig' },
-  106: { fill: 'rgba(255, 170, 120, 0.7)', stroke: 'rgba(204, 130, 80, 1)', name: 'Morän, blockig' },
-  107: { fill: 'rgba(240, 190, 140, 0.7)', stroke: 'rgba(190, 140, 90, 1)', name: 'Morän, ospec.' },
+  // Torv och organiska jordarter (1-serie)
+  1: { fill: hexToRgba(SGU_COLORS.torv), stroke: hexToRgbaStroke(SGU_COLORS.torv), name: 'Mossetorv' },
+  5: { fill: hexToRgba(SGU_COLORS.karrtorv), stroke: hexToRgbaStroke(SGU_COLORS.karrtorv), name: 'Kärrtorv' },
+  6: { fill: hexToRgba(SGU_COLORS.gyttja), stroke: hexToRgbaStroke(SGU_COLORS.gyttja), name: 'Gyttja' },
+  9: { fill: hexToRgba(SGU_COLORS.svamsediment), stroke: hexToRgbaStroke(SGU_COLORS.svamsediment), name: 'Svämsediment, ler-silt' },
+  10: { fill: hexToRgba(SGU_COLORS.svamsediment), stroke: hexToRgbaStroke(SGU_COLORS.svamsediment), name: 'Svämsediment, sand' },
+  13: { fill: hexToRgba(SGU_COLORS.postglacialSand), stroke: hexToRgbaStroke(SGU_COLORS.postglacialSand), name: 'Flygsand' },
+  16: { fill: hexToRgba(SGU_COLORS.gyttja), stroke: hexToRgbaStroke(SGU_COLORS.gyttja), name: 'Gyttjelera (eller lergyttja)' },
+  17: { fill: hexToRgba(SGU_COLORS.lera), stroke: hexToRgbaStroke(SGU_COLORS.lera), name: 'Postglacial lera' },
+  19: { fill: hexToRgba(SGU_COLORS.lera), stroke: hexToRgbaStroke(SGU_COLORS.lera), name: 'Postglacial finlera' },
+  21: { fill: hexToRgba(SGU_COLORS.postglacialSand), stroke: hexToRgbaStroke(SGU_COLORS.postglacialSand), name: 'Sand' },
+  22: { fill: hexToRgba(SGU_COLORS.lera), stroke: hexToRgbaStroke(SGU_COLORS.lera), name: 'Postglacial grovlera' },
+  24: { fill: hexToRgba(SGU_COLORS.lera), stroke: hexToRgbaStroke(SGU_COLORS.lera), name: 'Postglacial silt' },
+  26: { fill: hexToRgba(SGU_COLORS.postglacialSand), stroke: hexToRgbaStroke(SGU_COLORS.postglacialSand), name: 'Finsand' },
+  28: { fill: hexToRgba(SGU_COLORS.postglacialSand), stroke: hexToRgbaStroke(SGU_COLORS.postglacialSand), name: 'Postglacial finsand' },
+  31: { fill: hexToRgba(SGU_COLORS.postglacialSand), stroke: hexToRgbaStroke(SGU_COLORS.postglacialSand), name: 'Postglacial sand' },
+  33: { fill: hexToRgba(SGU_COLORS.postglacialSand), stroke: hexToRgbaStroke(SGU_COLORS.postglacialSand), name: 'Svallsediment, grus' },
+  34: { fill: hexToRgba(SGU_COLORS.postglacialSand), stroke: hexToRgbaStroke(SGU_COLORS.postglacialSand), name: 'Klapper' },
+  36: { fill: hexToRgba(SGU_COLORS.gyttja), stroke: hexToRgbaStroke(SGU_COLORS.gyttja), name: 'Skaljord' },
+  39: { fill: hexToRgba(SGU_COLORS.lera), stroke: hexToRgbaStroke(SGU_COLORS.lera), name: 'Silt' },
+  40: { fill: hexToRgba(SGU_COLORS.lera), stroke: hexToRgbaStroke(SGU_COLORS.lera), name: 'Glacial lera' },
+  43: { fill: hexToRgba(SGU_COLORS.lera), stroke: hexToRgbaStroke(SGU_COLORS.lera), name: 'Glacial finlera' },
+  44: { fill: hexToRgba(SGU_COLORS.lera), stroke: hexToRgbaStroke(SGU_COLORS.lera), name: 'Glacial grovlera' },
+  48: { fill: hexToRgba(SGU_COLORS.lera), stroke: hexToRgbaStroke(SGU_COLORS.lera), name: 'Glacial silt' },
   
-  // Isälvssediment / Grus (200-serien)
-  200: { fill: 'rgba(255, 255, 0, 0.7)', stroke: 'rgba(200, 200, 0, 1)', name: 'Isälvssediment' },
-  201: { fill: 'rgba(255, 255, 100, 0.7)', stroke: 'rgba(200, 200, 50, 1)', name: 'Grus' },
-  202: { fill: 'rgba(255, 255, 100, 0.7)', stroke: 'rgba(200, 200, 50, 1)', name: 'Grus, sandig' },
-  203: { fill: 'rgba(255, 255, 50, 0.7)', stroke: 'rgba(200, 200, 25, 1)', name: 'Grovgrus' },
-  210: { fill: 'rgba(255, 255, 180, 0.7)', stroke: 'rgba(200, 200, 130, 1)', name: 'Isälvssediment, finkornigt' },
+  // Isälvssediment (50-serie)
+  50: { fill: hexToRgba(SGU_COLORS.isalvs), stroke: hexToRgbaStroke(SGU_COLORS.isalvs), name: 'Isälvssediment' },
+  51: { fill: hexToRgba(SGU_COLORS.isalvs), stroke: hexToRgbaStroke(SGU_COLORS.isalvs), name: 'Isälvssediment, sten-block' },
+  55: { fill: hexToRgba(SGU_COLORS.isalvs), stroke: hexToRgbaStroke(SGU_COLORS.isalvs), name: 'Isälvssediment, sand' },
+  57: { fill: hexToRgba(SGU_COLORS.isalvs), stroke: hexToRgbaStroke(SGU_COLORS.isalvs), name: 'Isälvssediment, grus' },
+  62: { fill: hexToRgba(SGU_COLORS.svamsediment), stroke: hexToRgbaStroke(SGU_COLORS.svamsediment), name: 'Svämsediment, grus' },
   
-  // Sand (300-serien)
-  300: { fill: 'rgba(255, 255, 153, 0.7)', stroke: 'rgba(200, 200, 100, 1)', name: 'Sand' },
-  301: { fill: 'rgba(255, 255, 170, 0.7)', stroke: 'rgba(200, 200, 120, 1)', name: 'Sand, grovsand' },
-  302: { fill: 'rgba(255, 255, 180, 0.7)', stroke: 'rgba(200, 200, 130, 1)', name: 'Sand, mellansand' },
-  303: { fill: 'rgba(255, 255, 200, 0.7)', stroke: 'rgba(200, 200, 150, 1)', name: 'Sand, finsand' },
-  310: { fill: 'rgba(255, 255, 220, 0.7)', stroke: 'rgba(200, 200, 170, 1)', name: 'Sandigt-siltigt sediment' },
+  // Blockmark och liknande (66, 75, 79, 81, 82)
+  66: { fill: hexToRgba(SGU_COLORS.blockmark), stroke: hexToRgbaStroke(SGU_COLORS.blockmark), name: 'Blockmark' },
+  75: { fill: hexToRgba(SGU_COLORS.torv), stroke: hexToRgbaStroke(SGU_COLORS.torv), name: 'Torv' },
+  79: { fill: hexToRgba(SGU_COLORS.postglacialSand), stroke: hexToRgbaStroke(SGU_COLORS.postglacialSand), name: 'Postglacial grovsilt-finsand' },
+  81: { fill: hexToRgba(SGU_COLORS.berg), stroke: hexToRgbaStroke(SGU_COLORS.berg), name: 'Talus (rasmassor)' },
+  82: { fill: hexToRgba(SGU_COLORS.berg), stroke: hexToRgbaStroke(SGU_COLORS.berg), name: 'Vittringsjord' },
+  84: { fill: hexToRgba(SGU_COLORS.postglacialSand), stroke: hexToRgbaStroke(SGU_COLORS.postglacialSand), name: 'Postglacial sand-grus' },
+  85: { fill: hexToRgba(SGU_COLORS.lera), stroke: hexToRgbaStroke(SGU_COLORS.lera), name: 'Lera' },
+  86: { fill: hexToRgba(SGU_COLORS.lera), stroke: hexToRgbaStroke(SGU_COLORS.lera), name: 'Lera-silt' },
+  87: { fill: hexToRgba(SGU_COLORS.postglacialSand), stroke: hexToRgbaStroke(SGU_COLORS.postglacialSand), name: 'Sand-grus' },
+  89: { fill: hexToRgba(SGU_COLORS.postglacialSand), stroke: hexToRgbaStroke(SGU_COLORS.postglacialSand), name: 'Svallsediment, grus-block' },
   
-  // Silt/Mo (400-serien)
-  400: { fill: 'rgba(153, 204, 153, 0.7)', stroke: 'rgba(100, 153, 100, 1)', name: 'Silt' },
-  401: { fill: 'rgba(153, 204, 153, 0.7)', stroke: 'rgba(100, 153, 100, 1)', name: 'Silt, grov' },
-  402: { fill: 'rgba(170, 214, 170, 0.7)', stroke: 'rgba(120, 163, 120, 1)', name: 'Silt, fin' },
-  410: { fill: 'rgba(180, 220, 180, 0.7)', stroke: 'rgba(130, 170, 130, 1)', name: 'Moränlera' },
+  // Oklassat och diverse (90-92)
+  90: { fill: hexToRgba(SGU_COLORS.oklassat, 0.3), stroke: 'rgba(150, 150, 150, 1)', name: 'Oklassat område' },
+  91: { fill: hexToRgba(SGU_COLORS.vatten, 0.5), stroke: hexToRgbaStroke(SGU_COLORS.vatten), name: 'Vatten' },
+  92: { fill: hexToRgba(SGU_COLORS.blockmark), stroke: hexToRgbaStroke(SGU_COLORS.blockmark), name: 'Sten-block' },
   
-  // Lera (500-serien)
-  500: { fill: 'rgba(153, 204, 255, 0.7)', stroke: 'rgba(100, 153, 204, 1)', name: 'Lera' },
-  501: { fill: 'rgba(120, 180, 240, 0.7)', stroke: 'rgba(80, 130, 190, 1)', name: 'Lera, varvig' },
-  502: { fill: 'rgba(140, 190, 250, 0.7)', stroke: 'rgba(90, 140, 200, 1)', name: 'Lera, sulfidhaltig' },
-  503: { fill: 'rgba(100, 160, 220, 0.7)', stroke: 'rgba(60, 110, 170, 1)', name: 'Glaciallera' },
-  504: { fill: 'rgba(170, 210, 255, 0.7)', stroke: 'rgba(120, 160, 205, 1)', name: 'Postglacial lera' },
-  510: { fill: 'rgba(130, 175, 230, 0.7)', stroke: 'rgba(80, 125, 180, 1)', name: 'Siltlera' },
+  // Morän (93-101)
+  93: { fill: hexToRgba(SGU_COLORS.moran), stroke: hexToRgbaStroke(SGU_COLORS.moran), name: 'Grusig morän' },
+  95: { fill: hexToRgba(SGU_COLORS.moran), stroke: hexToRgbaStroke(SGU_COLORS.moran), name: 'Sandig morän' },
+  97: { fill: hexToRgba(SGU_COLORS.moran), stroke: hexToRgbaStroke(SGU_COLORS.moran), name: 'Sandig-siltig morän' },
+  98: { fill: hexToRgba(SGU_COLORS.moranLera), stroke: hexToRgbaStroke(SGU_COLORS.moranLera), name: 'Morängrovlera' },
+  99: { fill: hexToRgba(SGU_COLORS.moranLera), stroke: hexToRgbaStroke(SGU_COLORS.moranLera), name: 'Moränfinlera' },
+  100: { fill: hexToRgba(SGU_COLORS.moran), stroke: hexToRgbaStroke(SGU_COLORS.moran), name: 'Morän' },
+  101: { fill: hexToRgba(SGU_COLORS.moranLera), stroke: hexToRgbaStroke(SGU_COLORS.moranLera), name: 'Moränlera' },
   
-  // Organiska jordarter / Torv (600-serien)
-  600: { fill: 'rgba(153, 102, 51, 0.7)', stroke: 'rgba(100, 60, 30, 1)', name: 'Torv' },
-  601: { fill: 'rgba(165, 115, 60, 0.7)', stroke: 'rgba(115, 75, 35, 1)', name: 'Torv, odlad' },
-  602: { fill: 'rgba(140, 90, 45, 0.7)', stroke: 'rgba(90, 50, 25, 1)', name: 'Torv, högmosse' },
-  603: { fill: 'rgba(175, 125, 70, 0.7)', stroke: 'rgba(125, 85, 40, 1)', name: 'Torv, lågmosse' },
-  610: { fill: 'rgba(130, 80, 40, 0.7)', stroke: 'rgba(80, 40, 20, 1)', name: 'Gyttja' },
-  611: { fill: 'rgba(140, 90, 50, 0.7)', stroke: 'rgba(90, 50, 30, 1)', name: 'Gyttjelera' },
-  620: { fill: 'rgba(120, 70, 35, 0.7)', stroke: 'rgba(70, 35, 15, 1)', name: 'Dy' },
+  // Fyllning (200, 322)
+  200: { fill: hexToRgba(SGU_COLORS.fyllning), stroke: hexToRgbaStroke(SGU_COLORS.fyllning), name: 'Fyllning' },
+  322: { fill: hexToRgba(SGU_COLORS.fyllning), stroke: hexToRgbaStroke(SGU_COLORS.fyllning), name: 'Fyllning, rödfyr' },
   
-  // Berg (700-serien)
-  700: { fill: 'rgba(255, 153, 153, 0.7)', stroke: 'rgba(204, 102, 102, 1)', name: 'Berg' },
-  701: { fill: 'rgba(255, 120, 120, 0.7)', stroke: 'rgba(204, 80, 80, 1)', name: 'Berg i dagen' },
-  702: { fill: 'rgba(255, 180, 180, 0.7)', stroke: 'rgba(204, 130, 130, 1)', name: 'Berg, tunt jordtäcke' },
-  710: { fill: 'rgba(255, 140, 140, 0.7)', stroke: 'rgba(204, 90, 90, 1)', name: 'Urberg' },
+  // Berg (823, 849, 850, 888, 890)
+  823: { fill: hexToRgba(SGU_COLORS.diabas), stroke: hexToRgbaStroke(SGU_COLORS.diabas), name: 'Fanerozoisk diabas' },
+  849: { fill: hexToRgba(SGU_COLORS.sedimentartBerg), stroke: hexToRgbaStroke(SGU_COLORS.sedimentartBerg), name: 'Rösberg' },
+  850: { fill: hexToRgba(SGU_COLORS.sedimentartBerg), stroke: hexToRgbaStroke(SGU_COLORS.sedimentartBerg), name: 'Sedimentärt berg' },
+  888: { fill: hexToRgba(SGU_COLORS.berg), stroke: hexToRgbaStroke(SGU_COLORS.berg), name: 'Berg' },
+  890: { fill: hexToRgba(SGU_COLORS.berg), stroke: hexToRgbaStroke(SGU_COLORS.berg), name: 'Urberg' },
   
-  // Fyllning (800-serien)
-  800: { fill: 'rgba(204, 102, 204, 0.7)', stroke: 'rgba(153, 51, 153, 1)', name: 'Fyllning' },
-  801: { fill: 'rgba(214, 112, 214, 0.7)', stroke: 'rgba(163, 61, 163, 1)', name: 'Fyllning, anlagd mark' },
+  // Kalktuff (1950)
+  1950: { fill: hexToRgba(SGU_COLORS.kalktuff), stroke: hexToRgbaStroke(SGU_COLORS.kalktuff), name: 'Kalktuff' },
   
-  // Vatten (900-serien)
-  900: { fill: 'rgba(102, 178, 255, 0.5)', stroke: 'rgba(51, 127, 204, 1)', name: 'Vatten' },
-  901: { fill: 'rgba(102, 178, 255, 0.5)', stroke: 'rgba(51, 127, 204, 1)', name: 'Sjö' },
-  902: { fill: 'rgba(102, 178, 255, 0.5)', stroke: 'rgba(51, 127, 204, 1)', name: 'Vattendrag' },
+  // Bleke och kalkgyttja (2306)
+  2306: { fill: hexToRgba(SGU_COLORS.gyttja), stroke: hexToRgbaStroke(SGU_COLORS.gyttja), name: 'Bleke och kalkgyttja' },
   
-  // Oklassificerat (0 eller 999)
-  0: { fill: 'rgba(200, 200, 200, 0.5)', stroke: 'rgba(150, 150, 150, 1)', name: 'Oklassificerat' },
-  999: { fill: 'rgba(200, 200, 200, 0.5)', stroke: 'rgba(150, 150, 150, 1)', name: 'Oklassificerat' },
+  // Slamströmssediment och flytjord (2368, 2372)
+  2368: { fill: hexToRgba(SGU_COLORS.svamsediment), stroke: hexToRgbaStroke(SGU_COLORS.svamsediment), name: 'Slamströmssediment, ler-block' },
+  2372: { fill: hexToRgba(SGU_COLORS.svamsediment), stroke: hexToRgbaStroke(SGU_COLORS.svamsediment), name: 'Flytjord eller skredjord' },
+  
+  // Tidvis under vatten (8114, 8175, 8186)
+  8114: { fill: hexToRgba(SGU_COLORS.oklassat, 0.3), stroke: 'rgba(150, 150, 150, 1)', name: 'Oklassat område, tidvis under vatten' },
+  8175: { fill: hexToRgba(SGU_COLORS.torv), stroke: hexToRgbaStroke(SGU_COLORS.torv), name: 'Torv, tidvis under vatten' },
+  8186: { fill: hexToRgba(SGU_COLORS.lera), stroke: hexToRgbaStroke(SGU_COLORS.lera), name: 'Lera-silt, tidvis under vatten' },
+  
+  // Älvsediment (8800-serie)
+  8802: { fill: hexToRgba(SGU_COLORS.alvsediment), stroke: hexToRgbaStroke(SGU_COLORS.alvsediment), name: 'Älvsediment, grovsilt-finsand' },
+  8803: { fill: hexToRgba(SGU_COLORS.alvsediment), stroke: hexToRgbaStroke(SGU_COLORS.alvsediment), name: 'Älvsediment, grus' },
+  8804: { fill: hexToRgba(SGU_COLORS.alvsediment), stroke: hexToRgbaStroke(SGU_COLORS.alvsediment), name: 'Älvsediment' },
+  8806: { fill: hexToRgba(SGU_COLORS.alvsediment), stroke: hexToRgbaStroke(SGU_COLORS.alvsediment), name: 'Älvsediment, ler-silt' },
+  8809: { fill: hexToRgba(SGU_COLORS.alvsediment), stroke: hexToRgbaStroke(SGU_COLORS.alvsediment), name: 'Älvsediment, sand' },
+  8814: { fill: hexToRgba(SGU_COLORS.alvsediment), stroke: hexToRgbaStroke(SGU_COLORS.alvsediment), name: 'Älvsediment sten-block' },
+  
+  // Vittringsjord (8919, 8950)
+  8919: { fill: hexToRgba(SGU_COLORS.berg), stroke: hexToRgbaStroke(SGU_COLORS.berg), name: 'Vittringsjord, ler-silt' },
+  8937: { fill: hexToRgba(SGU_COLORS.svamsediment), stroke: hexToRgbaStroke(SGU_COLORS.svamsediment), name: 'Svämsediment' },
+  8950: { fill: hexToRgba(SGU_COLORS.berg), stroke: hexToRgbaStroke(SGU_COLORS.berg), name: 'Vittringsjord, sand-grus' },
+  
+  // Svämsediment (9010)
+  9010: { fill: hexToRgba(SGU_COLORS.svamsediment), stroke: hexToRgbaStroke(SGU_COLORS.svamsediment), name: 'Svämsediment, grovsilt-finsand' },
+  
+  // Glacial grovsilt-finsand (9060)
+  9060: { fill: hexToRgba(SGU_COLORS.lera), stroke: hexToRgbaStroke(SGU_COLORS.lera), name: 'Glacial grovsilt-finsand' },
+  
+  // Morän omväxlande (9147)
+  9147: { fill: hexToRgba(SGU_COLORS.moran), stroke: hexToRgbaStroke(SGU_COLORS.moran), name: 'Morän omväxlande med sorterade sediment' },
+  
+  // Glaciär (9191)
+  9191: { fill: hexToRgba('#FFFFFF', 0.5), stroke: 'rgba(180, 180, 180, 1)', name: 'Glaciär' },
+  
+  // Morän sand (9299)
+  9299: { fill: hexToRgba(SGU_COLORS.moran), stroke: hexToRgbaStroke(SGU_COLORS.moran), name: 'Morän, sand' },
+  
+  // Morän sten-block (9336)
+  9336: { fill: hexToRgba(SGU_COLORS.moran), stroke: hexToRgbaStroke(SGU_COLORS.moran), name: 'Morän, sten-block' },
+  
+  // Moränlera eller lerig morän (9792, 9794)
+  9792: { fill: hexToRgba(SGU_COLORS.moranLera), stroke: hexToRgbaStroke(SGU_COLORS.moranLera), name: 'Moränlera eller lerig morän' },
+  9794: { fill: hexToRgba(SGU_COLORS.moranLera), stroke: hexToRgbaStroke(SGU_COLORS.moranLera), name: 'Lerig morän' },
+  
+  // Skålla av berg (9950, 9960)
+  9950: { fill: hexToRgba(SGU_COLORS.berg), stroke: hexToRgbaStroke(SGU_COLORS.berg), name: 'Skålla av sedimentärt berg' },
+  9960: { fill: hexToRgba(SGU_COLORS.berg), stroke: hexToRgbaStroke(SGU_COLORS.berg), name: 'Skålla av sandsten' },
 };
 
 // Fallback color for unknown soil types
 export const DEFAULT_SOIL_COLOR = { 
-  fill: 'rgba(180, 180, 180, 0.5)', 
-  stroke: 'rgba(130, 130, 130, 1)', 
+  fill: 'rgba(200, 200, 200, 0.5)', 
+  stroke: 'rgba(150, 150, 150, 1)', 
   name: 'Okänd jordart' 
+};
+
+// Kategorisering baserad på SGU:s officiella grupper
+const CATEGORY_COLORS: Record<string, string> = {
+  moran: SGU_COLORS.moran,
+  moranLera: SGU_COLORS.moranLera,
+  isalvs: SGU_COLORS.isalvs,
+  sand: SGU_COLORS.postglacialSand,
+  lera: SGU_COLORS.lera,
+  svamsediment: SGU_COLORS.svamsediment,
+  alvsediment: SGU_COLORS.alvsediment,
+  torv: SGU_COLORS.torv,
+  berg: SGU_COLORS.berg,
+  fyllning: SGU_COLORS.fyllning,
+  vatten: SGU_COLORS.vatten,
 };
 
 export const getSoilTypeColor = (jg2: number): { fill: string; stroke: string; name: string } => {
@@ -82,24 +192,73 @@ export const getSoilTypeColor = (jg2: number): { fill: string; stroke: string; n
     return SOIL_TYPE_COLORS[jg2];
   }
   
-  // Try to match by hundred (e.g., 150 -> 100 for morän)
-  const baseCode = Math.floor(jg2 / 100) * 100;
-  if (SOIL_TYPE_COLORS[baseCode]) {
-    return { ...SOIL_TYPE_COLORS[baseCode], name: `Jordart ${jg2}` };
+  // Fallback baserat på kodens kategori
+  // Morän: 93-101, 9147, 9299, 9336
+  if ((jg2 >= 93 && jg2 <= 101) || jg2 === 9147 || jg2 === 9299 || jg2 === 9336) {
+    return { fill: hexToRgba(SGU_COLORS.moran), stroke: hexToRgbaStroke(SGU_COLORS.moran), name: `Morän (${jg2})` };
+  }
+  
+  // Isälvssediment: 50-59
+  if (jg2 >= 50 && jg2 < 60) {
+    return { fill: hexToRgba(SGU_COLORS.isalvs), stroke: hexToRgbaStroke(SGU_COLORS.isalvs), name: `Isälvssediment (${jg2})` };
+  }
+  
+  // Lera/Silt: 17-48, 85-86
+  if ((jg2 >= 17 && jg2 <= 48) || jg2 === 85 || jg2 === 86) {
+    return { fill: hexToRgba(SGU_COLORS.lera), stroke: hexToRgbaStroke(SGU_COLORS.lera), name: `Lera/Silt (${jg2})` };
+  }
+  
+  // Postglacial sand: 13, 21, 26, 28, 31, 33, 34, 79, 84, 87, 89
+  if ([13, 21, 26, 28, 31, 33, 34, 79, 84, 87, 89].includes(jg2)) {
+    return { fill: hexToRgba(SGU_COLORS.postglacialSand), stroke: hexToRgbaStroke(SGU_COLORS.postglacialSand), name: `Sand/Grus (${jg2})` };
+  }
+  
+  // Torv: 1, 5, 75
+  if ([1, 5, 75].includes(jg2) || (jg2 >= 8175 && jg2 <= 8176)) {
+    return { fill: hexToRgba(SGU_COLORS.torv), stroke: hexToRgbaStroke(SGU_COLORS.torv), name: `Torv (${jg2})` };
+  }
+  
+  // Gyttja: 6, 16
+  if ([6, 16].includes(jg2)) {
+    return { fill: hexToRgba(SGU_COLORS.gyttja), stroke: hexToRgbaStroke(SGU_COLORS.gyttja), name: `Gyttja (${jg2})` };
+  }
+  
+  // Berg: 81, 82, 823, 849, 850, 888, 890
+  if ([81, 82, 823, 849, 850, 888, 890].includes(jg2) || (jg2 >= 8919 && jg2 <= 8950) || jg2 >= 9950) {
+    return { fill: hexToRgba(SGU_COLORS.berg), stroke: hexToRgbaStroke(SGU_COLORS.berg), name: `Berg (${jg2})` };
+  }
+  
+  // Fyllning: 200-399
+  if (jg2 >= 200 && jg2 < 400) {
+    return { fill: hexToRgba(SGU_COLORS.fyllning), stroke: hexToRgbaStroke(SGU_COLORS.fyllning), name: `Fyllning (${jg2})` };
+  }
+  
+  // Älvsediment: 8800-serie
+  if (jg2 >= 8800 && jg2 < 8900) {
+    return { fill: hexToRgba(SGU_COLORS.alvsediment), stroke: hexToRgbaStroke(SGU_COLORS.alvsediment), name: `Älvsediment (${jg2})` };
+  }
+  
+  // Svämsediment: 9, 10, 62
+  if ([9, 10, 62].includes(jg2) || (jg2 >= 8937 && jg2 <= 9010)) {
+    return { fill: hexToRgba(SGU_COLORS.svamsediment), stroke: hexToRgbaStroke(SGU_COLORS.svamsediment), name: `Svämsediment (${jg2})` };
   }
   
   return DEFAULT_SOIL_COLOR;
 };
 
-// Get main soil type categories for legend
+// Officiella huvudkategorier för legend
 export const SOIL_TYPE_CATEGORIES = [
-  { code: 100, name: 'Morän', fill: 'rgba(255, 204, 153, 0.7)', stroke: 'rgba(204, 153, 102, 1)' },
-  { code: 200, name: 'Isälvssediment/Grus', fill: 'rgba(255, 255, 0, 0.7)', stroke: 'rgba(200, 200, 0, 1)' },
-  { code: 300, name: 'Sand', fill: 'rgba(255, 255, 153, 0.7)', stroke: 'rgba(200, 200, 100, 1)' },
-  { code: 400, name: 'Silt', fill: 'rgba(153, 204, 153, 0.7)', stroke: 'rgba(100, 153, 100, 1)' },
-  { code: 500, name: 'Lera', fill: 'rgba(153, 204, 255, 0.7)', stroke: 'rgba(100, 153, 204, 1)' },
-  { code: 600, name: 'Torv/Organiskt', fill: 'rgba(153, 102, 51, 0.7)', stroke: 'rgba(100, 60, 30, 1)' },
-  { code: 700, name: 'Berg', fill: 'rgba(255, 153, 153, 0.7)', stroke: 'rgba(204, 102, 102, 1)' },
-  { code: 800, name: 'Fyllning', fill: 'rgba(204, 102, 204, 0.7)', stroke: 'rgba(153, 51, 153, 1)' },
-  { code: 900, name: 'Vatten', fill: 'rgba(102, 178, 255, 0.5)', stroke: 'rgba(51, 127, 204, 1)' },
+  { code: 100, name: 'Morän', fill: hexToRgba(SGU_COLORS.moran), stroke: hexToRgbaStroke(SGU_COLORS.moran) },
+  { code: 101, name: 'Moränlera', fill: hexToRgba(SGU_COLORS.moranLera), stroke: hexToRgbaStroke(SGU_COLORS.moranLera) },
+  { code: 50, name: 'Isälvssediment', fill: hexToRgba(SGU_COLORS.isalvs), stroke: hexToRgbaStroke(SGU_COLORS.isalvs) },
+  { code: 21, name: 'Postglacial sand', fill: hexToRgba(SGU_COLORS.postglacialSand), stroke: hexToRgbaStroke(SGU_COLORS.postglacialSand) },
+  { code: 40, name: 'Lera/Silt', fill: hexToRgba(SGU_COLORS.lera), stroke: hexToRgbaStroke(SGU_COLORS.lera) },
+  { code: 10, name: 'Svämsediment', fill: hexToRgba(SGU_COLORS.svamsediment), stroke: hexToRgbaStroke(SGU_COLORS.svamsediment) },
+  { code: 8804, name: 'Älvsediment', fill: hexToRgba(SGU_COLORS.alvsediment), stroke: hexToRgbaStroke(SGU_COLORS.alvsediment) },
+  { code: 75, name: 'Torv', fill: hexToRgba(SGU_COLORS.torv), stroke: hexToRgbaStroke(SGU_COLORS.torv) },
+  { code: 6, name: 'Gyttja', fill: hexToRgba(SGU_COLORS.gyttja), stroke: hexToRgbaStroke(SGU_COLORS.gyttja) },
+  { code: 888, name: 'Berg', fill: hexToRgba(SGU_COLORS.berg), stroke: hexToRgbaStroke(SGU_COLORS.berg) },
+  { code: 850, name: 'Sedimentärt berg', fill: hexToRgba(SGU_COLORS.sedimentartBerg), stroke: hexToRgbaStroke(SGU_COLORS.sedimentartBerg) },
+  { code: 200, name: 'Fyllning', fill: hexToRgba(SGU_COLORS.fyllning), stroke: hexToRgbaStroke(SGU_COLORS.fyllning) },
+  { code: 91, name: 'Vatten', fill: hexToRgba(SGU_COLORS.vatten, 0.5), stroke: hexToRgbaStroke(SGU_COLORS.vatten) },
 ];
