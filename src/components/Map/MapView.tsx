@@ -23,6 +23,7 @@ import { ZoomIndicator } from "./ZoomIndicator";
 import { ChartViewer } from "./ChartViewer";
 import { toast } from "sonner";
 import { getSoilTypeColor } from "@/lib/soilTypeColors";
+import { exportWellsToCSV } from "@/lib/exportWells";
 
 interface ChartLocation {
   id: string;
@@ -967,6 +968,21 @@ export const MapView = () => {
         onOrtofotoVisibleChange={setOrtofotoVisible}
         onTerrangskuggningVisibleChange={setTerrangskuggningVisible}
         onTerrangskuggningOpacityChange={setTerrangskuggningOpacity}
+        onExportWells={() => {
+          if (wellsLayerRef.current) {
+            const features = wellsLayerRef.current.getSource()?.getFeatures() || [];
+            if (features.length > 0) {
+              try {
+                exportWellsToCSV(features);
+                toast.success(`Exporterade ${features.length} brunnar till CSV`);
+              } catch (error) {
+                toast.error('Kunde inte exportera brunnar');
+              }
+            } else {
+              toast.info('Inga brunnar att exportera');
+            }
+          }
+        }}
       />
       
       <CoordinateDisplay coordinates={coordinates} />
