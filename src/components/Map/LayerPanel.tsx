@@ -2,7 +2,8 @@ import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
-import { Layers, ExternalLink } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Layers, ExternalLink, Download } from "lucide-react";
 import { SOIL_TYPE_CATEGORIES } from "@/lib/soilTypeColors";
 
 interface LayerPanelProps {
@@ -41,6 +42,7 @@ interface LayerPanelProps {
   onOrtofotoVisibleChange: (visible: boolean) => void;
   onTerrangskuggningVisibleChange: (visible: boolean) => void;
   onTerrangskuggningOpacityChange: (opacity: number) => void;
+  onExportWells?: () => void;
 }
 
 export const LayerPanel = ({
@@ -77,6 +79,7 @@ export const LayerPanel = ({
   onOrtofotoVisibleChange,
   onTerrangskuggningVisibleChange,
   onTerrangskuggningOpacityChange,
+  onExportWells,
 }: LayerPanelProps) => {
   return (
     <Card className="absolute top-4 right-4 w-80 bg-card/95 backdrop-blur-sm shadow-lg border-border overflow-hidden">
@@ -118,6 +121,17 @@ export const LayerPanel = ({
               >
                 Produktbeskrivning <ExternalLink className="w-3 h-3" />
               </a>
+              {wellsLoaded > 0 && onExportWells && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onExportWells}
+                  className="w-full mt-2 text-xs h-7"
+                >
+                  <Download className="w-3 h-3 mr-1" />
+                  Exportera {wellsLoaded} brunnar (CSV)
+                </Button>
+              )}
             </div>
           )}
         </div>
