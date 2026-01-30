@@ -983,6 +983,13 @@ export const MapView = () => {
             }
           }
         }}
+        onClearWells={() => {
+          if (wellsLayerRef.current) {
+            wellsLayerRef.current.getSource()?.clear();
+            setWellsLoaded(0);
+            toast.success('Rensade alla brunnar');
+          }
+        }}
       />
       
       <CoordinateDisplay coordinates={coordinates} />
