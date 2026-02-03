@@ -891,7 +891,7 @@ export const WellPopup = ({
             <div className="space-y-2">
               <div className="text-xs font-semibold text-foreground">Statistiska analyser</div>
               <a 
-                href="https://ground-chem-dash.lovable.app/"
+                href="https://deep-well-insights.lovable.app/"
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="text-sm text-sgu-link hover:underline inline-flex items-center gap-1"
