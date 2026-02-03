@@ -21,6 +21,13 @@ interface LayerPanelProps {
   ortofotoVisible: boolean;
   terrangskuggningVisible: boolean;
   terrangskuggningOpacity: number;
+  // SGU WMS layers
+  sguBerggrund1MVisible: boolean;
+  sguBerggrund1MOpacity: number;
+  sguBerggrund50kVisible: boolean;
+  sguBerggrund50kOpacity: number;
+  sguJordarter1MVisible: boolean;
+  sguJordarter1MOpacity: number;
   sourcesLoaded: number;
   wellsLoaded: number;
   aquifersLoaded: number;
@@ -42,6 +49,13 @@ interface LayerPanelProps {
   onOrtofotoVisibleChange: (visible: boolean) => void;
   onTerrangskuggningVisibleChange: (visible: boolean) => void;
   onTerrangskuggningOpacityChange: (opacity: number) => void;
+  // SGU WMS layer callbacks
+  onSguBerggrund1MVisibleChange: (visible: boolean) => void;
+  onSguBerggrund1MOpacityChange: (opacity: number) => void;
+  onSguBerggrund50kVisibleChange: (visible: boolean) => void;
+  onSguBerggrund50kOpacityChange: (opacity: number) => void;
+  onSguJordarter1MVisibleChange: (visible: boolean) => void;
+  onSguJordarter1MOpacityChange: (opacity: number) => void;
   onExportWells?: () => void;
   onClearWells?: () => void;
 }
@@ -60,6 +74,12 @@ export const LayerPanel = ({
   ortofotoVisible,
   terrangskuggningVisible,
   terrangskuggningOpacity,
+  sguBerggrund1MVisible,
+  sguBerggrund1MOpacity,
+  sguBerggrund50kVisible,
+  sguBerggrund50kOpacity,
+  sguJordarter1MVisible,
+  sguJordarter1MOpacity,
   sourcesLoaded,
   wellsLoaded,
   aquifersLoaded,
@@ -80,6 +100,12 @@ export const LayerPanel = ({
   onOrtofotoVisibleChange,
   onTerrangskuggningVisibleChange,
   onTerrangskuggningOpacityChange,
+  onSguBerggrund1MVisibleChange,
+  onSguBerggrund1MOpacityChange,
+  onSguBerggrund50kVisibleChange,
+  onSguBerggrund50kOpacityChange,
+  onSguJordarter1MVisibleChange,
+  onSguJordarter1MOpacityChange,
   onExportWells,
   onClearWells,
 }: LayerPanelProps) => {
@@ -517,6 +543,155 @@ export const LayerPanel = ({
               <div className="text-xs">
                 <a 
                   href="https://www.lantmateriet.se/sv/geodata/vara-produkter/produktlista/hojdmodell/" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-sgu-link hover:underline inline-flex items-center gap-1"
+                >
+                  Produktbeskrivning <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* SGU WMS Section Header */}
+        <div className="pt-4 border-t-2 border-primary/30">
+          <h4 className="text-sm font-semibold text-primary mb-3">SGU bakgrundskartor</h4>
+        </div>
+
+        {/* SGU Berggrund 1:1 miljon Layer Control */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label htmlFor="sgu-berggrund-1m-layer" className="text-sm font-medium">
+                Berggrund 1:1 miljon
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Översiktlig berggrundskarta
+              </p>
+            </div>
+            <Switch
+              id="sgu-berggrund-1m-layer"
+              checked={sguBerggrund1MVisible}
+              onCheckedChange={onSguBerggrund1MVisibleChange}
+            />
+          </div>
+          
+          {sguBerggrund1MVisible && (
+            <div className="mt-3 space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="sgu-berggrund-1m-opacity" className="text-xs text-muted-foreground">
+                  Transparens: {Math.round(sguBerggrund1MOpacity * 100)}%
+                </Label>
+                <Slider
+                  id="sgu-berggrund-1m-opacity"
+                  min={0}
+                  max={1}
+                  step={0.1}
+                  value={[sguBerggrund1MOpacity]}
+                  onValueChange={([value]) => onSguBerggrund1MOpacityChange(value)}
+                  className="w-full"
+                />
+              </div>
+              <div className="text-xs">
+                <a 
+                  href="https://www.sgu.se/produkter-och-tjanster/geologiska-data/berggrund--geologiska-data/berggrund/" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-sgu-link hover:underline inline-flex items-center gap-1"
+                >
+                  Produktbeskrivning <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* SGU Berggrund 1:50 000 Layer Control */}
+        <div className="space-y-3 pt-4 border-t border-border">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label htmlFor="sgu-berggrund-50k-layer" className="text-sm font-medium">
+                Berggrund 1:50 000-1:250 000
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Detaljerad berggrundskarta
+              </p>
+            </div>
+            <Switch
+              id="sgu-berggrund-50k-layer"
+              checked={sguBerggrund50kVisible}
+              onCheckedChange={onSguBerggrund50kVisibleChange}
+            />
+          </div>
+          
+          {sguBerggrund50kVisible && (
+            <div className="mt-3 space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="sgu-berggrund-50k-opacity" className="text-xs text-muted-foreground">
+                  Transparens: {Math.round(sguBerggrund50kOpacity * 100)}%
+                </Label>
+                <Slider
+                  id="sgu-berggrund-50k-opacity"
+                  min={0}
+                  max={1}
+                  step={0.1}
+                  value={[sguBerggrund50kOpacity]}
+                  onValueChange={([value]) => onSguBerggrund50kOpacityChange(value)}
+                  className="w-full"
+                />
+              </div>
+              <div className="text-xs">
+                <a 
+                  href="https://www.sgu.se/produkter-och-tjanster/geologiska-data/berggrund--geologiska-data/berggrund/" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-sgu-link hover:underline inline-flex items-center gap-1"
+                >
+                  Produktbeskrivning <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* SGU Jordarter 1:1 miljon Layer Control */}
+        <div className="space-y-3 pt-4 border-t border-border">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label htmlFor="sgu-jordarter-1m-layer" className="text-sm font-medium">
+                Jordarter 1:1 miljon (WMS)
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Översiktlig jordartsgeologi
+              </p>
+            </div>
+            <Switch
+              id="sgu-jordarter-1m-layer"
+              checked={sguJordarter1MVisible}
+              onCheckedChange={onSguJordarter1MVisibleChange}
+            />
+          </div>
+          
+          {sguJordarter1MVisible && (
+            <div className="mt-3 space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="sgu-jordarter-1m-opacity" className="text-xs text-muted-foreground">
+                  Transparens: {Math.round(sguJordarter1MOpacity * 100)}%
+                </Label>
+                <Slider
+                  id="sgu-jordarter-1m-opacity"
+                  min={0}
+                  max={1}
+                  step={0.1}
+                  value={[sguJordarter1MOpacity]}
+                  onValueChange={([value]) => onSguJordarter1MOpacityChange(value)}
+                  className="w-full"
+                />
+              </div>
+              <div className="text-xs">
+                <a 
+                  href="https://www.sgu.se/produkter-och-tjanster/geologiska-data/jordarter--geologiska-data/jordartsdata/" 
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="text-sgu-link hover:underline inline-flex items-center gap-1"
