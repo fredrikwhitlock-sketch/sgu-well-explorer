@@ -52,6 +52,13 @@ export const MapView = () => {
   const [ortofotoVisible, setOrtofotoVisible] = useState(false);
   const [terrangskuggningVisible, setTerrangskuggningVisible] = useState(false);
   const [terrangskuggningOpacity, setTerrangskuggningOpacity] = useState(0.5);
+  // SGU WMS layers
+  const [sguBerggrund1MVisible, setSguBerggrund1MVisible] = useState(false);
+  const [sguBerggrund1MOpacity, setSguBerggrund1MOpacity] = useState(0.7);
+  const [sguBerggrund50kVisible, setSguBerggrund50kVisible] = useState(false);
+  const [sguBerggrund50kOpacity, setSguBerggrund50kOpacity] = useState(0.7);
+  const [sguJordarter1MVisible, setSguJordarter1MVisible] = useState(false);
+  const [sguJordarter1MOpacity, setSguJordarter1MOpacity] = useState(0.7);
   const [coordinates, setCoordinates] = useState<[number, number] | null>(null);
   const [selectedFeatures, setSelectedFeatures] = useState<{ properties: Record<string, any>; type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType'; analysisResults?: any[] }[]>([]);
   const [selectedFeatureIndex, setSelectedFeatureIndex] = useState(0);
@@ -89,6 +96,10 @@ export const MapView = () => {
   const topoWebbLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
   const ortofotoLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
   const terrangskuggningLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
+  // SGU WMS layer refs
+  const sguBerggrund1MLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
+  const sguBerggrund50kLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
+  const sguJordarter1MLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
 
   useEffect(() => {
     if (!mapRef.current) return;
@@ -138,6 +149,43 @@ export const MapView = () => {
       opacity: terrangskuggningOpacity,
     });
     terrangskuggningLayerRef.current = terrangskuggningLayer;
+
+    // SGU WMS layers
+    const sguBerggrund1MLayer = new ImageLayer({
+      source: new ImageWMS({
+        url: 'https://resource.sgu.se/service/wms/130/berggrund_1M',
+        params: { 'LAYERS': 'berg:SE.GOV.SGU.BERGGRUND_NA10', 'VERSION': '1.1.1' },
+        ratio: 1,
+        serverType: 'geoserver',
+      }),
+      visible: sguBerggrund1MVisible,
+      opacity: sguBerggrund1MOpacity,
+    });
+    sguBerggrund1MLayerRef.current = sguBerggrund1MLayer;
+
+    const sguBerggrund50kLayer = new ImageLayer({
+      source: new ImageWMS({
+        url: 'https://resource.sgu.se/service/wms/130/berggrund-50-250-tusen',
+        params: { 'LAYERS': 'SE.GOV.SGU.BERG.GEOLOGISK_ENHET.YTA.50K', 'VERSION': '1.1.1' },
+        ratio: 1,
+        serverType: 'geoserver',
+      }),
+      visible: sguBerggrund50kVisible,
+      opacity: sguBerggrund50kOpacity,
+    });
+    sguBerggrund50kLayerRef.current = sguBerggrund50kLayer;
+
+    const sguJordarter1MLayer = new ImageLayer({
+      source: new ImageWMS({
+        url: 'https://resource.sgu.se/service/wms/130/jordarter-1-miljon',
+        params: { 'LAYERS': 'jord:SE.GOV.SGU.JORD.GRUNDLAGER.1M', 'VERSION': '1.1.1' },
+        ratio: 1,
+        serverType: 'geoserver',
+      }),
+      visible: sguJordarter1MVisible,
+      opacity: sguJordarter1MOpacity,
+    });
+    sguJordarter1MLayerRef.current = sguJordarter1MLayer;
 
     // OGC API Features layer for Källor (sources)
     const sourcesSource = new VectorSource({
@@ -692,7 +740,24 @@ export const MapView = () => {
     // Create map
     const map = new OLMap({
       target: mapRef.current,
-      layers: [osmLayer, topoWebbLayer, ortofotoLayer, terrangskuggningLayer, soilTypesLayer, waterBodiesLayer, aquifersLayer, gwQualityLayer, gwLevelsObservedLayer, wellsLayer, sourcesLayer],
+      layers: [
+        osmLayer, 
+        topoWebbLayer, 
+        ortofotoLayer, 
+        terrangskuggningLayer, 
+        // SGU WMS layers (below vector layers)
+        sguBerggrund1MLayer,
+        sguBerggrund50kLayer,
+        sguJordarter1MLayer,
+        // Vector layers on top
+        soilTypesLayer, 
+        waterBodiesLayer, 
+        aquifersLayer, 
+        gwQualityLayer, 
+        gwLevelsObservedLayer, 
+        wellsLayer, 
+        sourcesLayer
+      ],
       view: new View({
         center: [1784000, 8347000], // Uppsala center in Web Mercator
         zoom: 11,
@@ -918,6 +983,48 @@ export const MapView = () => {
     }
   }, [terrangskuggningOpacity]);
 
+  // Update SGU Berggrund 1M visibility
+  useEffect(() => {
+    if (sguBerggrund1MLayerRef.current) {
+      sguBerggrund1MLayerRef.current.setVisible(sguBerggrund1MVisible);
+    }
+  }, [sguBerggrund1MVisible]);
+
+  // Update SGU Berggrund 1M opacity
+  useEffect(() => {
+    if (sguBerggrund1MLayerRef.current) {
+      sguBerggrund1MLayerRef.current.setOpacity(sguBerggrund1MOpacity);
+    }
+  }, [sguBerggrund1MOpacity]);
+
+  // Update SGU Berggrund 50k visibility
+  useEffect(() => {
+    if (sguBerggrund50kLayerRef.current) {
+      sguBerggrund50kLayerRef.current.setVisible(sguBerggrund50kVisible);
+    }
+  }, [sguBerggrund50kVisible]);
+
+  // Update SGU Berggrund 50k opacity
+  useEffect(() => {
+    if (sguBerggrund50kLayerRef.current) {
+      sguBerggrund50kLayerRef.current.setOpacity(sguBerggrund50kOpacity);
+    }
+  }, [sguBerggrund50kOpacity]);
+
+  // Update SGU Jordarter 1M visibility
+  useEffect(() => {
+    if (sguJordarter1MLayerRef.current) {
+      sguJordarter1MLayerRef.current.setVisible(sguJordarter1MVisible);
+    }
+  }, [sguJordarter1MVisible]);
+
+  // Update SGU Jordarter 1M opacity
+  useEffect(() => {
+    if (sguJordarter1MLayerRef.current) {
+      sguJordarter1MLayerRef.current.setOpacity(sguJordarter1MOpacity);
+    }
+  }, [sguJordarter1MOpacity]);
+
   const handleSearchResult = (coordinates: [number, number], zoom?: number) => {
     if (mapInstanceRef.current) {
       mapInstanceRef.current.getView().animate({
@@ -948,6 +1055,12 @@ export const MapView = () => {
         ortofotoVisible={ortofotoVisible}
         terrangskuggningVisible={terrangskuggningVisible}
         terrangskuggningOpacity={terrangskuggningOpacity}
+        sguBerggrund1MVisible={sguBerggrund1MVisible}
+        sguBerggrund1MOpacity={sguBerggrund1MOpacity}
+        sguBerggrund50kVisible={sguBerggrund50kVisible}
+        sguBerggrund50kOpacity={sguBerggrund50kOpacity}
+        sguJordarter1MVisible={sguJordarter1MVisible}
+        sguJordarter1MOpacity={sguJordarter1MOpacity}
         sourcesLoaded={sourcesLoaded}
         wellsLoaded={wellsLoaded}
         aquifersLoaded={aquifersLoaded}
@@ -968,6 +1081,12 @@ export const MapView = () => {
         onOrtofotoVisibleChange={setOrtofotoVisible}
         onTerrangskuggningVisibleChange={setTerrangskuggningVisible}
         onTerrangskuggningOpacityChange={setTerrangskuggningOpacity}
+        onSguBerggrund1MVisibleChange={setSguBerggrund1MVisible}
+        onSguBerggrund1MOpacityChange={setSguBerggrund1MOpacity}
+        onSguBerggrund50kVisibleChange={setSguBerggrund50kVisible}
+        onSguBerggrund50kOpacityChange={setSguBerggrund50kOpacity}
+        onSguJordarter1MVisibleChange={setSguJordarter1MVisible}
+        onSguJordarter1MOpacityChange={setSguJordarter1MOpacity}
         onExportWells={() => {
           if (wellsLayerRef.current) {
             const features = wellsLayerRef.current.getSource()?.getFeatures() || [];
