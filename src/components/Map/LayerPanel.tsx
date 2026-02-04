@@ -28,6 +28,8 @@ interface LayerPanelProps {
   sguBerggrund50kOpacity: number;
   sguJordarter1MVisible: boolean;
   sguJordarter1MOpacity: number;
+  sguJordarter25kVisible: boolean;
+  sguJordarter25kOpacity: number;
   sourcesLoaded: number;
   wellsLoaded: number;
   aquifersLoaded: number;
@@ -56,6 +58,8 @@ interface LayerPanelProps {
   onSguBerggrund50kOpacityChange: (opacity: number) => void;
   onSguJordarter1MVisibleChange: (visible: boolean) => void;
   onSguJordarter1MOpacityChange: (opacity: number) => void;
+  onSguJordarter25kVisibleChange: (visible: boolean) => void;
+  onSguJordarter25kOpacityChange: (opacity: number) => void;
   onExportWells?: () => void;
   onClearWells?: () => void;
 }
@@ -80,6 +84,8 @@ export const LayerPanel = ({
   sguBerggrund50kOpacity,
   sguJordarter1MVisible,
   sguJordarter1MOpacity,
+  sguJordarter25kVisible,
+  sguJordarter25kOpacity,
   sourcesLoaded,
   wellsLoaded,
   aquifersLoaded,
@@ -106,6 +112,8 @@ export const LayerPanel = ({
   onSguBerggrund50kOpacityChange,
   onSguJordarter1MVisibleChange,
   onSguJordarter1MOpacityChange,
+  onSguJordarter25kVisibleChange,
+  onSguJordarter25kOpacityChange,
   onExportWells,
   onClearWells,
 }: LayerPanelProps) => {
@@ -686,6 +694,54 @@ export const LayerPanel = ({
                   step={0.1}
                   value={[sguJordarter1MOpacity]}
                   onValueChange={([value]) => onSguJordarter1MOpacityChange(value)}
+                  className="w-full"
+                />
+              </div>
+              <div className="text-xs">
+                <a 
+                  href="https://www.sgu.se/produkter-och-tjanster/geologiska-data/jordarter--geologiska-data/jordartsdata/" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-sgu-link hover:underline inline-flex items-center gap-1"
+                >
+                  Produktbeskrivning <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* SGU Jordarter 1:25 000-1:100 000 Layer Control */}
+        <div className="space-y-3 pt-4 border-t border-border">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label htmlFor="sgu-jordarter-25k-layer" className="text-sm font-medium">
+                Jordarter 1:25 000-1:100 000 (WMS)
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Detaljerad jordartsgeologi
+              </p>
+            </div>
+            <Switch
+              id="sgu-jordarter-25k-layer"
+              checked={sguJordarter25kVisible}
+              onCheckedChange={onSguJordarter25kVisibleChange}
+            />
+          </div>
+          
+          {sguJordarter25kVisible && (
+            <div className="mt-3 space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="sgu-jordarter-25k-opacity" className="text-xs text-muted-foreground">
+                  Transparens: {Math.round(sguJordarter25kOpacity * 100)}%
+                </Label>
+                <Slider
+                  id="sgu-jordarter-25k-opacity"
+                  min={0}
+                  max={1}
+                  step={0.1}
+                  value={[sguJordarter25kOpacity]}
+                  onValueChange={([value]) => onSguJordarter25kOpacityChange(value)}
                   className="w-full"
                 />
               </div>

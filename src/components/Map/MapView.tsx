@@ -59,6 +59,8 @@ export const MapView = () => {
   const [sguBerggrund50kOpacity, setSguBerggrund50kOpacity] = useState(0.7);
   const [sguJordarter1MVisible, setSguJordarter1MVisible] = useState(false);
   const [sguJordarter1MOpacity, setSguJordarter1MOpacity] = useState(0.7);
+  const [sguJordarter25kVisible, setSguJordarter25kVisible] = useState(false);
+  const [sguJordarter25kOpacity, setSguJordarter25kOpacity] = useState(0.7);
   const [coordinates, setCoordinates] = useState<[number, number] | null>(null);
   const [selectedFeatures, setSelectedFeatures] = useState<{ properties: Record<string, any>; type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType'; analysisResults?: any[] }[]>([]);
   const [selectedFeatureIndex, setSelectedFeatureIndex] = useState(0);
@@ -100,6 +102,7 @@ export const MapView = () => {
   const sguBerggrund1MLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
   const sguBerggrund50kLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
   const sguJordarter1MLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
+  const sguJordarter25kLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
 
   useEffect(() => {
     if (!mapRef.current) return;
@@ -186,6 +189,19 @@ export const MapView = () => {
       opacity: sguJordarter1MOpacity,
     });
     sguJordarter1MLayerRef.current = sguJordarter1MLayer;
+
+    // SGU Jordarter 1:25k-100k WMS layer  
+    const sguJordarter25kLayer = new ImageLayer({
+      source: new ImageWMS({
+        url: 'https://resource.sgu.se/service/wms/130/jordarter',
+        params: { 'LAYERS': 'jord:SE.GOV.SGU.JORD.GRUNDLAGER.25K', 'VERSION': '1.1.1' },
+        ratio: 1,
+        serverType: 'geoserver',
+      }),
+      visible: sguJordarter25kVisible,
+      opacity: sguJordarter25kOpacity,
+    });
+    sguJordarter25kLayerRef.current = sguJordarter25kLayer;
 
     // OGC API Features layer for Källor (sources)
     const sourcesSource = new VectorSource({
@@ -742,13 +758,15 @@ export const MapView = () => {
       target: mapRef.current,
       layers: [
         osmLayer, 
+        // Lantmäteriet WMS layers (base maps)
         topoWebbLayer, 
         ortofotoLayer, 
         terrangskuggningLayer, 
-        // SGU WMS layers (below vector layers)
+        // SGU WMS layers ABOVE Lantmäteriet so they display on top
         sguBerggrund1MLayer,
         sguBerggrund50kLayer,
         sguJordarter1MLayer,
+        sguJordarter25kLayer,
         // Vector layers on top
         soilTypesLayer, 
         waterBodiesLayer, 
@@ -1025,6 +1043,20 @@ export const MapView = () => {
     }
   }, [sguJordarter1MOpacity]);
 
+  // Update SGU Jordarter 25k visibility
+  useEffect(() => {
+    if (sguJordarter25kLayerRef.current) {
+      sguJordarter25kLayerRef.current.setVisible(sguJordarter25kVisible);
+    }
+  }, [sguJordarter25kVisible]);
+
+  // Update SGU Jordarter 25k opacity
+  useEffect(() => {
+    if (sguJordarter25kLayerRef.current) {
+      sguJordarter25kLayerRef.current.setOpacity(sguJordarter25kOpacity);
+    }
+  }, [sguJordarter25kOpacity]);
+
   const handleSearchResult = (coordinates: [number, number], zoom?: number) => {
     if (mapInstanceRef.current) {
       mapInstanceRef.current.getView().animate({
@@ -1061,6 +1093,8 @@ export const MapView = () => {
         sguBerggrund50kOpacity={sguBerggrund50kOpacity}
         sguJordarter1MVisible={sguJordarter1MVisible}
         sguJordarter1MOpacity={sguJordarter1MOpacity}
+        sguJordarter25kVisible={sguJordarter25kVisible}
+        sguJordarter25kOpacity={sguJordarter25kOpacity}
         sourcesLoaded={sourcesLoaded}
         wellsLoaded={wellsLoaded}
         aquifersLoaded={aquifersLoaded}
@@ -1087,6 +1121,8 @@ export const MapView = () => {
         onSguBerggrund50kOpacityChange={setSguBerggrund50kOpacity}
         onSguJordarter1MVisibleChange={setSguJordarter1MVisible}
         onSguJordarter1MOpacityChange={setSguJordarter1MOpacity}
+        onSguJordarter25kVisibleChange={setSguJordarter25kVisible}
+        onSguJordarter25kOpacityChange={setSguJordarter25kOpacity}
         onExportWells={() => {
           if (wellsLayerRef.current) {
             const features = wellsLayerRef.current.getSource()?.getFeatures() || [];
