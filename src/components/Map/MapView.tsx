@@ -193,7 +193,7 @@ export const MapView = () => {
     // SGU Jordarter 1:25k-100k WMS layer  
     const sguJordarter25kLayer = new ImageLayer({
       source: new ImageWMS({
-        url: 'https://resource.sgu.se/service/wms/130/jordarter',
+        url: 'https://resource.sgu.se/service/wms/130/jordarter-25-100-tusen',
         params: { 'LAYERS': 'jord:SE.GOV.SGU.JORD.GRUNDLAGER.25K', 'VERSION': '1.1.1' },
         ratio: 1,
         serverType: 'geoserver',
