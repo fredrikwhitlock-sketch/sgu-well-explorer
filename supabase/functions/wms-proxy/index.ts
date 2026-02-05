@@ -24,10 +24,10 @@ serve(async (req) => {
     }
 
     // Only allow SGU WMS URLs for security
-    const allowedHosts = ['resource.sgu.se'];
+    const allowedHosts = ['resource.sgu.se', 'maps3.sgu.se'];
     const targetUrl = new URL(baseUrl);
-    
-    if (!allowedHosts.some(host => targetUrl.hostname.includes(host))) {
+
+    if (!allowedHosts.some((host) => targetUrl.hostname.includes(host))) {
       return new Response(
         JSON.stringify({ error: 'URL not allowed' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
