@@ -153,13 +153,14 @@ export const MapView = () => {
     });
     terrangskuggningLayerRef.current = terrangskuggningLayer;
 
-    // SGU WMS layers
+    // SGU WMS layers - using crossOrigin for CORS support
     const sguBerggrund1MLayer = new ImageLayer({
       source: new ImageWMS({
         url: 'https://resource.sgu.se/service/wms/130/berggrund_1M',
         params: { 'LAYERS': 'berg:SE.GOV.SGU.BERGGRUND_NA10', 'VERSION': '1.1.1' },
         ratio: 1,
         serverType: 'geoserver',
+        crossOrigin: 'anonymous',
       }),
       visible: sguBerggrund1MVisible,
       opacity: sguBerggrund1MOpacity,
@@ -172,6 +173,7 @@ export const MapView = () => {
         params: { 'LAYERS': 'SE.GOV.SGU.BERG.GEOLOGISK_ENHET.YTA.50K', 'VERSION': '1.1.1' },
         ratio: 1,
         serverType: 'geoserver',
+        crossOrigin: 'anonymous',
       }),
       visible: sguBerggrund50kVisible,
       opacity: sguBerggrund50kOpacity,
@@ -184,6 +186,7 @@ export const MapView = () => {
         params: { 'LAYERS': 'jord:SE.GOV.SGU.JORD.GRUNDLAGER.1M', 'VERSION': '1.1.1' },
         ratio: 1,
         serverType: 'geoserver',
+        crossOrigin: 'anonymous',
       }),
       visible: sguJordarter1MVisible,
       opacity: sguJordarter1MOpacity,
@@ -197,6 +200,7 @@ export const MapView = () => {
         params: { 'LAYERS': 'jord:SE.GOV.SGU.JORD.GRUNDLAGER.25K', 'VERSION': '1.1.1' },
         ratio: 1,
         serverType: 'geoserver',
+        crossOrigin: 'anonymous',
       }),
       visible: sguJordarter25kVisible,
       opacity: sguJordarter25kOpacity,
