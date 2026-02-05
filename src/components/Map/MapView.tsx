@@ -153,14 +153,19 @@ export const MapView = () => {
     });
     terrangskuggningLayerRef.current = terrangskuggningLayer;
 
-    // SGU WMS layers - using crossOrigin for CORS support
+    // SGU WMS layers - using CORS proxy edge function
+    const wmsProxyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wms-proxy`;
+    
     const sguBerggrund1MLayer = new ImageLayer({
       source: new ImageWMS({
-        url: 'https://resource.sgu.se/service/wms/130/berggrund_1M',
-        params: { 'LAYERS': 'berg:SE.GOV.SGU.BERGGRUND_NA10', 'VERSION': '1.1.1' },
+        url: wmsProxyUrl,
+        params: { 
+          'url': 'https://resource.sgu.se/service/wms/130/berggrund_1M',
+          'LAYERS': 'berg:SE.GOV.SGU.BERGGRUND_NA10', 
+          'VERSION': '1.1.1',
+          'FORMAT': 'image/png',
+        },
         ratio: 1,
-        serverType: 'geoserver',
-        crossOrigin: 'anonymous',
       }),
       visible: sguBerggrund1MVisible,
       opacity: sguBerggrund1MOpacity,
@@ -169,11 +174,14 @@ export const MapView = () => {
 
     const sguBerggrund50kLayer = new ImageLayer({
       source: new ImageWMS({
-        url: 'https://resource.sgu.se/service/wms/130/berggrund-50-250-tusen',
-        params: { 'LAYERS': 'SE.GOV.SGU.BERG.GEOLOGISK_ENHET.YTA.50K', 'VERSION': '1.1.1' },
+        url: wmsProxyUrl,
+        params: { 
+          'url': 'https://resource.sgu.se/service/wms/130/berggrund-50-250-tusen',
+          'LAYERS': 'SE.GOV.SGU.BERG.GEOLOGISK_ENHET.YTA.50K', 
+          'VERSION': '1.1.1',
+          'FORMAT': 'image/png',
+        },
         ratio: 1,
-        serverType: 'geoserver',
-        crossOrigin: 'anonymous',
       }),
       visible: sguBerggrund50kVisible,
       opacity: sguBerggrund50kOpacity,
@@ -182,11 +190,14 @@ export const MapView = () => {
 
     const sguJordarter1MLayer = new ImageLayer({
       source: new ImageWMS({
-        url: 'https://resource.sgu.se/service/wms/130/jordarter-1-miljon',
-        params: { 'LAYERS': 'jord:SE.GOV.SGU.JORD.GRUNDLAGER.1M', 'VERSION': '1.1.1' },
+        url: wmsProxyUrl,
+        params: { 
+          'url': 'https://resource.sgu.se/service/wms/130/jordarter-1-miljon',
+          'LAYERS': 'jord:SE.GOV.SGU.JORD.GRUNDLAGER.1M', 
+          'VERSION': '1.1.1',
+          'FORMAT': 'image/png',
+        },
         ratio: 1,
-        serverType: 'geoserver',
-        crossOrigin: 'anonymous',
       }),
       visible: sguJordarter1MVisible,
       opacity: sguJordarter1MOpacity,
@@ -196,11 +207,14 @@ export const MapView = () => {
     // SGU Jordarter 1:25k-100k WMS layer  
     const sguJordarter25kLayer = new ImageLayer({
       source: new ImageWMS({
-        url: 'https://resource.sgu.se/service/wms/130/jordarter-25-100-tusen',
-        params: { 'LAYERS': 'jord:SE.GOV.SGU.JORD.GRUNDLAGER.25K', 'VERSION': '1.1.1' },
+        url: wmsProxyUrl,
+        params: { 
+          'url': 'https://resource.sgu.se/service/wms/130/jordarter-25-100-tusen',
+          'LAYERS': 'jord:SE.GOV.SGU.JORD.GRUNDLAGER.25K', 
+          'VERSION': '1.1.1',
+          'FORMAT': 'image/png',
+        },
         ratio: 1,
-        serverType: 'geoserver',
-        crossOrigin: 'anonymous',
       }),
       visible: sguJordarter25kVisible,
       opacity: sguJordarter25kOpacity,
