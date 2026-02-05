@@ -159,9 +159,10 @@ export const MapView = () => {
     const sguBerggrund1MLayer = new ImageLayer({
       source: new ImageWMS({
         url: wmsProxyUrl,
-        params: { 
-          'url': 'https://resource.sgu.se/service/wms/130/berggrund_1M',
-          'LAYERS': 'berg:SE.GOV.SGU.BERGGRUND_NA10', 
+        params: {
+          // NOTE: resource.sgu.se endpoints return capabilities; actual map rendering happens on maps3.sgu.se
+          'url': 'https://maps3.sgu.se/geoserver/berg/ows',
+          'LAYERS': 'berg:SE.GOV.SGU.BERGGRUND_NA10',
           'VERSION': '1.1.1',
           'FORMAT': 'image/png',
         },
@@ -175,9 +176,9 @@ export const MapView = () => {
     const sguBerggrund50kLayer = new ImageLayer({
       source: new ImageWMS({
         url: wmsProxyUrl,
-        params: { 
-          'url': 'https://resource.sgu.se/service/wms/130/berggrund-50-250-tusen',
-          'LAYERS': 'SE.GOV.SGU.BERG.GEOLOGISK_ENHET.YTA.50K', 
+        params: {
+          'url': 'https://maps3.sgu.se/geoserver/berg/ows',
+          'LAYERS': 'SE.GOV.SGU.BERG.GEOLOGISK_ENHET.YTA.50K',
           'VERSION': '1.1.1',
           'FORMAT': 'image/png',
         },
@@ -191,9 +192,9 @@ export const MapView = () => {
     const sguJordarter1MLayer = new ImageLayer({
       source: new ImageWMS({
         url: wmsProxyUrl,
-        params: { 
-          'url': 'https://resource.sgu.se/service/wms/130/jordarter-1-miljon',
-          'LAYERS': 'jord:SE.GOV.SGU.JORD.GRUNDLAGER.1M', 
+        params: {
+          'url': 'https://maps3.sgu.se/geoserver/jord/ows',
+          'LAYERS': 'jord:SE.GOV.SGU.JORD.GRUNDLAGER.1M',
           'VERSION': '1.1.1',
           'FORMAT': 'image/png',
         },
@@ -204,13 +205,13 @@ export const MapView = () => {
     });
     sguJordarter1MLayerRef.current = sguJordarter1MLayer;
 
-    // SGU Jordarter 1:25k-100k WMS layer  
+    // SGU Jordarter 1:25k-100k WMS layer
     const sguJordarter25kLayer = new ImageLayer({
       source: new ImageWMS({
         url: wmsProxyUrl,
-        params: { 
-          'url': 'https://resource.sgu.se/service/wms/130/jordarter-25-100-tusen',
-          'LAYERS': 'jord:SE.GOV.SGU.JORD.YTLAGER_JY1.25K', 
+        params: {
+          'url': 'https://maps3.sgu.se/geoserver/jord/ows',
+          'LAYERS': 'jord:SE.GOV.SGU.JORD.YTLAGER_JY1.25K',
           'VERSION': '1.1.1',
           'FORMAT': 'image/png',
         },
