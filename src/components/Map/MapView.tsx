@@ -211,7 +211,7 @@ export const MapView = () => {
         url: wmsProxyUrl,
         params: {
           'url': 'https://maps3.sgu.se/geoserver/jord/ows',
-          'LAYERS': 'jord:SE.GOV.SGU.JORD.YTLAGER_JY1.25K',
+          'LAYERS': 'jord:SE.GOV.SGU.JORD.GRUNDLAGER.25K',
           'VERSION': '1.1.1',
           'FORMAT': 'image/png',
         },
