@@ -21,6 +21,7 @@ import { WellPopup } from "./WellPopup";
 import { SearchControl } from "./SearchControl";
 import { ZoomIndicator } from "./ZoomIndicator";
 import { ChartViewer } from "./ChartViewer";
+import WmsLegend from "./WmsLegend";
 import { toast } from "sonner";
 import { getSoilTypeColor } from "@/lib/soilTypeColors";
 import { exportWellsToCSV } from "@/lib/exportWells";
@@ -1295,6 +1296,13 @@ export const MapView = () => {
           }}
         />
       )}
+
+      <WmsLegend
+        sguBerggrund1MVisible={sguBerggrund1MVisible}
+        sguBerggrund50kVisible={sguBerggrund50kVisible}
+        sguJordarter1MVisible={sguJordarter1MVisible}
+        sguJordarter25kVisible={sguJordarter25kVisible}
+      />
     </div>
   );
 };
