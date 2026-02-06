@@ -170,6 +170,7 @@ export const MapView = () => {
       }),
       visible: sguBerggrund1MVisible,
       opacity: sguBerggrund1MOpacity,
+      maxZoom: 10, // Visible up to zoom level 10
     });
     sguBerggrund1MLayerRef.current = sguBerggrund1MLayer;
 
@@ -186,6 +187,7 @@ export const MapView = () => {
       }),
       visible: sguBerggrund50kVisible,
       opacity: sguBerggrund50kOpacity,
+      minZoom: 10, // Visible from zoom level 10 and above
     });
     sguBerggrund50kLayerRef.current = sguBerggrund50kLayer;
 
@@ -202,6 +204,7 @@ export const MapView = () => {
       }),
       visible: sguJordarter1MVisible,
       opacity: sguJordarter1MOpacity,
+      maxZoom: 10, // Visible up to zoom level 10
     });
     sguJordarter1MLayerRef.current = sguJordarter1MLayer;
 
@@ -219,6 +222,7 @@ export const MapView = () => {
       }),
       visible: sguJordarter25kVisible,
       opacity: sguJordarter25kOpacity,
+      minZoom: 10, // Visible from zoom level 10 and above
     });
     sguJordarter25kLayerRef.current = sguJordarter25kLayer;
 
