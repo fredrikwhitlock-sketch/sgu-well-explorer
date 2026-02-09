@@ -24,7 +24,7 @@ import { ChartViewer } from "./ChartViewer";
 import WmsLegend from "./WmsLegend";
 import { toast } from "sonner";
 import { getSoilTypeColor } from "@/lib/soilTypeColors";
-import { exportWellsToCSV } from "@/lib/exportWells";
+import { exportWellsToCSV, exportFeaturesToCSV } from "@/lib/exportWells";
 
 interface ChartLocation {
   id: string;
@@ -1166,6 +1166,66 @@ export const MapView = () => {
             setWellsLoaded(0);
             toast.success('Rensade alla brunnar');
           }
+        }}
+        onExportSources={() => {
+          const features = sourcesLayerRef.current?.getSource()?.getFeatures() || [];
+          if (features.length > 0) {
+            try { exportFeaturesToCSV(features, 'kallor'); toast.success(`Exporterade ${features.length} källor till CSV`); }
+            catch { toast.error('Kunde inte exportera källor'); }
+          } else { toast.info('Inga källor att exportera'); }
+        }}
+        onClearSources={() => {
+          if (sourcesLayerRef.current) { sourcesLayerRef.current.getSource()?.clear(); setSourcesLoaded(0); toast.success('Rensade alla källor'); }
+        }}
+        onExportAquifers={() => {
+          const features = aquifersLayerRef.current?.getSource()?.getFeatures() || [];
+          if (features.length > 0) {
+            try { exportFeaturesToCSV(features, 'grundvattenmagasin'); toast.success(`Exporterade ${features.length} magasin till CSV`); }
+            catch { toast.error('Kunde inte exportera magasin'); }
+          } else { toast.info('Inga magasin att exportera'); }
+        }}
+        onClearAquifers={() => {
+          if (aquifersLayerRef.current) { aquifersLayerRef.current.getSource()?.clear(); setAquifersLoaded(0); toast.success('Rensade alla magasin'); }
+        }}
+        onExportSoilTypes={() => {
+          const features = soilTypesLayerRef.current?.getSource()?.getFeatures() || [];
+          if (features.length > 0) {
+            try { exportFeaturesToCSV(features, 'jordarter'); toast.success(`Exporterade ${features.length} jordarter till CSV`); }
+            catch { toast.error('Kunde inte exportera jordarter'); }
+          } else { toast.info('Inga jordarter att exportera'); }
+        }}
+        onClearSoilTypes={() => {
+          if (soilTypesLayerRef.current) { soilTypesLayerRef.current.getSource()?.clear(); setSoilTypesLoaded(0); toast.success('Rensade alla jordarter'); }
+        }}
+        onExportWaterBodies={() => {
+          const features = waterBodiesLayerRef.current?.getSource()?.getFeatures() || [];
+          if (features.length > 0) {
+            try { exportFeaturesToCSV(features, 'grundvattenforekomster'); toast.success(`Exporterade ${features.length} förekomster till CSV`); }
+            catch { toast.error('Kunde inte exportera förekomster'); }
+          } else { toast.info('Inga förekomster att exportera'); }
+        }}
+        onClearWaterBodies={() => {
+          if (waterBodiesLayerRef.current) { waterBodiesLayerRef.current.getSource()?.clear(); setWaterBodiesLoaded(0); toast.success('Rensade alla förekomster'); }
+        }}
+        onExportGwLevelsObserved={() => {
+          const features = gwLevelsObservedLayerRef.current?.getSource()?.getFeatures() || [];
+          if (features.length > 0) {
+            try { exportFeaturesToCSV(features, 'grundvattennivaer_observerade'); toast.success(`Exporterade ${features.length} stationer till CSV`); }
+            catch { toast.error('Kunde inte exportera stationer'); }
+          } else { toast.info('Inga stationer att exportera'); }
+        }}
+        onClearGwLevelsObserved={() => {
+          if (gwLevelsObservedLayerRef.current) { gwLevelsObservedLayerRef.current.getSource()?.clear(); setGwLevelsObservedLoaded(0); toast.success('Rensade alla stationer'); }
+        }}
+        onExportGwQuality={() => {
+          const features = gwQualityLayerRef.current?.getSource()?.getFeatures() || [];
+          if (features.length > 0) {
+            try { exportFeaturesToCSV(features, 'grundvattenkvalitet'); toast.success(`Exporterade ${features.length} provplatser till CSV`); }
+            catch { toast.error('Kunde inte exportera provplatser'); }
+          } else { toast.info('Inga provplatser att exportera'); }
+        }}
+        onClearGwQuality={() => {
+          if (gwQualityLayerRef.current) { gwQualityLayerRef.current.getSource()?.clear(); setGwQualityLoaded(0); toast.success('Rensade alla provplatser'); }
         }}
       />
       
