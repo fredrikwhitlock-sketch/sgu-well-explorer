@@ -62,6 +62,18 @@ interface LayerPanelProps {
   onSguJordarter25kOpacityChange: (opacity: number) => void;
   onExportWells?: () => void;
   onClearWells?: () => void;
+  onExportSources?: () => void;
+  onClearSources?: () => void;
+  onExportAquifers?: () => void;
+  onClearAquifers?: () => void;
+  onExportSoilTypes?: () => void;
+  onClearSoilTypes?: () => void;
+  onExportWaterBodies?: () => void;
+  onClearWaterBodies?: () => void;
+  onExportGwLevelsObserved?: () => void;
+  onClearGwLevelsObserved?: () => void;
+  onExportGwQuality?: () => void;
+  onClearGwQuality?: () => void;
 }
 
 export const LayerPanel = ({
@@ -116,6 +128,18 @@ export const LayerPanel = ({
   onSguJordarter25kOpacityChange,
   onExportWells,
   onClearWells,
+  onExportSources,
+  onClearSources,
+  onExportAquifers,
+  onClearAquifers,
+  onExportSoilTypes,
+  onClearSoilTypes,
+  onExportWaterBodies,
+  onClearWaterBodies,
+  onExportGwLevelsObserved,
+  onClearGwLevelsObserved,
+  onExportGwQuality,
+  onClearGwQuality,
 }: LayerPanelProps) => {
   return (
     <Card className="absolute top-4 right-4 w-80 bg-card/95 backdrop-blur-sm shadow-lg border-border overflow-hidden">
@@ -233,6 +257,21 @@ export const LayerPanel = ({
                 >
                   Produktbeskrivning <ExternalLink className="w-3 h-3" />
                 </a>
+                {aquifersLoaded > 0 && (
+                  <div className="flex gap-2 mt-2">
+                    {onExportAquifers && (
+                      <Button variant="outline" size="sm" onClick={onExportAquifers} className="flex-1 text-xs h-7">
+                        <Download className="w-3 h-3 mr-1" />
+                        Exportera ({aquifersLoaded})
+                      </Button>
+                    )}
+                    {onClearAquifers && (
+                      <Button variant="outline" size="sm" onClick={onClearAquifers} className="text-xs h-7">
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -296,6 +335,21 @@ export const LayerPanel = ({
                 >
                   Produktbeskrivning <ExternalLink className="w-3 h-3" />
                 </a>
+                {soilTypesLoaded > 0 && (
+                  <div className="flex gap-2 mt-2">
+                    {onExportSoilTypes && (
+                      <Button variant="outline" size="sm" onClick={onExportSoilTypes} className="flex-1 text-xs h-7">
+                        <Download className="w-3 h-3 mr-1" />
+                        Exportera ({soilTypesLoaded})
+                      </Button>
+                    )}
+                    {onClearSoilTypes && (
+                      <Button variant="outline" size="sm" onClick={onClearSoilTypes} className="text-xs h-7">
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -333,6 +387,21 @@ export const LayerPanel = ({
               >
                 Produktbeskrivning <ExternalLink className="w-3 h-3" />
               </a>
+              {sourcesLoaded > 0 && (
+                <div className="flex gap-2 mt-2">
+                  {onExportSources && (
+                    <Button variant="outline" size="sm" onClick={onExportSources} className="flex-1 text-xs h-7">
+                      <Download className="w-3 h-3 mr-1" />
+                      Exportera ({sourcesLoaded})
+                    </Button>
+                  )}
+                  {onClearSources && (
+                    <Button variant="outline" size="sm" onClick={onClearSources} className="text-xs h-7">
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -369,6 +438,21 @@ export const LayerPanel = ({
               >
                 Produktbeskrivning <ExternalLink className="w-3 h-3" />
               </a>
+              {waterBodiesLoaded > 0 && (
+                <div className="flex gap-2 mt-2">
+                  {onExportWaterBodies && (
+                    <Button variant="outline" size="sm" onClick={onExportWaterBodies} className="flex-1 text-xs h-7">
+                      <Download className="w-3 h-3 mr-1" />
+                      Exportera ({waterBodiesLoaded})
+                    </Button>
+                  )}
+                  {onClearWaterBodies && (
+                    <Button variant="outline" size="sm" onClick={onClearWaterBodies} className="text-xs h-7">
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -405,6 +489,21 @@ export const LayerPanel = ({
               >
                 Produktbeskrivning <ExternalLink className="w-3 h-3" />
               </a>
+              {gwLevelsObservedLoaded > 0 && (
+                <div className="flex gap-2 mt-2">
+                  {onExportGwLevelsObserved && (
+                    <Button variant="outline" size="sm" onClick={onExportGwLevelsObserved} className="flex-1 text-xs h-7">
+                      <Download className="w-3 h-3 mr-1" />
+                      Exportera ({gwLevelsObservedLoaded})
+                    </Button>
+                  )}
+                  {onClearGwLevelsObserved && (
+                    <Button variant="outline" size="sm" onClick={onClearGwLevelsObserved} className="text-xs h-7">
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -441,6 +540,21 @@ export const LayerPanel = ({
               >
                 Produktbeskrivning <ExternalLink className="w-3 h-3" />
               </a>
+              {gwQualityLoaded > 0 && (
+                <div className="flex gap-2 mt-2">
+                  {onExportGwQuality && (
+                    <Button variant="outline" size="sm" onClick={onExportGwQuality} className="flex-1 text-xs h-7">
+                      <Download className="w-3 h-3 mr-1" />
+                      Exportera ({gwQualityLoaded})
+                    </Button>
+                  )}
+                  {onClearGwQuality && (
+                    <Button variant="outline" size="sm" onClick={onClearGwQuality} className="text-xs h-7">
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>

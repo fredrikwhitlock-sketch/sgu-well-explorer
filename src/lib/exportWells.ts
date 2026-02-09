@@ -40,11 +40,23 @@ function escapeCSVValue(value: any): string {
     return '';
   }
   const stringValue = String(value);
-  // Escape quotes and wrap in quotes if contains comma, quote, or newline
-  if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n') || stringValue.includes('\r')) {
+  if (stringValue.includes(';') || stringValue.includes('"') || stringValue.includes('\n') || stringValue.includes('\r')) {
     return `"${stringValue.replace(/"/g, '""')}"`;
   }
   return stringValue;
+}
+
+function downloadCSV(csvContent: string, filename: string): void {
+  const BOM = '\uFEFF';
+  const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', filename);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }
 
 export function exportWellsToCSV(features: Feature[]): void {
@@ -52,37 +64,50 @@ export function exportWellsToCSV(features: Feature[]): void {
     throw new Error('Inga brunnar att exportera');
   }
 
-  // Create header row
   const headers = WELL_ATTRIBUTES.map(attr => attr.label);
   const headerRow = headers.join(';');
 
-  // Create data rows
   const dataRows = features.map(feature => {
     const properties = feature.getProperties();
     return WELL_ATTRIBUTES.map(attr => escapeCSVValue(properties[attr.key])).join(';');
   });
 
-  // Combine all rows
   const csvContent = [headerRow, ...dataRows].join('\n');
-
-  // Add BOM for UTF-8 encoding (helps Excel recognize Swedish characters)
-  const BOM = '\uFEFF';
-  const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
-
-  // Create download link
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.setAttribute('href', url);
-  
-  // Generate filename with date
   const date = new Date().toISOString().split('T')[0];
-  link.setAttribute('download', `brunnar_export_${date}.csv`);
-  
-  // Trigger download
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  downloadCSV(csvContent, `brunnar_export_${date}.csv`);
+}
+
+/**
+ * Generic CSV export for any vector layer features.
+ * Automatically discovers all properties from loaded features.
+ */
+export function exportFeaturesToCSV(features: Feature[], filename: string): void {
+  if (features.length === 0) {
+    throw new Error('Inga objekt att exportera');
+  }
+
+  // Collect all unique property keys across all features, excluding 'geometry'
+  const allKeys = new Set<string>();
+  features.forEach(feature => {
+    const props = feature.getProperties();
+    Object.keys(props).forEach(key => {
+      if (key !== 'geometry') {
+        allKeys.add(key);
+      }
+    });
+  });
+
+  const keys = Array.from(allKeys);
+  const headerRow = keys.join(';');
+
+  const dataRows = features.map(feature => {
+    const properties = feature.getProperties();
+    return keys.map(key => escapeCSVValue(properties[key])).join(';');
+  });
+
+  const csvContent = [headerRow, ...dataRows].join('\n');
+  const date = new Date().toISOString().split('T')[0];
+  downloadCSV(csvContent, `${filename}_export_${date}.csv`);
 }
 
 export function getWellCount(features: Feature[]): number {
