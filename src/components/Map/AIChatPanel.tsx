@@ -186,7 +186,7 @@ export function AIChatPanel({ getLayerData }: AIChatPanelProps) {
     return (
       <button
         onClick={() => setOpen(true)}
-        className="absolute bottom-6 left-6 z-50 w-14 h-14 rounded-full bg-sgu-maroon text-white shadow-lg hover:shadow-xl transition-all hover:scale-105 flex items-center justify-center"
+        className="absolute bottom-20 left-6 z-50 w-14 h-14 rounded-full bg-sgu-maroon text-white shadow-lg hover:shadow-xl transition-all hover:scale-105 flex items-center justify-center"
         title="AI-analys"
       >
         <Bot className="w-7 h-7" />
