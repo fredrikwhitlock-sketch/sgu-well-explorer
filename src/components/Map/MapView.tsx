@@ -22,6 +22,7 @@ import { SearchControl } from "./SearchControl";
 import { ZoomIndicator } from "./ZoomIndicator";
 import { ChartViewer } from "./ChartViewer";
 import WmsLegend from "./WmsLegend";
+import { AIChatPanel } from "./AIChatPanel";
 import { toast } from "sonner";
 import { getSoilTypeColor } from "@/lib/soilTypeColors";
 import { exportWellsToCSV, exportFeaturesToCSV } from "@/lib/exportWells";
@@ -1362,6 +1363,29 @@ export const MapView = () => {
         sguBerggrund50kVisible={sguBerggrund50kVisible}
         sguJordarter1MVisible={sguJordarter1MVisible}
         sguJordarter25kVisible={sguJordarter25kVisible}
+      />
+
+      <AIChatPanel
+        getLayerData={() => {
+          const layers = [
+            { name: "Brunnar", ref: wellsLayerRef, count: wellsLoaded },
+            { name: "Källor", ref: sourcesLayerRef, count: sourcesLoaded },
+            { name: "Grundvattenmagasin", ref: aquifersLayerRef, count: aquifersLoaded },
+            { name: "Jordarter", ref: soilTypesLayerRef, count: soilTypesLoaded },
+            { name: "Grundvattenförekomster", ref: waterBodiesLayerRef, count: waterBodiesLoaded },
+            { name: "GV-nivåer observerade", ref: gwLevelsObservedLayerRef, count: gwLevelsObservedLoaded },
+            { name: "Grundvattenkvalitet", ref: gwQualityLayerRef, count: gwQualityLoaded },
+          ];
+          return layers.map(l => {
+            const features = l.ref.current?.getSource()?.getFeatures() || [];
+            const sample = features.slice(0, 50).map(f => {
+              const props = { ...f.getProperties() };
+              delete props.geometry;
+              return props;
+            });
+            return { name: l.name, count: l.count, sample };
+          });
+        }}
       />
     </div>
   );
