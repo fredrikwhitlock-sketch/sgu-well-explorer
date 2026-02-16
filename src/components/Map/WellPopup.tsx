@@ -467,6 +467,23 @@ export const WellPopup = ({
                 <dd className="text-sm text-foreground mt-1">{formatValue(properties.posvardering)}</dd>
               </div>
             )}
+
+            {properties.obsplatsid && (
+              <>
+                <Separator />
+                <div>
+                  <a
+                    href={`/protokoll?id=brunnar.${properties.obsplatsid}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 text-sm text-sgu-link hover:underline"
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                    Visa brunns- och borrprotokoll
+                  </a>
+                </div>
+              </>
+            )}
           </>
         ) : type === 'waterBody' ? (
           <>
