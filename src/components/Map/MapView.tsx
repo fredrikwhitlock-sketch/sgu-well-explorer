@@ -26,7 +26,7 @@ import { AIChatPanel } from "./AIChatPanel";
 import { toast } from "sonner";
 import { getSoilTypeColor } from "@/lib/soilTypeColors";
 import { exportWellsToCSV, exportFeaturesToCSV } from "@/lib/exportWells";
-import { supabase } from "@/integrations/supabase/client";
+
 
 interface ChartLocation {
   id: string;
@@ -341,21 +341,16 @@ export const MapView = () => {
         const minLat = (Math.atan(Math.exp((minY / 20037508.34) * Math.PI)) * 360 / Math.PI) - 90;
         const maxLat = (Math.atan(Math.exp((maxY / 20037508.34) * Math.PI)) * 360 / Math.PI) - 90;
         
-        // Try loading from database first
-        const { data: cachedWells, error: dbError } = await supabase
-          .from("wells_cache")
-          .select("brunnsid, obsplatsid, properties, lon, lat")
-          .gte("lon", minLon)
-          .lte("lon", maxLon)
-          .gte("lat", minLat)
-          .lte("lat", maxLat)
-          .limit(50000);
+        // Load from database cache via edge function (bypasses 1000 row limit)
+        const wellsQueryUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wells-query?minLon=${minLon}&maxLon=${maxLon}&minLat=${minLat}&maxLat=${maxLat}&limit=50000`;
         
-        if (!dbError && cachedWells && cachedWells.length > 0) {
-          console.log(`Loaded ${cachedWells.length} wells from database cache`);
+        const cacheResponse = await fetch(wellsQueryUrl);
+        const cacheData = cacheResponse.ok ? await cacheResponse.json() : null;
+        
+        if (cacheData && cacheData.wells && cacheData.wells.length > 0) {
+          console.log(`Loaded ${cacheData.wells.length} wells from database cache`);
           
-          // Convert DB rows to GeoJSON features
-          const geojsonFeatures = cachedWells.map((w: any) => ({
+          const geojsonFeatures = cacheData.wells.map((w: any) => ({
             type: "Feature",
             geometry: { type: "Point", coordinates: [w.lon, w.lat] },
             properties: { ...w.properties, brunnsid: w.brunnsid, obsplatsid: w.obsplatsid },
@@ -376,8 +371,8 @@ export const MapView = () => {
           setWellsLoaded(wellsSource.getFeatures().length);
           loadedWellExtentsRef.push(gridKey);
         } else {
-          // Fallback to SGU API if database is empty or errored
-          console.log("Database cache empty/error, falling back to SGU API...");
+          // Fallback to SGU API if database is empty
+          console.log("Database cache empty, falling back to SGU API...");
           const bbox = `${minLon},${minLat},${maxLon},${maxLat}`;
           const url = `https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar/items?f=json&bbox=${bbox}&limit=50000`;
           

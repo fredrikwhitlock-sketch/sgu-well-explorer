@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.sync-wells]
 verify_jwt = false
+
+[functions.wells-query]
+verify_jwt = false
