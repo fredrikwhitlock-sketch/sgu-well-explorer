@@ -14,7 +14,57 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      sync_status: {
+        Row: {
+          id: string
+          last_synced_at: string | null
+          status: string | null
+          total_records: number | null
+        }
+        Insert: {
+          id: string
+          last_synced_at?: string | null
+          status?: string | null
+          total_records?: number | null
+        }
+        Update: {
+          id?: string
+          last_synced_at?: string | null
+          status?: string | null
+          total_records?: number | null
+        }
+        Relationships: []
+      }
+      wells_cache: {
+        Row: {
+          brunnsid: string
+          created_at: string
+          id: number
+          lat: number
+          lon: number
+          obsplatsid: string | null
+          properties: Json
+        }
+        Insert: {
+          brunnsid: string
+          created_at?: string
+          id?: number
+          lat: number
+          lon: number
+          obsplatsid?: string | null
+          properties?: Json
+        }
+        Update: {
+          brunnsid?: string
+          created_at?: string
+          id?: number
+          lat?: number
+          lon?: number
+          obsplatsid?: string | null
+          properties?: Json
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
