@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.geo-chat]
 verify_jwt = false
+
+[functions.sync-wells]
+verify_jwt = false

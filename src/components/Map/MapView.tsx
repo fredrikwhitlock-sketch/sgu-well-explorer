@@ -26,6 +26,7 @@ import { AIChatPanel } from "./AIChatPanel";
 import { toast } from "sonner";
 import { getSoilTypeColor } from "@/lib/soilTypeColors";
 import { exportWellsToCSV, exportFeaturesToCSV } from "@/lib/exportWells";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ChartLocation {
   id: string;
@@ -332,7 +333,6 @@ export const MapView = () => {
         }
         
         setLoadingWells(true);
-        console.log("Loading wells from OGC API with bbox...");
         
         // Convert Web Mercator extent to WGS84 bbox
         const [minX, minY, maxX, maxY] = extent;
@@ -341,49 +341,73 @@ export const MapView = () => {
         const minLat = (Math.atan(Math.exp((minY / 20037508.34) * Math.PI)) * 360 / Math.PI) - 90;
         const maxLat = (Math.atan(Math.exp((maxY / 20037508.34) * Math.PI)) * 360 / Math.PI) - 90;
         
-        const bbox = `${minLon},${minLat},${maxLon},${maxLat}`;
-        const url = `https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar/items?f=json&bbox=${bbox}&limit=50000`;
+        // Try loading from database first
+        const { data: cachedWells, error: dbError } = await supabase
+          .from("wells_cache")
+          .select("brunnsid, obsplatsid, properties, lon, lat")
+          .gte("lon", minLon)
+          .lte("lon", maxLon)
+          .gte("lat", minLat)
+          .lte("lat", maxLat)
+          .limit(50000);
         
-        const response = await fetch(url);
-        
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        console.log(`Received ${data.features?.length || 0} wells`);
-        
-        if (data.features && data.features.length > 0) {
+        if (!dbError && cachedWells && cachedWells.length > 0) {
+          console.log(`Loaded ${cachedWells.length} wells from database cache`);
+          
+          // Convert DB rows to GeoJSON features
+          const geojsonFeatures = cachedWells.map((w: any) => ({
+            type: "Feature",
+            geometry: { type: "Point", coordinates: [w.lon, w.lat] },
+            properties: { ...w.properties, brunnsid: w.brunnsid, obsplatsid: w.obsplatsid },
+          }));
+          
           const features = new GeoJSON().readFeatures(
-            { type: "FeatureCollection", features: data.features },
-            {
-              dataProjection: "EPSG:4326",
-              featureProjection: "EPSG:3857",
-            }
+            { type: "FeatureCollection", features: geojsonFeatures },
+            { dataProjection: "EPSG:4326", featureProjection: "EPSG:3857" }
           );
           
-          // Only add features that don't already exist (by brunnsid)
           const existingIds = new Set(wellsSource.getFeatures().map(f => f.get('brunnsid')));
           const newFeatures = features.filter(f => !existingIds.has(f.get('brunnsid')));
           
           if (newFeatures.length > 0) {
             wellsSource.addFeatures(newFeatures);
-            console.log(`Added ${newFeatures.length} new wells (${features.length - newFeatures.length} duplicates skipped)`);
           }
           
           setWellsLoaded(wellsSource.getFeatures().length);
           loadedWellExtentsRef.push(gridKey);
-          
-          if (data.features.length >= 50000) {
-            toast.info("Visar max 50 000 brunnar per område. Zooma in för fler detaljer.");
-          }
         } else {
-          // Mark as loaded even if empty to avoid retrying
-          loadedWellExtentsRef.push(gridKey);
+          // Fallback to SGU API if database is empty or errored
+          console.log("Database cache empty/error, falling back to SGU API...");
+          const bbox = `${minLon},${minLat},${maxLon},${maxLat}`;
+          const url = `https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar/items?f=json&bbox=${bbox}&limit=50000`;
+          
+          const response = await fetch(url);
+          if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+          
+          const data = await response.json();
+          
+          if (data.features && data.features.length > 0) {
+            const features = new GeoJSON().readFeatures(
+              { type: "FeatureCollection", features: data.features },
+              { dataProjection: "EPSG:4326", featureProjection: "EPSG:3857" }
+            );
+            
+            const existingIds = new Set(wellsSource.getFeatures().map(f => f.get('brunnsid')));
+            const newFeatures = features.filter(f => !existingIds.has(f.get('brunnsid')));
+            
+            if (newFeatures.length > 0) {
+              wellsSource.addFeatures(newFeatures);
+            }
+            
+            setWellsLoaded(wellsSource.getFeatures().length);
+            loadedWellExtentsRef.push(gridKey);
+          } else {
+            loadedWellExtentsRef.push(gridKey);
+          }
         }
       } catch (error) {
         console.error("Error loading wells:", error);
-        toast.error("Kunde inte ladda brunnar från OGC API");
+        toast.error("Kunde inte ladda brunnar");
       } finally {
         setLoadingWells(false);
       }
