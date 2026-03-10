@@ -102,6 +102,8 @@ export const LayerPanel = ({
   sguJordarter1MOpacity,
   sguJordarter25kVisible,
   sguJordarter25kOpacity,
+  sguGvTillgangVisible,
+  sguGvTillgangOpacity,
   sourcesLoaded,
   wellsLoaded,
   aquifersLoaded,
