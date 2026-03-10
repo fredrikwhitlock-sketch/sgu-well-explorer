@@ -62,6 +62,8 @@ interface LayerPanelProps {
   onSguJordarter1MOpacityChange: (opacity: number) => void;
   onSguJordarter25kVisibleChange: (visible: boolean) => void;
   onSguJordarter25kOpacityChange: (opacity: number) => void;
+  onSguGvTillgangVisibleChange: (visible: boolean) => void;
+  onSguGvTillgangOpacityChange: (opacity: number) => void;
   onExportWells?: () => void;
   onClearWells?: () => void;
   onExportSources?: () => void;
