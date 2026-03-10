@@ -15,6 +15,7 @@ const WmsLegend: React.FC<WmsLegendProps> = ({
   sguBerggrund50kVisible,
   sguJordarter1MVisible,
   sguJordarter25kVisible,
+  sguGvTillgangVisible,
 }) => {
   const [isMinimized, setIsMinimized] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
