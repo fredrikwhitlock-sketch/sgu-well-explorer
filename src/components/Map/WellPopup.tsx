@@ -1001,6 +1001,33 @@ export const WellPopup = ({
               </a>
             </div>
           </>
+        ) : type === 'gvTillgang' ? (
+          <>
+            {properties.GRAY_INDEX !== undefined && (
+              <div className="bg-primary/10 rounded-lg p-3">
+                <dt className="text-xs font-medium text-muted-foreground">Grundvattentillgång</dt>
+                <dd className="text-lg font-bold text-foreground mt-1">{formatValue(properties.GRAY_INDEX)} l/dygn/ha</dd>
+              </div>
+            )}
+            {Object.entries(properties)
+              .filter(([key]) => key !== 'geometry' && key !== 'GRAY_INDEX')
+              .map(([key, value]) => (
+                <div key={key}>
+                  <dt className="text-xs font-medium text-muted-foreground">{key}</dt>
+                  <dd className="text-sm text-foreground mt-1">{formatValue(value)}</dd>
+                </div>
+              ))}
+            <div className="mt-2">
+              <a 
+                href="https://resource.sgu.se/dokument/produkter/grundvattentillgang-sma-magasin-beskrivning.pdf" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-sm text-sgu-link hover:underline inline-flex items-center gap-1"
+              >
+                Produktbeskrivning <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+          </>
         ) : (
           <>
             {properties.magasinsidentitet && (
