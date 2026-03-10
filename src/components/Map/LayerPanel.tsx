@@ -30,6 +30,8 @@ interface LayerPanelProps {
   sguJordarter1MOpacity: number;
   sguJordarter25kVisible: boolean;
   sguJordarter25kOpacity: number;
+  sguGvTillgangVisible: boolean;
+  sguGvTillgangOpacity: number;
   sourcesLoaded: number;
   wellsLoaded: number;
   aquifersLoaded: number;
@@ -60,6 +62,8 @@ interface LayerPanelProps {
   onSguJordarter1MOpacityChange: (opacity: number) => void;
   onSguJordarter25kVisibleChange: (visible: boolean) => void;
   onSguJordarter25kOpacityChange: (opacity: number) => void;
+  onSguGvTillgangVisibleChange: (visible: boolean) => void;
+  onSguGvTillgangOpacityChange: (opacity: number) => void;
   onExportWells?: () => void;
   onClearWells?: () => void;
   onExportSources?: () => void;
@@ -98,6 +102,8 @@ export const LayerPanel = ({
   sguJordarter1MOpacity,
   sguJordarter25kVisible,
   sguJordarter25kOpacity,
+  sguGvTillgangVisible,
+  sguGvTillgangOpacity,
   sourcesLoaded,
   wellsLoaded,
   aquifersLoaded,
@@ -126,6 +132,8 @@ export const LayerPanel = ({
   onSguJordarter1MOpacityChange,
   onSguJordarter25kVisibleChange,
   onSguJordarter25kOpacityChange,
+  onSguGvTillgangVisibleChange,
+  onSguGvTillgangOpacityChange,
   onExportWells,
   onClearWells,
   onExportSources,
@@ -862,6 +870,54 @@ export const LayerPanel = ({
               <div className="text-xs">
                 <a 
                   href="https://www.sgu.se/produkter-och-tjanster/geologiska-data/jordarter--geologiska-data/jordartsdata/" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-sgu-link hover:underline inline-flex items-center gap-1"
+                >
+                  Produktbeskrivning <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* SGU Grundvattentillgång i små magasin Layer Control */}
+        <div className="space-y-3 pt-4 border-t border-border">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label htmlFor="sgu-gv-tillgang-layer" className="text-sm font-medium">
+                Grundvattentillgång små magasin
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Beräknad tillgång (l/dygn/ha)
+              </p>
+            </div>
+            <Switch
+              id="sgu-gv-tillgang-layer"
+              checked={sguGvTillgangVisible}
+              onCheckedChange={onSguGvTillgangVisibleChange}
+            />
+          </div>
+          
+          {sguGvTillgangVisible && (
+            <div className="mt-3 space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="sgu-gv-tillgang-opacity" className="text-xs text-muted-foreground">
+                  Transparens: {Math.round(sguGvTillgangOpacity * 100)}%
+                </Label>
+                <Slider
+                  id="sgu-gv-tillgang-opacity"
+                  min={0}
+                  max={1}
+                  step={0.1}
+                  value={[sguGvTillgangOpacity]}
+                  onValueChange={([value]) => onSguGvTillgangOpacityChange(value)}
+                  className="w-full"
+                />
+              </div>
+              <div className="text-xs">
+                <a 
+                  href="https://resource.sgu.se/dokument/produkter/grundvattentillgang-sma-magasin-beskrivning.pdf" 
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="text-sgu-link hover:underline inline-flex items-center gap-1"

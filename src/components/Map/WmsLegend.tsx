@@ -7,6 +7,7 @@ interface WmsLegendProps {
   sguBerggrund50kVisible: boolean;
   sguJordarter1MVisible: boolean;
   sguJordarter25kVisible: boolean;
+  sguGvTillgangVisible: boolean;
 }
 
 const WmsLegend: React.FC<WmsLegendProps> = ({
@@ -14,6 +15,7 @@ const WmsLegend: React.FC<WmsLegendProps> = ({
   sguBerggrund50kVisible,
   sguJordarter1MVisible,
   sguJordarter25kVisible,
+  sguGvTillgangVisible,
 }) => {
   const [isMinimized, setIsMinimized] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
@@ -25,7 +27,7 @@ const WmsLegend: React.FC<WmsLegendProps> = ({
   const wmsProxyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wms-proxy`;
 
   // Check if any layer is visible
-  const hasVisibleLayers = sguBerggrund1MVisible || sguBerggrund50kVisible || sguJordarter1MVisible || sguJordarter25kVisible;
+  const hasVisibleLayers = sguBerggrund1MVisible || sguBerggrund50kVisible || sguJordarter1MVisible || sguJordarter25kVisible || sguGvTillgangVisible;
 
   // Auto-show legend when layers become visible
   useEffect(() => {
@@ -93,6 +95,11 @@ const WmsLegend: React.FC<WmsLegendProps> = ({
       visible: sguJordarter25kVisible,
       label: 'Jordarter 1:25k',
       url: `${wmsProxyUrl}?url=${encodeURIComponent('https://maps3.sgu.se/geoserver/jord/ows')}&REQUEST=GetLegendGraphic&SERVICE=WMS&VERSION=1.1.1&FORMAT=image/png&LAYER=jord:SE.GOV.SGU.JORD.GRUNDLAGER.25K&WIDTH=20&HEIGHT=20`,
+    },
+    {
+      visible: sguGvTillgangVisible,
+      label: 'GV-tillgång små magasin',
+      url: `${wmsProxyUrl}?url=${encodeURIComponent('https://api.sgu.se/oppnadata/grundvattentillgang-sma-magasin/wms')}&REQUEST=GetLegendGraphic&SERVICE=WMS&VERSION=1.1.1&FORMAT=image/png&LAYER=grundvattentillgang-sma-magasin&WIDTH=20&HEIGHT=20`,
     },
   ];
 

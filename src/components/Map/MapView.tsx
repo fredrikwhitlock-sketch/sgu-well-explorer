@@ -64,6 +64,8 @@ export const MapView = () => {
   const [sguJordarter1MOpacity, setSguJordarter1MOpacity] = useState(0.7);
   const [sguJordarter25kVisible, setSguJordarter25kVisible] = useState(false);
   const [sguJordarter25kOpacity, setSguJordarter25kOpacity] = useState(0.7);
+  const [sguGvTillgangVisible, setSguGvTillgangVisible] = useState(false);
+  const [sguGvTillgangOpacity, setSguGvTillgangOpacity] = useState(0.7);
   const [coordinates, setCoordinates] = useState<[number, number] | null>(null);
   const [selectedFeatures, setSelectedFeatures] = useState<{ properties: Record<string, any>; type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType'; analysisResults?: any[] }[]>([]);
   const [selectedFeatureIndex, setSelectedFeatureIndex] = useState(0);
@@ -106,6 +108,7 @@ export const MapView = () => {
   const sguBerggrund50kLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
   const sguJordarter1MLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
   const sguJordarter25kLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
+  const sguGvTillgangLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
 
   useEffect(() => {
     if (!mapRef.current) return;
@@ -226,6 +229,23 @@ export const MapView = () => {
       opacity: sguJordarter25kOpacity,
     });
     sguJordarter25kLayerRef.current = sguJordarter25kLayer;
+
+    // SGU Grundvattentillgång i små magasin WMS layer
+    const sguGvTillgangLayer = new ImageLayer({
+      source: new ImageWMS({
+        url: wmsProxyUrl,
+        params: {
+          'url': 'https://api.sgu.se/oppnadata/grundvattentillgang-sma-magasin/wms',
+          'LAYERS': 'grundvattentillgang-sma-magasin',
+          'VERSION': '1.1.1',
+          'FORMAT': 'image/png',
+        },
+        ratio: 1,
+      }),
+      visible: sguGvTillgangVisible,
+      opacity: sguGvTillgangOpacity,
+    });
+    sguGvTillgangLayerRef.current = sguGvTillgangLayer;
 
     // OGC API Features layer for Källor (sources)
     const sourcesSource = new VectorSource({
@@ -809,6 +829,7 @@ export const MapView = () => {
         sguBerggrund50kLayer,
         sguJordarter1MLayer,
         sguJordarter25kLayer,
+        sguGvTillgangLayer,
         // Vector layers on top
         soilTypesLayer, 
         waterBodiesLayer, 
@@ -1099,6 +1120,20 @@ export const MapView = () => {
     }
   }, [sguJordarter25kOpacity]);
 
+  // Update SGU GV Tillgång visibility
+  useEffect(() => {
+    if (sguGvTillgangLayerRef.current) {
+      sguGvTillgangLayerRef.current.setVisible(sguGvTillgangVisible);
+    }
+  }, [sguGvTillgangVisible]);
+
+  // Update SGU GV Tillgång opacity
+  useEffect(() => {
+    if (sguGvTillgangLayerRef.current) {
+      sguGvTillgangLayerRef.current.setOpacity(sguGvTillgangOpacity);
+    }
+  }, [sguGvTillgangOpacity]);
+
   const handleSearchResult = (coordinates: [number, number], zoom?: number) => {
     if (mapInstanceRef.current) {
       mapInstanceRef.current.getView().animate({
@@ -1137,6 +1172,8 @@ export const MapView = () => {
         sguJordarter1MOpacity={sguJordarter1MOpacity}
         sguJordarter25kVisible={sguJordarter25kVisible}
         sguJordarter25kOpacity={sguJordarter25kOpacity}
+        sguGvTillgangVisible={sguGvTillgangVisible}
+        sguGvTillgangOpacity={sguGvTillgangOpacity}
         sourcesLoaded={sourcesLoaded}
         wellsLoaded={wellsLoaded}
         aquifersLoaded={aquifersLoaded}
@@ -1165,6 +1202,8 @@ export const MapView = () => {
         onSguJordarter1MOpacityChange={setSguJordarter1MOpacity}
         onSguJordarter25kVisibleChange={setSguJordarter25kVisible}
         onSguJordarter25kOpacityChange={setSguJordarter25kOpacity}
+        onSguGvTillgangVisibleChange={setSguGvTillgangVisible}
+        onSguGvTillgangOpacityChange={setSguGvTillgangOpacity}
         onExportWells={() => {
           if (wellsLayerRef.current) {
             const features = wellsLayerRef.current.getSource()?.getFeatures() || [];
@@ -1382,6 +1421,7 @@ export const MapView = () => {
         sguBerggrund50kVisible={sguBerggrund50kVisible}
         sguJordarter1MVisible={sguJordarter1MVisible}
         sguJordarter25kVisible={sguJordarter25kVisible}
+        sguGvTillgangVisible={sguGvTillgangVisible}
       />
 
       <AIChatPanel
