@@ -108,6 +108,7 @@ export const MapView = () => {
   const sguBerggrund50kLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
   const sguJordarter1MLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
   const sguJordarter25kLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
+  const sguGvTillgangLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
 
   useEffect(() => {
     if (!mapRef.current) return;
