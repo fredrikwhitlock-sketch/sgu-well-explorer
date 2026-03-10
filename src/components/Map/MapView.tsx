@@ -867,12 +867,12 @@ export const MapView = () => {
 
     // Handle feature clicks - collect all features at the same location
     map.on("click", async (evt) => {
-      const clickedItems: { properties: Record<string, any>; type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType' }[] = [];
+      const clickedItems: { properties: Record<string, any>; type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType' | 'gvTillgang' }[] = [];
       
       map.forEachFeatureAtPixel(evt.pixel, (f, layer) => {
         if (layer === sourcesLayer || layer === wellsLayer || layer === aquifersLayer || layer === waterBodiesLayer || layer === gwLevelsObservedLayer || layer === gwQualityLayer || layer === soilTypesLayer) {
           const properties = f.getProperties();
-          let type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType' = 'source';
+          let type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType' | 'gvTillgang' = 'source';
           if (layer === wellsLayer) type = 'well';
           else if (layer === aquifersLayer) type = 'aquifer';
           else if (layer === waterBodiesLayer) type = 'waterBody';
@@ -883,6 +883,38 @@ export const MapView = () => {
         }
       });
       
+      // Query GV Tillgång WMS GetFeatureInfo if layer is visible
+      if (sguGvTillgangLayerRef.current?.getVisible()) {
+        try {
+          const viewResolution = map.getView().getResolution() || 1;
+          const wmsSource = sguGvTillgangLayerRef.current.getSource();
+          if (wmsSource) {
+            const infoUrl = wmsSource.getFeatureInfoUrl(
+              evt.coordinate,
+              viewResolution,
+              'EPSG:3857',
+              { 'INFO_FORMAT': 'application/json' }
+            );
+            if (infoUrl) {
+              const response = await fetch(infoUrl);
+              if (response.ok) {
+                const data = await response.json();
+                if (data.features && data.features.length > 0) {
+                  for (const feature of data.features) {
+                    clickedItems.push({
+                      properties: feature.properties || {},
+                      type: 'gvTillgang',
+                    });
+                  }
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.error("Error querying GV Tillgång:", error);
+        }
+      }
+
       if (clickedItems.length > 0) {
         setSelectedFeatures(clickedItems);
         setSelectedFeatureIndex(0);
