@@ -230,6 +230,23 @@ export const MapView = () => {
     });
     sguJordarter25kLayerRef.current = sguJordarter25kLayer;
 
+    // SGU Grundvattentillgång i små magasin WMS layer
+    const sguGvTillgangLayer = new ImageLayer({
+      source: new ImageWMS({
+        url: wmsProxyUrl,
+        params: {
+          'url': 'https://api.sgu.se/oppnadata/grundvattentillgang-sma-magasin/wms',
+          'LAYERS': 'grundvattentillgang-sma-magasin',
+          'VERSION': '1.1.1',
+          'FORMAT': 'image/png',
+        },
+        ratio: 1,
+      }),
+      visible: sguGvTillgangVisible,
+      opacity: sguGvTillgangOpacity,
+    });
+    sguGvTillgangLayerRef.current = sguGvTillgangLayer;
+
     // OGC API Features layer for Källor (sources)
     const sourcesSource = new VectorSource({
       format: new GeoJSON(),
