@@ -135,6 +135,7 @@ export const LayerPanel = ({
   onSguJordarter25kOpacityChange,
   onSguGvTillgangVisibleChange,
   onSguGvTillgangOpacityChange,
+  onDownloadGvTillgangGeoTiff,
   onExportWells,
   onClearWells,
   onExportSources,
