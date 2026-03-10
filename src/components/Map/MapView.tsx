@@ -1236,6 +1236,45 @@ export const MapView = () => {
         onSguJordarter25kOpacityChange={setSguJordarter25kOpacity}
         onSguGvTillgangVisibleChange={setSguGvTillgangVisible}
         onSguGvTillgangOpacityChange={setSguGvTillgangOpacity}
+        onDownloadGvTillgangGeoTiff={() => {
+          if (!mapInstanceRef.current) return;
+          const extent = mapInstanceRef.current.getView().calculateExtent();
+          // Convert Web Mercator to WGS84
+          const minLon = (extent[0] / 20037508.34) * 180;
+          const maxLon = (extent[2] / 20037508.34) * 180;
+          const minLat = (Math.atan(Math.exp((extent[1] / 20037508.34) * Math.PI)) * 360 / Math.PI) - 90;
+          const maxLat = (Math.atan(Math.exp((extent[3] / 20037508.34) * Math.PI)) * 360 / Math.PI) - 90;
+          
+          // Convert WGS84 to approximate SWEREF99 TM (EPSG:3006) for WCS subsetting
+          // Using proj4 for accurate conversion
+          const ll = proj4('EPSG:4326', 'EPSG:3006', [minLon, minLat]);
+          const ur = proj4('EPSG:4326', 'EPSG:3006', [maxLon, maxLat]);
+          
+          const wcsUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wms-proxy?url=${encodeURIComponent('https://api.sgu.se/oppnadata/grundvattentillgang-sma-magasin/wcs')}&SERVICE=WCS&VERSION=2.0.1&REQUEST=GetCoverage&COVERAGEID=grundvattentillgang-sma-magasin&FORMAT=image/tiff&SUBSET=E(${Math.floor(ll[0])},${Math.ceil(ur[0])})&SUBSET=N(${Math.floor(ll[1])},${Math.ceil(ur[1])})`;
+          
+          toast.info('Laddar ner GeoTIFF...');
+          
+          fetch(wcsUrl)
+            .then(response => {
+              if (!response.ok) throw new Error(`HTTP ${response.status}`);
+              return response.blob();
+            })
+            .then(blob => {
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `grundvattentillgang_sma_magasin_${Math.floor(ll[0])}_${Math.floor(ll[1])}.tif`;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              URL.revokeObjectURL(url);
+              toast.success('GeoTIFF nedladdad!');
+            })
+            .catch(error => {
+              console.error('GeoTIFF download error:', error);
+              toast.error('Kunde inte ladda ner GeoTIFF');
+            });
+        }}
         onExportWells={() => {
           if (wellsLayerRef.current) {
             const features = wellsLayerRef.current.getSource()?.getFeatures() || [];
