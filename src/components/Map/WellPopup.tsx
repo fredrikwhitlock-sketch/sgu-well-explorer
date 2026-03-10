@@ -1147,6 +1147,39 @@ export const WellPopup = ({
               </div>
             )}
           </>
+        ) : type === 'gvTillgang' ? (
+          <>
+            <div className="bg-accent/50 rounded-lg p-3 mb-2">
+              <p className="text-xs font-medium text-muted-foreground mb-1">Grundvattentillgång i små magasin</p>
+              <p className="text-sm text-foreground">
+                Beräknad tillgång per hektar (rasterdata)
+              </p>
+            </div>
+            {Object.entries(properties)
+              .filter(([key]) => key !== 'geometry' && key !== 'GRAY_INDEX')
+              .map(([key, value]) => (
+                <div key={key}>
+                  <dt className="text-xs font-medium text-muted-foreground">{key}</dt>
+                  <dd className="text-sm text-foreground mt-1">{formatValue(value)}</dd>
+                </div>
+              ))}
+            {properties.GRAY_INDEX !== undefined && (
+              <div className="bg-primary/10 rounded-lg p-3 mt-2">
+                <dt className="text-xs font-medium text-muted-foreground">Grundvattentillgång</dt>
+                <dd className="text-lg font-bold text-foreground mt-1">{formatValue(properties.GRAY_INDEX)} l/dygn/ha</dd>
+              </div>
+            )}
+            <div className="mt-2">
+              <a 
+                href="https://resource.sgu.se/dokument/produkter/grundvattentillgang-sma-magasin-beskrivning.pdf" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-sm text-sgu-link hover:underline inline-flex items-center gap-1"
+              >
+                Produktbeskrivning <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+          </>
         )}
 
         <Separator className="my-2" />
