@@ -155,6 +155,7 @@ export const WellPopup = ({
     if (type === 'gwLevelsObserved') return 'Observerad grundvattennivå';
     if (type === 'gwQuality') return 'Grundvattenkvalitet - Provplats';
     if (type === 'soilType') return 'Jordartsinformation';
+    if (type === 'gvTillgang') return 'Grundvattentillgång';
     return 'Källinformation';
   };
 
