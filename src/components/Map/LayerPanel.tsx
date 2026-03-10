@@ -30,6 +30,8 @@ interface LayerPanelProps {
   sguJordarter1MOpacity: number;
   sguJordarter25kVisible: boolean;
   sguJordarter25kOpacity: number;
+  sguGvTillgangVisible: boolean;
+  sguGvTillgangOpacity: number;
   sourcesLoaded: number;
   wellsLoaded: number;
   aquifersLoaded: number;
