@@ -1202,6 +1202,8 @@ export const MapView = () => {
         onSguJordarter1MOpacityChange={setSguJordarter1MOpacity}
         onSguJordarter25kVisibleChange={setSguJordarter25kVisible}
         onSguJordarter25kOpacityChange={setSguJordarter25kOpacity}
+        onSguGvTillgangVisibleChange={setSguGvTillgangVisible}
+        onSguGvTillgangOpacityChange={setSguGvTillgangOpacity}
         onExportWells={() => {
           if (wellsLayerRef.current) {
             const features = wellsLayerRef.current.getSource()?.getFeatures() || [];

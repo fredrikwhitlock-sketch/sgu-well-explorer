@@ -132,6 +132,8 @@ export const LayerPanel = ({
   onSguJordarter1MOpacityChange,
   onSguJordarter25kVisibleChange,
   onSguJordarter25kOpacityChange,
+  onSguGvTillgangVisibleChange,
+  onSguGvTillgangOpacityChange,
   onExportWells,
   onClearWells,
   onExportSources,
