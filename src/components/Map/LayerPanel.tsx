@@ -64,6 +64,7 @@ interface LayerPanelProps {
   onSguJordarter25kOpacityChange: (opacity: number) => void;
   onSguGvTillgangVisibleChange: (visible: boolean) => void;
   onSguGvTillgangOpacityChange: (opacity: number) => void;
+  onDownloadGvTillgangGeoTiff?: () => void;
   onExportWells?: () => void;
   onClearWells?: () => void;
   onExportSources?: () => void;
@@ -134,6 +135,7 @@ export const LayerPanel = ({
   onSguJordarter25kOpacityChange,
   onSguGvTillgangVisibleChange,
   onSguGvTillgangOpacityChange,
+  onDownloadGvTillgangGeoTiff,
   onExportWells,
   onClearWells,
   onExportSources,
@@ -915,7 +917,7 @@ export const LayerPanel = ({
                   className="w-full"
                 />
               </div>
-              <div className="text-xs">
+              <div className="text-xs space-y-2">
                 <a 
                   href="https://resource.sgu.se/dokument/produkter/grundvattentillgang-sma-magasin-beskrivning.pdf" 
                   target="_blank" 
@@ -924,6 +926,19 @@ export const LayerPanel = ({
                 >
                   Produktbeskrivning <ExternalLink className="w-3 h-3" />
                 </a>
+                {onDownloadGvTillgangGeoTiff && (
+                  <div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={onDownloadGvTillgangGeoTiff}
+                      className="w-full text-xs h-7"
+                    >
+                      <Download className="w-3 h-3 mr-1" />
+                      Ladda ner GeoTIFF (aktuell vy)
+                    </Button>
+                  </div>
+                )}
               </div>
             </div>
           )}
