@@ -96,6 +96,11 @@ const WmsLegend: React.FC<WmsLegendProps> = ({
       label: 'Jordarter 1:25k',
       url: `${wmsProxyUrl}?url=${encodeURIComponent('https://maps3.sgu.se/geoserver/jord/ows')}&REQUEST=GetLegendGraphic&SERVICE=WMS&VERSION=1.1.1&FORMAT=image/png&LAYER=jord:SE.GOV.SGU.JORD.GRUNDLAGER.25K&WIDTH=20&HEIGHT=20`,
     },
+    {
+      visible: sguGvTillgangVisible,
+      label: 'GV-tillgång små magasin',
+      url: `${wmsProxyUrl}?url=${encodeURIComponent('https://api.sgu.se/oppnadata/grundvattentillgang-sma-magasin/wms')}&REQUEST=GetLegendGraphic&SERVICE=WMS&VERSION=1.1.1&FORMAT=image/png&LAYER=grundvattentillgang-sma-magasin&WIDTH=20&HEIGHT=20`,
+    },
   ];
 
   const visibleItems = legendItems.filter(item => item.visible);
