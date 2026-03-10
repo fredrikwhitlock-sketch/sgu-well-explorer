@@ -64,6 +64,7 @@ interface LayerPanelProps {
   onSguJordarter25kOpacityChange: (opacity: number) => void;
   onSguGvTillgangVisibleChange: (visible: boolean) => void;
   onSguGvTillgangOpacityChange: (opacity: number) => void;
+  onDownloadGvTillgangGeoTiff?: () => void;
   onExportWells?: () => void;
   onClearWells?: () => void;
   onExportSources?: () => void;
