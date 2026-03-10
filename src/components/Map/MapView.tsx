@@ -1405,6 +1405,7 @@ export const MapView = () => {
         sguBerggrund50kVisible={sguBerggrund50kVisible}
         sguJordarter1MVisible={sguJordarter1MVisible}
         sguJordarter25kVisible={sguJordarter25kVisible}
+        sguGvTillgangVisible={sguGvTillgangVisible}
       />
 
       <AIChatPanel
