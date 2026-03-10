@@ -7,6 +7,7 @@ interface WmsLegendProps {
   sguBerggrund50kVisible: boolean;
   sguJordarter1MVisible: boolean;
   sguJordarter25kVisible: boolean;
+  sguGvTillgangVisible: boolean;
 }
 
 const WmsLegend: React.FC<WmsLegendProps> = ({
