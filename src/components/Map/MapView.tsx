@@ -1158,6 +1158,8 @@ export const MapView = () => {
         sguJordarter1MOpacity={sguJordarter1MOpacity}
         sguJordarter25kVisible={sguJordarter25kVisible}
         sguJordarter25kOpacity={sguJordarter25kOpacity}
+        sguGvTillgangVisible={sguGvTillgangVisible}
+        sguGvTillgangOpacity={sguGvTillgangOpacity}
         sourcesLoaded={sourcesLoaded}
         wellsLoaded={wellsLoaded}
         aquifersLoaded={aquifersLoaded}
