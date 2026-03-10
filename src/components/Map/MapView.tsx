@@ -829,6 +829,7 @@ export const MapView = () => {
         sguBerggrund50kLayer,
         sguJordarter1MLayer,
         sguJordarter25kLayer,
+        sguGvTillgangLayer,
         // Vector layers on top
         soilTypesLayer, 
         waterBodiesLayer, 
