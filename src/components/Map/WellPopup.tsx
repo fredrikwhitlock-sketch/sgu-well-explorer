@@ -1180,7 +1180,7 @@ export const WellPopup = ({
               </a>
             </div>
           </>
-        )}
+        ) : null}
 
         <Separator className="my-2" />
         
