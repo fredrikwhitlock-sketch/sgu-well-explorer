@@ -64,6 +64,8 @@ export const MapView = () => {
   const [sguJordarter1MOpacity, setSguJordarter1MOpacity] = useState(0.7);
   const [sguJordarter25kVisible, setSguJordarter25kVisible] = useState(false);
   const [sguJordarter25kOpacity, setSguJordarter25kOpacity] = useState(0.7);
+  const [sguGvTillgangVisible, setSguGvTillgangVisible] = useState(false);
+  const [sguGvTillgangOpacity, setSguGvTillgangOpacity] = useState(0.7);
   const [coordinates, setCoordinates] = useState<[number, number] | null>(null);
   const [selectedFeatures, setSelectedFeatures] = useState<{ properties: Record<string, any>; type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType'; analysisResults?: any[] }[]>([]);
   const [selectedFeatureIndex, setSelectedFeatureIndex] = useState(0);
