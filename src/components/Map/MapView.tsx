@@ -1120,6 +1120,20 @@ export const MapView = () => {
     }
   }, [sguJordarter25kOpacity]);
 
+  // Update SGU GV Tillgång visibility
+  useEffect(() => {
+    if (sguGvTillgangLayerRef.current) {
+      sguGvTillgangLayerRef.current.setVisible(sguGvTillgangVisible);
+    }
+  }, [sguGvTillgangVisible]);
+
+  // Update SGU GV Tillgång opacity
+  useEffect(() => {
+    if (sguGvTillgangLayerRef.current) {
+      sguGvTillgangLayerRef.current.setOpacity(sguGvTillgangOpacity);
+    }
+  }, [sguGvTillgangOpacity]);
+
   const handleSearchResult = (coordinates: [number, number], zoom?: number) => {
     if (mapInstanceRef.current) {
       mapInstanceRef.current.getView().animate({
