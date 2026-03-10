@@ -27,7 +27,7 @@ const WmsLegend: React.FC<WmsLegendProps> = ({
   const wmsProxyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wms-proxy`;
 
   // Check if any layer is visible
-  const hasVisibleLayers = sguBerggrund1MVisible || sguBerggrund50kVisible || sguJordarter1MVisible || sguJordarter25kVisible;
+  const hasVisibleLayers = sguBerggrund1MVisible || sguBerggrund50kVisible || sguJordarter1MVisible || sguJordarter25kVisible || sguGvTillgangVisible;
 
   // Auto-show legend when layers become visible
   useEffect(() => {
