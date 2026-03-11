@@ -46,7 +46,7 @@ const WellProtocol = () => {
   const [searchParams] = useSearchParams();
   const rawId = searchParams.get("id") || "";
   // Strip collection prefix like "brunnar." if present
-  const obsplatsid = rawId.includes(".") ? rawId.split(".").slice(1).join(".") : rawId;
+  const [well, setWell] = useState<WellData | null>(null);
   const [lager, setLager] = useState<LagerData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
