@@ -76,7 +76,8 @@ const WellProtocol = () => {
 
         // Fetch lagerföljd
         const lagerRes = await fetch(
-          `https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar-lager/items?f=json&obsplatsid=${obsplatsid}&limit=100`
+          `https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar-lager/items?f=json&filter=obsplatsid%3D%27${encodeURIComponent(obsplatsid)}%27&limit=100`
+        );
         );
         if (lagerRes.ok) {
           const lagerJson = await lagerRes.json();
