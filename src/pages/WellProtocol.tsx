@@ -65,7 +65,12 @@ const WellProtocol = () => {
         );
         if (!wellRes.ok) throw new Error("Kunde inte hämta brunnsdata");
         const wellJson = await wellRes.json();
-        setWell(wellJson.properties);
+        // API returns FeatureCollection or single Feature depending on endpoint
+        const feature = wellJson.type === "FeatureCollection"
+          ? wellJson.features?.[0]
+          : wellJson;
+        if (!feature) throw new Error("Brunnen hittades inte i svaret");
+        setWell(feature.properties);
 
         // Fetch lagerföljd
         const lagerRes = await fetch(
