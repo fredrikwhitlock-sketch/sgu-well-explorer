@@ -41,8 +41,33 @@ export const WellPopup = ({
 }: WellPopupProps) => {
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
+  const [lagerData, setLagerData] = useState<LagerItem[]>([]);
+  const [lagerLoading, setLagerLoading] = useState(false);
   const dragRef = useRef<{ startX: number; startY: number; initialX: number; initialY: number } | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
+
+  // Fetch lagerföljd for wells
+  useEffect(() => {
+    if (type !== 'well' || !properties.obsplatsid) {
+      setLagerData([]);
+      return;
+    }
+    setLagerLoading(true);
+    fetch(
+      `https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar-lager/items?f=json&filter=obsplatsid%3D%27${encodeURIComponent(properties.obsplatsid)}%27&limit=100`
+    )
+      .then(res => res.ok ? res.json() : null)
+      .then(json => {
+        if (json?.features) {
+          const items: LagerItem[] = json.features
+            .map((f: any) => f.properties)
+            .sort((a: LagerItem, b: LagerItem) => a.lagernr - b.lagernr);
+          setLagerData(items);
+        }
+      })
+      .catch(() => setLagerData([]))
+      .finally(() => setLagerLoading(false));
+  }, [type, properties.obsplatsid]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
