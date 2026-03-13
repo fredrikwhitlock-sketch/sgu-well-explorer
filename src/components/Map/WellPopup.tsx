@@ -1,8 +1,16 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { X, ExternalLink, Download, BarChart3, PlusCircle, ChevronLeft, ChevronRight, GripHorizontal } from "lucide-react";
+import { X, ExternalLink, Download, BarChart3, PlusCircle, ChevronLeft, ChevronRight, GripHorizontal, Layers } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+
+interface LagerItem {
+  lagernr: number;
+  djup_fran: number;
+  djup_till: number;
+  jordart_bergart: string;
+  lageranmarkning?: string;
+}
 
 interface WellPopupProps {
   properties: Record<string, any>;
@@ -33,8 +41,33 @@ export const WellPopup = ({
 }: WellPopupProps) => {
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
+  const [lagerData, setLagerData] = useState<LagerItem[]>([]);
+  const [lagerLoading, setLagerLoading] = useState(false);
   const dragRef = useRef<{ startX: number; startY: number; initialX: number; initialY: number } | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
+
+  // Fetch lagerföljd for wells
+  useEffect(() => {
+    if (type !== 'well' || !properties.obsplatsid) {
+      setLagerData([]);
+      return;
+    }
+    setLagerLoading(true);
+    fetch(
+      `https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar-lager/items?f=json&filter=obsplatsid%3D%27${encodeURIComponent(properties.obsplatsid)}%27&limit=100`
+    )
+      .then(res => res.ok ? res.json() : null)
+      .then(json => {
+        if (json?.features) {
+          const items: LagerItem[] = json.features
+            .map((f: any) => f.properties)
+            .sort((a: LagerItem, b: LagerItem) => a.lagernr - b.lagernr);
+          setLagerData(items);
+        }
+      })
+      .catch(() => setLagerData([]))
+      .finally(() => setLagerLoading(false));
+  }, [type, properties.obsplatsid]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -469,12 +502,46 @@ export const WellPopup = ({
               </div>
             )}
 
+            {/* Lagerföljd section */}
             {properties.obsplatsid && (
               <>
                 <Separator />
                 <div>
+                  <dt className="text-xs font-medium text-muted-foreground flex items-center gap-1 mb-2">
+                    <Layers className="w-3 h-3" />
+                    Lagerföljd
+                  </dt>
+                  {lagerLoading ? (
+                    <p className="text-xs text-muted-foreground italic">Laddar lagerföljd...</p>
+                  ) : lagerData.length > 0 ? (
+                    <div className="border border-border rounded overflow-hidden">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="bg-muted/50">
+                            <th className="text-left px-2 py-1 font-medium text-muted-foreground">Från</th>
+                            <th className="text-left px-2 py-1 font-medium text-muted-foreground">Till</th>
+                            <th className="text-left px-2 py-1 font-medium text-muted-foreground">Jordart/bergart</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {lagerData.map((l, i) => (
+                            <tr key={i} className="border-t border-border/50">
+                              <td className="px-2 py-1">{l.djup_fran} m</td>
+                              <td className="px-2 py-1">{l.djup_till} m</td>
+                              <td className="px-2 py-1">{l.jordart_bergart}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground italic">Inga lagerföljder registrerade</p>
+                  )}
+                </div>
+
+                <div>
                   <a
-                    href={`/protokoll?id=brunnar.${properties.obsplatsid}`}
+                    href={`/protokoll?id=${properties.obsplatsid}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-2 text-sm text-sgu-link hover:underline"
