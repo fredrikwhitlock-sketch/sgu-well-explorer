@@ -1,8 +1,16 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { X, ExternalLink, Download, BarChart3, PlusCircle, ChevronLeft, ChevronRight, GripHorizontal } from "lucide-react";
+import { X, ExternalLink, Download, BarChart3, PlusCircle, ChevronLeft, ChevronRight, GripHorizontal, Layers } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+
+interface LagerItem {
+  lagernr: number;
+  djup_fran: number;
+  djup_till: number;
+  jordart_bergart: string;
+  lageranmarkning?: string;
+}
 
 interface WellPopupProps {
   properties: Record<string, any>;
