@@ -45,7 +45,6 @@ interface LagerData {
 const WellProtocol = () => {
   const [searchParams] = useSearchParams();
   const rawId = searchParams.get("id") || "";
-  // Strip collection prefix like "brunnar." if present
   const obsplatsid = rawId.includes(".") ? rawId.split(".").slice(1).join(".") : rawId;
   const [well, setWell] = useState<WellData | null>(null);
   const [lager, setLager] = useState<LagerData[]>([]);
@@ -61,20 +60,17 @@ const WellProtocol = () => {
 
     const fetchData = async () => {
       try {
-        // Fetch well data
         const wellRes = await fetch(
           `https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar/items/${obsplatsid}?f=json`
         );
         if (!wellRes.ok) throw new Error("Kunde inte hämta brunnsdata");
         const wellJson = await wellRes.json();
-        // API returns FeatureCollection or single Feature depending on endpoint
         const feature = wellJson.type === "FeatureCollection"
           ? wellJson.features?.[0]
           : wellJson;
         if (!feature) throw new Error("Brunnen hittades inte i svaret");
         setWell(feature.properties);
 
-        // Fetch lagerföljd
         const lagerRes = await fetch(
           `https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar-lager/items?f=json&filter=obsplatsid%3D%27${encodeURIComponent(obsplatsid)}%27&limit=100`
         );
@@ -97,7 +93,6 @@ const WellProtocol = () => {
 
   const formatDate = (d?: string) => {
     if (!d) return "";
-    // Format YYYYMM or YYYY-MM-DD
     if (d.length === 6) return `${d.slice(0, 4)}-${d.slice(4, 6)}`;
     if (d.includes("T")) return d.split("T")[0];
     return d;
@@ -122,12 +117,25 @@ const WellProtocol = () => {
     };
   };
 
+  const Checkbox = ({ checked }: { checked: boolean }) => (
+    <span
+      className="inline-block w-3.5 h-3.5 border border-[#4a1942] rounded-sm mr-1.5 align-middle"
+      style={{ background: checked ? '#4a1942' : 'transparent' }}
+    >
+      {checked && (
+        <svg viewBox="0 0 14 14" className="w-full h-full text-white">
+          <path d="M3 7l3 3 5-5" stroke="white" strokeWidth="2" fill="none" />
+        </svg>
+      )}
+    </span>
+  );
+
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#f5f0eb', fontFamily: "'Georgia', 'Times New Roman', serif" }}>
         <div className="text-center">
-          <FileText className="w-12 h-12 mx-auto mb-4 text-muted-foreground animate-pulse" />
-          <p className="text-muted-foreground">Laddar protokoll...</p>
+          <FileText className="w-12 h-12 mx-auto mb-4 animate-pulse" style={{ color: '#4a1942' }} />
+          <p style={{ color: '#6b5b6e' }}>Laddar protokoll...</p>
         </div>
       </div>
     );
@@ -135,9 +143,9 @@ const WellProtocol = () => {
 
   if (error || !well) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#f5f0eb', fontFamily: "'Georgia', 'Times New Roman', serif" }}>
         <div className="text-center">
-          <p className="text-destructive text-lg">{error || "Brunnen hittades inte"}</p>
+          <p className="text-lg" style={{ color: '#c0392b' }}>{error || "Brunnen hittades inte"}</p>
         </div>
       </div>
     );
@@ -147,251 +155,315 @@ const WellProtocol = () => {
   const tatChecks = getTatningChecks();
 
   return (
-    <div className="min-h-screen bg-gray-100 print:bg-white">
-      {/* Print button - hidden in print */}
-      <div className="fixed top-4 right-4 z-50 print:hidden flex gap-2">
-        <Button onClick={() => window.print()} className="shadow-lg">
+    <div
+      className="min-h-screen print:bg-white"
+      style={{
+        background: '#f5f0eb',
+        fontFamily: "'Georgia', 'Times New Roman', serif",
+        color: '#1a1a1a',
+      }}
+    >
+      {/* Print button */}
+      <div className="fixed top-4 right-4 z-50 print:hidden">
+        <Button
+          onClick={() => window.print()}
+          className="shadow-lg text-white"
+          style={{ background: '#4a1942', borderColor: '#4a1942' }}
+        >
           <Printer className="w-4 h-4 mr-2" />
           Skriv ut
         </Button>
       </div>
 
       {/* Protocol page */}
-      <div className="max-w-[210mm] mx-auto bg-white shadow-lg print:shadow-none p-8 print:p-6 text-black text-[11px] leading-tight">
-        {/* Header */}
-        <div className="flex justify-between items-start border-b-2 border-black pb-3 mb-4">
-          <div>
-            <p className="text-[10px]">SGU Brunns-ID: <span className="font-bold">{well.brunnsid}</span></p>
+      <div
+        className="max-w-[210mm] mx-auto bg-white shadow-xl print:shadow-none"
+        style={{ fontSize: '11px', lineHeight: '1.4' }}
+      >
+        {/* SGU Header bar */}
+        <div
+          className="px-8 py-5 flex items-center justify-between"
+          style={{ background: '#4a1942', color: 'white' }}
+        >
+          <div className="flex items-center gap-4">
+            {/* SGU Crown symbol */}
+            <div className="flex flex-col items-center" style={{ fontSize: '9px', lineHeight: 1.2 }}>
+              <svg viewBox="0 0 40 36" className="w-10 h-9 mb-0.5" fill="white">
+                <path d="M20 0l3 8h8l-6.5 5 2.5 8L20 16l-7 5 2.5-8L9 8h8z" />
+                <rect x="8" y="22" width="24" height="2" rx="1" />
+                <rect x="6" y="26" width="28" height="2" rx="1" />
+                <rect x="4" y="30" width="32" height="2" rx="1" />
+                <rect x="2" y="34" width="36" height="2" rx="1" />
+              </svg>
+              <span style={{ letterSpacing: '0.15em', fontWeight: 600 }}>SGU</span>
+            </div>
+            <div style={{ borderLeft: '1px solid rgba(255,255,255,0.3)', paddingLeft: '12px' }}>
+              <div style={{ fontSize: '10px', opacity: 0.8, letterSpacing: '0.05em' }}>
+                Sveriges geologiska undersökning
+              </div>
+              <h1 style={{ fontSize: '16px', fontWeight: 700, letterSpacing: '0.02em', marginTop: '2px' }}>
+                BRUNNS- OCH BORRPROTOKOLL
+              </h1>
+            </div>
           </div>
-          <div className="text-center">
-            <h1 className="text-base font-bold tracking-wide">BRUNNS- OCH BORRPROTOKOLL</h1>
-          </div>
-          <div className="text-right text-[10px]">
-            <p>Borrdatum</p>
-            <p className="font-semibold">{formatDate(well.borrdatum)}</p>
+          <div className="text-right" style={{ fontSize: '10px' }}>
+            <div style={{ opacity: 0.7 }}>Brunns-ID</div>
+            <div style={{ fontSize: '14px', fontWeight: 700 }}>{well.brunnsid || "—"}</div>
           </div>
         </div>
 
-        {/* Fastighet & Ort */}
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          <div className="border border-black p-2">
-            <p className="text-[9px] font-bold text-gray-600 mb-1">Fastighetsbeteckning (namn och nummer)</p>
-            <p className="text-sm">{well.fastighet || "—"}</p>
+        <div className="px-8 py-6 space-y-4">
+          {/* Row 1: Fastighet, Ort, Borrdatum */}
+          <div className="grid grid-cols-3 gap-0" style={{ border: '1px solid #4a1942' }}>
+            <div className="p-2.5" style={{ borderRight: '1px solid #4a1942' }}>
+              <div style={{ fontSize: '9px', color: '#6b5b6e', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '3px' }}>
+                Fastighetsbeteckning
+              </div>
+              <div style={{ fontSize: '12px' }}>{well.fastighet || "—"}</div>
+            </div>
+            <div className="p-2.5" style={{ borderRight: '1px solid #4a1942' }}>
+              <div style={{ fontSize: '9px', color: '#6b5b6e', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '3px' }}>
+                Ort
+              </div>
+              <div style={{ fontSize: '12px' }}>{well.ort || "—"}</div>
+            </div>
+            <div className="p-2.5">
+              <div style={{ fontSize: '9px', color: '#6b5b6e', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '3px' }}>
+                Borrdatum
+              </div>
+              <div style={{ fontSize: '12px', fontWeight: 600 }}>{formatDate(well.borrdatum) || "—"}</div>
+            </div>
           </div>
-          <div className="border border-black p-2">
-            <p className="text-[9px] font-bold text-gray-600 mb-1">Ort</p>
-            <p className="text-sm">{well.ort || "—"}</p>
-          </div>
-        </div>
 
-        {/* Borrplatsens läge */}
-        <div className="border border-black p-2 mb-4">
-          <p className="text-[9px] font-bold text-gray-600 mb-2">Borrplatsens läge</p>
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <p className="text-[9px] text-gray-500">Kommun</p>
-              <p>{well.kommunnamn || "—"}</p>
+          {/* Row 2: Borrplatsens läge */}
+          <div style={{ border: '1px solid #4a1942' }}>
+            <div
+              className="px-2.5 py-1.5"
+              style={{ background: '#f3eff2', borderBottom: '1px solid #4a1942', fontSize: '10px', fontWeight: 700, color: '#4a1942', textTransform: 'uppercase', letterSpacing: '0.05em' }}
+            >
+              Borrplatsens läge
             </div>
-            <div>
-              <p className="text-[9px] text-gray-500">Platsspecificering</p>
-              <p>{well.lage_specifikt || "—"}</p>
-            </div>
-            <div>
-              <p className="text-[9px] text-gray-500">Koordinater (SWEREF 99 TM)</p>
-              <p>N: {well.n || "—"}, E: {well.e || "—"}</p>
+            <div className="grid grid-cols-3 gap-0">
+              <div className="p-2.5" style={{ borderRight: '1px solid #d4c6d1' }}>
+                <div style={{ fontSize: '9px', color: '#6b5b6e', marginBottom: '2px' }}>Kommun</div>
+                <div>{well.kommunnamn || "—"}</div>
+              </div>
+              <div className="p-2.5" style={{ borderRight: '1px solid #d4c6d1' }}>
+                <div style={{ fontSize: '9px', color: '#6b5b6e', marginBottom: '2px' }}>Platsspecificering</div>
+                <div>{well.lage_specifikt || "—"}</div>
+              </div>
+              <div className="p-2.5">
+                <div style={{ fontSize: '9px', color: '#6b5b6e', marginBottom: '2px' }}>Koordinater (SWEREF 99 TM)</div>
+                <div>N: {well.n || "—"}, E: {well.e || "—"}</div>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Lagerföljd - Jordarter/bergarter */}
-        <div className="border border-black mb-4">
-          <div className="bg-gray-100 px-2 py-1 border-b border-black">
-            <p className="font-bold text-[10px]">Jordarter/bergarter m.m. – Djup under markytan</p>
-          </div>
-          <table className="w-full text-[10px]">
-            <thead>
-              <tr className="border-b border-black">
-                <th className="text-left p-1 border-r border-black w-20">Från (m)</th>
-                <th className="text-left p-1 border-r border-black w-20">Till (m)</th>
-                <th className="text-left p-1 border-r border-black">Jordart/bergart</th>
-                <th className="text-left p-1">Anmärkningar</th>
-              </tr>
-            </thead>
-            <tbody>
-              {lager.length > 0 ? (
-                lager.map((l, i) => (
-                  <tr key={i} className="border-b border-gray-300">
-                    <td className="p-1 border-r border-black">{l.djup_fran}</td>
-                    <td className="p-1 border-r border-black">{l.djup_till}</td>
-                    <td className="p-1 border-r border-black">{l.jordart_bergart}</td>
-                    <td className="p-1">{l.lageranmarkning || ""}</td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={4} className="p-2 text-center text-gray-400 italic">
-                    Inga lagerföljder registrerade för denna brunn
-                  </td>
+          {/* Lagerföljd */}
+          <div style={{ border: '1px solid #4a1942' }}>
+            <div
+              className="px-2.5 py-1.5"
+              style={{ background: '#f3eff2', borderBottom: '1px solid #4a1942', fontSize: '10px', fontWeight: 700, color: '#4a1942', textTransform: 'uppercase', letterSpacing: '0.05em' }}
+            >
+              Jordarter / Bergarter — Djup under markytan
+            </div>
+            <table className="w-full" style={{ fontSize: '10px' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid #4a1942', background: '#faf8f9' }}>
+                  <th className="text-left p-2 w-20" style={{ borderRight: '1px solid #d4c6d1', fontWeight: 600, color: '#4a1942' }}>Från (m)</th>
+                  <th className="text-left p-2 w-20" style={{ borderRight: '1px solid #d4c6d1', fontWeight: 600, color: '#4a1942' }}>Till (m)</th>
+                  <th className="text-left p-2" style={{ borderRight: '1px solid #d4c6d1', fontWeight: 600, color: '#4a1942' }}>Jordart / bergart</th>
+                  <th className="text-left p-2" style={{ fontWeight: 600, color: '#4a1942' }}>Anmärkningar</th>
                 </tr>
-              )}
-              {/* Empty rows to fill space like original form */}
-              {lager.length < 6 &&
-                Array.from({ length: 6 - lager.length }).map((_, i) => (
-                  <tr key={`empty-${i}`} className="border-b border-gray-200">
-                    <td className="p-1 border-r border-black h-5">&nbsp;</td>
-                    <td className="p-1 border-r border-black">&nbsp;</td>
-                    <td className="p-1 border-r border-black">&nbsp;</td>
-                    <td className="p-1">&nbsp;</td>
+              </thead>
+              <tbody>
+                {lager.length > 0 ? (
+                  lager.map((l, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid #e8e0e5' }}>
+                      <td className="p-2" style={{ borderRight: '1px solid #e8e0e5' }}>{l.djup_fran}</td>
+                      <td className="p-2" style={{ borderRight: '1px solid #e8e0e5' }}>{l.djup_till}</td>
+                      <td className="p-2" style={{ borderRight: '1px solid #e8e0e5', fontWeight: 500 }}>{l.jordart_bergart}</td>
+                      <td className="p-2">{l.lageranmarkning || ""}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={4} className="p-3 text-center" style={{ color: '#9b8e9e', fontStyle: 'italic' }}>
+                      Inga lagerföljder registrerade för denna brunn
+                    </td>
                   </tr>
-                ))}
-            </tbody>
-          </table>
-        </div>
+                )}
+                {lager.length < 8 &&
+                  Array.from({ length: Math.max(0, 8 - lager.length) }).map((_, i) => (
+                    <tr key={`empty-${i}`} style={{ borderBottom: '1px solid #f0eaee' }}>
+                      <td className="p-2 h-5" style={{ borderRight: '1px solid #f0eaee' }}>&nbsp;</td>
+                      <td className="p-2" style={{ borderRight: '1px solid #f0eaee' }}>&nbsp;</td>
+                      <td className="p-2" style={{ borderRight: '1px solid #f0eaee' }}>&nbsp;</td>
+                      <td className="p-2">&nbsp;</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
 
-        {/* Tekniskt utförande */}
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          <div className="border border-black p-2">
-            <p className="font-bold text-[10px] mb-2 bg-gray-100 -mx-2 -mt-2 px-2 py-1 border-b border-black">
-              Tekniskt utförande
-            </p>
-            <div className="space-y-2">
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <p className="text-[9px] text-gray-500">Totaldjup från markytan</p>
-                  <p className="font-semibold">{well.totaldjup ? `${well.totaldjup} m` : "—"}</p>
+          {/* Tekniskt utförande + Borrhål fodrat */}
+          <div className="grid grid-cols-2 gap-4">
+            <div style={{ border: '1px solid #4a1942' }}>
+              <div
+                className="px-2.5 py-1.5"
+                style={{ background: '#f3eff2', borderBottom: '1px solid #4a1942', fontSize: '10px', fontWeight: 700, color: '#4a1942', textTransform: 'uppercase', letterSpacing: '0.05em' }}
+              >
+                Tekniskt utförande
+              </div>
+              <div className="p-2.5 space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <div style={{ fontSize: '9px', color: '#6b5b6e' }}>Totaldjup från markytan</div>
+                    <div style={{ fontWeight: 600, fontSize: '12px' }}>{well.totaldjup ? `${well.totaldjup} m` : "—"}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '9px', color: '#6b5b6e' }}>Jorddjup från markytan</div>
+                    <div style={{ fontWeight: 600, fontSize: '12px' }}>{well.jorddjup !== null && well.jorddjup !== undefined ? `${well.jorddjup} m` : "—"}</div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <div style={{ fontSize: '9px', color: '#6b5b6e' }}>Borrhålets bottendiameter</div>
+                    <div>{well.bottendiam ? `${well.bottendiam} mm` : "—"}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '9px', color: '#6b5b6e' }}>Gradborrning</div>
+                    <div>{well.gradborrning ? `${well.gradborrning}°` : "—"}</div>
+                  </div>
                 </div>
                 <div>
-                  <p className="text-[9px] text-gray-500">Jorddjup från markytan</p>
-                  <p className="font-semibold">{well.jorddjup !== null && well.jorddjup !== undefined ? `${well.jorddjup} m` : "—"}</p>
+                  <div style={{ fontSize: '9px', color: '#6b5b6e', marginBottom: '4px' }}>Tätning</div>
+                  <div className="flex gap-4">
+                    <label className="flex items-center">
+                      <Checkbox checked={tatChecks.cementering} />
+                      <span>Cementering</span>
+                    </label>
+                    <label className="flex items-center">
+                      <Checkbox checked={tatChecks.tryckning} />
+                      <span>Tryckning</span>
+                    </label>
+                    <label className="flex items-center">
+                      <Checkbox checked={tatChecks.sprangning} />
+                      <span>Sprängning</span>
+                    </label>
+                  </div>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <p className="text-[9px] text-gray-500">Borrhålets bottendiameter</p>
-                  <p>{well.bottendiam ? `${well.bottendiam} mm` : "—"}</p>
+            </div>
+
+            <div style={{ border: '1px solid #4a1942' }}>
+              <div
+                className="px-2.5 py-1.5"
+                style={{ background: '#f3eff2', borderBottom: '1px solid #4a1942', fontSize: '10px', fontWeight: 700, color: '#4a1942', textTransform: 'uppercase', letterSpacing: '0.05em' }}
+              >
+                Borrhål fodrat
+              </div>
+              <div className="p-2.5 space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <div style={{ fontSize: '9px', color: '#6b5b6e' }}>Stålrör till</div>
+                    <div>{well.stalror_till ? `${well.stalror_till} m` : "—"}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '9px', color: '#6b5b6e' }}>Plaströr till</div>
+                    <div>{well.plastror_till ? `${well.plastror_till} m` : "—"}</div>
+                  </div>
                 </div>
                 <div>
-                  <p className="text-[9px] text-gray-500">Gradborrning</p>
-                  <p>{well.gradborrning ? `${well.gradborrning}°` : "—"}</p>
+                  <div style={{ fontSize: '9px', color: '#6b5b6e' }}>Rörfodring till</div>
+                  <div>{well.rorborrning_till ? `${well.rorborrning_till} m` : "—"}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Brunnens användning */}
+          <div style={{ border: '1px solid #4a1942' }}>
+            <div
+              className="px-2.5 py-1.5"
+              style={{ background: '#f3eff2', borderBottom: '1px solid #4a1942', fontSize: '10px', fontWeight: 700, color: '#4a1942', textTransform: 'uppercase', letterSpacing: '0.05em' }}
+            >
+              Brunnens användning
+            </div>
+            <div className="p-2.5 flex gap-6">
+              <label className="flex items-center">
+                <Checkbox checked={anvChecks.hushall} />
+                <span>Hushållsvatten</span>
+              </label>
+              <label className="flex items-center">
+                <Checkbox checked={anvChecks.energi} />
+                <span>Energi (värme/kyla)</span>
+              </label>
+              <label className="flex items-center">
+                <Checkbox checked={anvChecks.kommunalt} />
+                <span>Kommunalt vatten</span>
+              </label>
+              <label className="flex items-center">
+                <Checkbox checked={anvChecks.ovrigt} />
+                <span>Övrigt{anvChecks.ovrigt ? `: ${well.anvandning || ""}` : ""}</span>
+              </label>
+            </div>
+          </div>
+
+          {/* Provpumpning */}
+          <div style={{ border: '1px solid #4a1942' }}>
+            <div
+              className="px-2.5 py-1.5"
+              style={{ background: '#f3eff2', borderBottom: '1px solid #4a1942', fontSize: '10px', fontWeight: 700, color: '#4a1942', textTransform: 'uppercase', letterSpacing: '0.05em' }}
+            >
+              Provpumpning m.m.
+            </div>
+            <div className="p-2.5 grid grid-cols-3 gap-4">
+              <div>
+                <div style={{ fontSize: '9px', color: '#6b5b6e' }}>Vattenmängd (kapacitet)</div>
+                <div style={{ fontWeight: 600, fontSize: '12px' }}>
+                  {well.tecken_vattenmangd || ""}{well.kapacitet !== null && well.kapacitet !== undefined ? `${well.kapacitet} l/h` : "—"}
                 </div>
               </div>
               <div>
-                <p className="text-[9px] text-gray-500">Tätning</p>
-                <div className="flex gap-4 mt-1">
-                  <label className="flex items-center gap-1">
-                    <span className={`inline-block w-3 h-3 border border-black ${tatChecks.cementering ? "bg-black" : ""}`} />
-                    <span>Cementering</span>
-                  </label>
-                  <label className="flex items-center gap-1">
-                    <span className={`inline-block w-3 h-3 border border-black ${tatChecks.tryckning ? "bg-black" : ""}`} />
-                    <span>Tryckning</span>
-                  </label>
-                  <label className="flex items-center gap-1">
-                    <span className={`inline-block w-3 h-3 border border-black ${tatChecks.sprangning ? "bg-black" : ""}`} />
-                    <span>Sprängning</span>
-                  </label>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="border border-black p-2">
-            <p className="font-bold text-[10px] mb-2 bg-gray-100 -mx-2 -mt-2 px-2 py-1 border-b border-black">
-              Borrhål fodrat
-            </p>
-            <div className="space-y-2">
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <p className="text-[9px] text-gray-500">Stålrör till</p>
-                  <p>{well.stalror_till ? `${well.stalror_till} m` : "—"}</p>
-                </div>
-                <div>
-                  <p className="text-[9px] text-gray-500">Plaströr till</p>
-                  <p>{well.plastror_till ? `${well.plastror_till} m` : "—"}</p>
+                <div style={{ fontSize: '9px', color: '#6b5b6e' }}>Grundvattennivå under markytan</div>
+                <div style={{ fontWeight: 600, fontSize: '12px' }}>
+                  {well.tecken_niva || ""}{well.grundvattenniva !== null && well.grundvattenniva !== undefined ? `${well.grundvattenniva} m` : "—"}
                 </div>
               </div>
               <div>
-                <p className="text-[9px] text-gray-500">Rörfodring till</p>
-                <p>{well.rorborrning_till ? `${well.rorborrning_till} m` : "—"}</p>
+                <div style={{ fontSize: '9px', color: '#6b5b6e' }}>Datum vid mätning</div>
+                <div>{formatDate(well.nivadatum) || "—"}</div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Brunnens användning */}
-        <div className="border border-black p-2 mb-4">
-          <p className="font-bold text-[10px] mb-2 bg-gray-100 -mx-2 -mt-2 px-2 py-1 border-b border-black">
-            Brunnens användning
-          </p>
-          <div className="flex gap-6">
-            <label className="flex items-center gap-1">
-              <span className={`inline-block w-3 h-3 border border-black ${anvChecks.hushall ? "bg-black" : ""}`} />
-              <span>Hushållsvatten</span>
-            </label>
-            <label className="flex items-center gap-1">
-              <span className={`inline-block w-3 h-3 border border-black ${anvChecks.energi ? "bg-black" : ""}`} />
-              <span>Energi (värme/kyla)</span>
-            </label>
-            <label className="flex items-center gap-1">
-              <span className={`inline-block w-3 h-3 border border-black ${anvChecks.kommunalt ? "bg-black" : ""}`} />
-              <span>Kommunalt vatten</span>
-            </label>
-            <label className="flex items-center gap-1">
-              <span className={`inline-block w-3 h-3 border border-black ${anvChecks.ovrigt ? "bg-black" : ""}`} />
-              <span>Övrigt: {anvChecks.ovrigt ? (well.anvandning || "") : ""}</span>
-            </label>
-          </div>
-        </div>
-
-        {/* Provpumpning */}
-        <div className="border border-black p-2 mb-4">
-          <p className="font-bold text-[10px] mb-2 bg-gray-100 -mx-2 -mt-2 px-2 py-1 border-b border-black">
-            Provpumpning m.m.
-          </p>
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <p className="text-[9px] text-gray-500">Vattenmängd (kapacitet)</p>
-              <p className="font-semibold">
-                {well.tecken_vattenmangd || ""}{well.kapacitet !== null && well.kapacitet !== undefined ? `${well.kapacitet} l/h` : "—"}
-              </p>
+          {/* Anmärkningar */}
+          <div style={{ border: '1px solid #4a1942' }}>
+            <div
+              className="px-2.5 py-1.5"
+              style={{ background: '#f3eff2', borderBottom: '1px solid #4a1942', fontSize: '10px', fontWeight: 700, color: '#4a1942', textTransform: 'uppercase', letterSpacing: '0.05em' }}
+            >
+              Anmärkningar
             </div>
-            <div>
-              <p className="text-[9px] text-gray-500">Grundvattennivå under markytan</p>
-              <p className="font-semibold">
-                {well.tecken_niva || ""}{well.grundvattenniva !== null && well.grundvattenniva !== undefined ? `${well.grundvattenniva} m` : "—"}
-              </p>
-            </div>
-            <div>
-              <p className="text-[9px] text-gray-500">Datum vid mätning</p>
-              <p>{formatDate(well.nivadatum)}</p>
+            <div className="p-2.5 min-h-[40px] space-y-1.5">
+              {well.allman_anmarkning && <p>{well.allman_anmarkning}</p>}
+              {well.grundvattenanmarkning && (
+                <p><span style={{ fontSize: '9px', color: '#6b5b6e' }}>Grundvatten: </span>{well.grundvattenanmarkning}</p>
+              )}
+              {!well.allman_anmarkning && !well.grundvattenanmarkning && (
+                <p style={{ color: '#9b8e9e', fontStyle: 'italic' }}>Inga anmärkningar</p>
+              )}
             </div>
           </div>
-        </div>
 
-        {/* Anmärkningar */}
-        <div className="border border-black p-2 mb-4">
-          <p className="font-bold text-[10px] mb-2 bg-gray-100 -mx-2 -mt-2 px-2 py-1 border-b border-black">
-            Anmärkningar
-          </p>
-          <div className="space-y-2 min-h-[40px]">
-            {well.allman_anmarkning && (
-              <p>{well.allman_anmarkning}</p>
-            )}
-            {well.grundvattenanmarkning && (
-              <p><span className="text-[9px] text-gray-500">Grundvatten: </span>{well.grundvattenanmarkning}</p>
-            )}
-            {!well.allman_anmarkning && !well.grundvattenanmarkning && (
-              <p className="text-gray-400 italic">Inga anmärkningar</p>
-            )}
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="border-t-2 border-black pt-3 mt-6">
-          <div className="flex justify-between text-[9px] text-gray-500">
-            <p>Positionsvärdering: {well.posvardering || "—"}</p>
-            <p>Data hämtad från SGU:s Brunnsarkiv</p>
-            <p>Genererad: {new Date().toLocaleDateString("sv-SE")}</p>
+          {/* Footer */}
+          <div className="pt-4 mt-2" style={{ borderTop: '2px solid #4a1942' }}>
+            <div className="flex justify-between" style={{ fontSize: '9px', color: '#6b5b6e' }}>
+              <span>Positionsvärdering: {well.posvardering || "—"}</span>
+              <span style={{ fontWeight: 600, color: '#4a1942' }}>Data hämtad från SGU:s Brunnsarkiv</span>
+              <span>Genererad: {new Date().toLocaleDateString("sv-SE")}</span>
+            </div>
           </div>
         </div>
       </div>
