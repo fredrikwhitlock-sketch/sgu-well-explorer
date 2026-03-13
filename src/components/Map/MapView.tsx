@@ -19,7 +19,7 @@ import { LayerPanel } from "./LayerPanel";
 import { CoordinateDisplay } from "./CoordinateDisplay";
 import { WellPopup } from "./WellPopup";
 import { SearchControl } from "./SearchControl";
-import { ZoomIndicator } from "./ZoomIndicator";
+
 import { ChartViewer } from "./ChartViewer";
 import WmsLegend from "./WmsLegend";
 import { AIChatPanel } from "./AIChatPanel";
