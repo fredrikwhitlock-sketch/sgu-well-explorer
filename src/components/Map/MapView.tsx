@@ -19,7 +19,7 @@ import { LayerPanel } from "./LayerPanel";
 import { CoordinateDisplay } from "./CoordinateDisplay";
 import { WellPopup } from "./WellPopup";
 import { SearchControl } from "./SearchControl";
-import { ZoomIndicator } from "./ZoomIndicator";
+
 import { ChartViewer } from "./ChartViewer";
 import WmsLegend from "./WmsLegend";
 import { AIChatPanel } from "./AIChatPanel";
@@ -1359,9 +1359,7 @@ export const MapView = () => {
         }}
       />
       
-      <CoordinateDisplay coordinates={coordinates} />
-      
-      <ZoomIndicator zoom={currentZoom} />
+      <CoordinateDisplay coordinates={coordinates} zoom={currentZoom} />
       
       {(loadingSources || loadingWells || loadingAquifers || loadingSoilTypes || loadingWaterBodies || loadingGwLevelsObserved || loadingGwQuality) && (
         <div className="absolute top-20 left-1/2 transform -translate-x-1/2 bg-background/95 backdrop-blur-sm p-4 rounded-lg shadow-lg border z-10 min-w-[300px]">
