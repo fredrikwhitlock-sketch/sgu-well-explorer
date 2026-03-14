@@ -152,7 +152,7 @@ export const LayerPanel = ({
   onExportGwQuality,
   onClearGwQuality,
 }: LayerPanelProps) => {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(window.innerWidth < 640);
   
   return (
     <Card className="absolute top-4 right-4 w-[calc(100vw-2rem)] sm:w-80 max-w-80 bg-card/95 backdrop-blur-sm shadow-lg border-border overflow-hidden z-20">
