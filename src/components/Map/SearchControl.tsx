@@ -93,15 +93,7 @@ export const SearchControl = ({ onSearchResult }: SearchControlProps) => {
   };
 
   if (!expanded) {
-    return (
-      <button
-        onClick={() => setExpanded(true)}
-        className="absolute bottom-16 right-3 sm:bottom-auto sm:top-4 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 z-10 bg-card/95 backdrop-blur-sm shadow-lg border border-border rounded-full w-11 h-11 sm:rounded-lg sm:w-auto sm:h-auto sm:px-4 sm:py-2.5 flex items-center justify-center sm:gap-2 hover:bg-card transition-colors"
-      >
-        <Search className="h-5 w-5 sm:h-4 sm:w-4 text-muted-foreground" />
-        <span className="hidden sm:inline text-sm text-muted-foreground">Sök adress, plats eller koordinat...</span>
-      </button>
-    );
+    return null;
   }
 
   return (
