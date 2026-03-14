@@ -979,6 +979,7 @@ export const LayerPanel = ({
           </a>
         </p>
       </div>
+      </>
       )}
     </Card>
   );
