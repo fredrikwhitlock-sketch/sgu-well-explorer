@@ -14,6 +14,8 @@ interface LayerData {
 
 interface AIChatPanelProps {
   getLayerData: () => LayerData[];
+  open: boolean;
+  setOpen: (v: boolean) => void;
 }
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/geo-chat`;
@@ -44,7 +46,7 @@ function summarizeData(records: Record<string, any>[], maxRows = 50): string {
   return summary;
 }
 
-export function AIChatPanel({ getLayerData }: AIChatPanelProps) {
+export function AIChatPanel({ getLayerData, open, setOpen }: AIChatPanelProps) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
