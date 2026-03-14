@@ -1,9 +1,10 @@
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
-import { Layers, ExternalLink, Download, Trash2 } from "lucide-react";
+import { Layers, ExternalLink, Download, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import { SOIL_TYPE_CATEGORIES } from "@/lib/soilTypeColors";
 
 interface LayerPanelProps {
