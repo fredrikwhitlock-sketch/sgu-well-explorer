@@ -23,6 +23,7 @@ import { SearchControl } from "./SearchControl";
 import { ChartViewer } from "./ChartViewer";
 import WmsLegend from "./WmsLegend";
 import { AIChatPanel } from "./AIChatPanel";
+import { Search, Bot } from "lucide-react";
 import { toast } from "sonner";
 import { getSoilTypeColor } from "@/lib/soilTypeColors";
 import { exportWellsToCSV, exportFeaturesToCSV } from "@/lib/exportWells";
