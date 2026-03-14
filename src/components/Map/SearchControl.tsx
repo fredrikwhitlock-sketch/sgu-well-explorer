@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, X } from "lucide-react";
+import { Search, X, ChevronUp, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 
 interface SearchControlProps {
@@ -11,6 +11,7 @@ interface SearchControlProps {
 export const SearchControl = ({ onSearchResult }: SearchControlProps) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
@@ -48,6 +49,7 @@ export const SearchControl = ({ onSearchResult }: SearchControlProps) => {
         }
         
         onSearchResult([x, y], 14);
+        setExpanded(false);
       } else {
         const response = await fetch(
           `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery)}&format=json&countrycodes=se&limit=1`
@@ -70,6 +72,7 @@ export const SearchControl = ({ onSearchResult }: SearchControlProps) => {
         
         onSearchResult([x, y], 14);
         toast.success(`Hittade: ${result.display_name}`);
+        setExpanded(false);
       }
     } catch (error) {
       console.error("Search error:", error);
@@ -89,8 +92,20 @@ export const SearchControl = ({ onSearchResult }: SearchControlProps) => {
     setSearchQuery("");
   };
 
+  if (!expanded) {
+    return (
+      <button
+        onClick={() => setExpanded(true)}
+        className="absolute bottom-16 right-3 sm:bottom-auto sm:top-4 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 z-10 bg-card/95 backdrop-blur-sm shadow-lg border border-border rounded-full w-11 h-11 sm:rounded-lg sm:w-auto sm:h-auto sm:px-4 sm:py-2.5 flex items-center justify-center sm:gap-2 hover:bg-card transition-colors"
+      >
+        <Search className="h-5 w-5 sm:h-4 sm:w-4 text-muted-foreground" />
+        <span className="hidden sm:inline text-sm text-muted-foreground">Sök adress, plats eller koordinat...</span>
+      </button>
+    );
+  }
+
   return (
-    <div className="absolute top-16 sm:top-4 left-2 sm:left-1/2 sm:-translate-x-1/2 z-10 w-[calc(100vw-5rem)] sm:w-96 sm:max-w-[calc(100vw-2rem)]">
+    <div className="absolute bottom-16 left-2 right-2 sm:bottom-auto sm:top-4 sm:left-1/2 sm:-translate-x-1/2 sm:right-auto z-30 sm:w-96 sm:max-w-[calc(100vw-2rem)]">
       <div className="bg-card/95 backdrop-blur-sm shadow-lg border border-border rounded-lg p-2.5">
         <div className="flex gap-2">
           <div className="relative flex-1">
@@ -102,6 +117,7 @@ export const SearchControl = ({ onSearchResult }: SearchControlProps) => {
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyPress={handleKeyPress}
               className="pl-8 pr-8 h-9 text-sm"
+              autoFocus
             />
             {searchQuery && (
               <Button
@@ -121,6 +137,14 @@ export const SearchControl = ({ onSearchResult }: SearchControlProps) => {
             className="h-9 px-3"
           >
             Sök
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9 w-9 p-0 shrink-0"
+            onClick={() => setExpanded(false)}
+          >
+            <X className="h-4 w-4" />
           </Button>
         </div>
       </div>
