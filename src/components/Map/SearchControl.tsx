@@ -90,7 +90,7 @@ export const SearchControl = ({ onSearchResult }: SearchControlProps) => {
   };
 
   return (
-    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 w-96 max-w-[calc(100vw-2rem)]">
+    <div className="absolute top-16 sm:top-4 left-2 sm:left-1/2 sm:-translate-x-1/2 z-10 w-[calc(100vw-5rem)] sm:w-96 sm:max-w-[calc(100vw-2rem)]">
       <div className="bg-card/95 backdrop-blur-sm shadow-lg border border-border rounded-lg p-2.5">
         <div className="flex gap-2">
           <div className="relative flex-1">
