@@ -1176,11 +1176,37 @@ export const MapView = () => {
     }
   };
 
+  const [searchExpanded, setSearchExpanded] = useState(false);
+  const [aiChatOpen, setAiChatOpen] = useState(false);
+
   return (
     <div className="relative w-full h-screen">
       <div ref={mapRef} className="absolute inset-0" />
       
-      <SearchControl onSearchResult={handleSearchResult} />
+      <SearchControl onSearchResult={handleSearchResult} expanded={searchExpanded} setExpanded={setSearchExpanded} />
+
+      {/* Combined toolbar for search + AI */}
+      {!searchExpanded && !aiChatOpen && (
+        <div className="absolute bottom-16 left-1/2 -translate-x-1/2 sm:bottom-auto sm:top-4 z-10 flex items-center gap-2 bg-card/95 backdrop-blur-sm shadow-lg border border-border rounded-full px-2 py-1.5">
+          <button
+            onClick={() => setSearchExpanded(true)}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-full hover:bg-secondary transition-colors"
+            title="Sök"
+          >
+            <Search className="h-4 w-4 text-muted-foreground" />
+            <span className="hidden sm:inline text-sm text-muted-foreground">Sök plats...</span>
+          </button>
+          <div className="w-px h-6 bg-border" />
+          <button
+            onClick={() => setAiChatOpen(true)}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-full hover:bg-secondary transition-colors"
+            title="AI-analys"
+          >
+            <Bot className="h-4 w-4 text-sgu-maroon" />
+            <span className="hidden sm:inline text-sm text-muted-foreground">AI-analys</span>
+          </button>
+        </div>
+      )}
       
       <LayerPanel
         sourcesVisible={sourcesVisible}
