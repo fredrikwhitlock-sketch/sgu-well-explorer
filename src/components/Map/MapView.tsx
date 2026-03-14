@@ -1520,6 +1520,8 @@ export const MapView = () => {
       />
 
       <AIChatPanel
+        open={aiChatOpen}
+        setOpen={setAiChatOpen}
         getLayerData={() => {
           const layers = [
             { name: "Brunnar", ref: wellsLayerRef, count: wellsLoaded },
