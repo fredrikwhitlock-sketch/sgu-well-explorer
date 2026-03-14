@@ -47,7 +47,6 @@ function summarizeData(records: Record<string, any>[], maxRows = 50): string {
 }
 
 export function AIChatPanel({ getLayerData, open, setOpen }: AIChatPanelProps) {
-  const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);

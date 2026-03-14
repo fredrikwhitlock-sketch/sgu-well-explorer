@@ -6,12 +6,13 @@ import { toast } from "sonner";
 
 interface SearchControlProps {
   onSearchResult: (coordinates: [number, number], zoom?: number) => void;
+  expanded: boolean;
+  setExpanded: (v: boolean) => void;
 }
 
-export const SearchControl = ({ onSearchResult }: SearchControlProps) => {
+export const SearchControl = ({ onSearchResult, expanded, setExpanded }: SearchControlProps) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
-  const [expanded, setExpanded] = useState(false);
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
