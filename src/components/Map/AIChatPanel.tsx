@@ -195,7 +195,7 @@ export function AIChatPanel({ getLayerData }: AIChatPanelProps) {
   }
 
   return (
-    <div className="absolute bottom-6 left-6 z-50 w-[400px] h-[550px] bg-card border border-border rounded-xl shadow-2xl flex flex-col overflow-hidden">
+    <div className="absolute bottom-0 left-0 sm:bottom-6 sm:left-6 z-50 w-full sm:w-[400px] h-[70vh] sm:h-[550px] bg-card border border-border sm:rounded-xl rounded-t-xl shadow-2xl flex flex-col overflow-hidden">
       {/* Header */}
       <div className="bg-sgu-maroon text-white p-3 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
