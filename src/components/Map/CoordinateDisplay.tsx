@@ -12,7 +12,7 @@ export const CoordinateDisplay = ({ coordinates, zoom }: CoordinateDisplayProps)
   const swerefCoords = transform(coordinates, "EPSG:3857", "EPSG:3006");
 
   return (
-    <div className="absolute bottom-3 left-12 z-10 bg-card/90 backdrop-blur-sm px-3 py-1.5 rounded-md shadow-md border border-border">
+    <div className="absolute bottom-2 left-2 sm:bottom-3 sm:left-12 z-10 bg-card/90 backdrop-blur-sm px-2 sm:px-3 py-1 sm:py-1.5 rounded-md shadow-md border border-border max-w-[calc(100vw-1rem)]">
       <div className="flex items-center gap-3 text-xs">
         <div className="flex items-center gap-1.5 text-muted-foreground">
           <MapPin className="w-3 h-3" />

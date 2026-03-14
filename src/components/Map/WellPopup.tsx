@@ -215,7 +215,7 @@ export const WellPopup = ({
   return (
     <Card 
       ref={cardRef}
-      className="absolute top-20 right-4 w-96 max-h-[calc(100vh-120px)] overflow-y-auto bg-card/95 backdrop-blur-sm shadow-lg border-border"
+      className="absolute top-20 right-4 w-[calc(100vw-2rem)] sm:w-96 max-w-96 max-h-[calc(100vh-120px)] overflow-y-auto bg-card/95 backdrop-blur-sm shadow-lg border-border z-30"
       style={{ 
         transform: `translate(${position.x}px, ${position.y}px)`,
         cursor: isDragging ? 'grabbing' : 'default'

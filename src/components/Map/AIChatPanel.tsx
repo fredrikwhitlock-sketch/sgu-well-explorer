@@ -186,16 +186,16 @@ export function AIChatPanel({ getLayerData }: AIChatPanelProps) {
     return (
       <button
         onClick={() => setOpen(true)}
-        className="absolute bottom-20 left-6 z-50 w-14 h-14 rounded-full bg-sgu-maroon text-white shadow-lg hover:shadow-xl transition-all hover:scale-105 flex items-center justify-center"
+        className="absolute bottom-16 left-3 sm:bottom-20 sm:left-6 z-50 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-sgu-maroon text-white shadow-lg hover:shadow-xl transition-all hover:scale-105 flex items-center justify-center"
         title="AI-analys"
       >
-        <Bot className="w-7 h-7" />
+        <Bot className="w-6 h-6 sm:w-7 sm:h-7" />
       </button>
     );
   }
 
   return (
-    <div className="absolute bottom-6 left-6 z-50 w-[400px] h-[550px] bg-card border border-border rounded-xl shadow-2xl flex flex-col overflow-hidden">
+    <div className="absolute bottom-0 left-0 sm:bottom-6 sm:left-6 z-50 w-full sm:w-[400px] h-[70vh] sm:h-[550px] bg-card border border-border sm:rounded-xl rounded-t-xl shadow-2xl flex flex-col overflow-hidden">
       {/* Header */}
       <div className="bg-sgu-maroon text-white p-3 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">

@@ -1,9 +1,10 @@
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
-import { Layers, ExternalLink, Download, Trash2 } from "lucide-react";
+import { Layers, ExternalLink, Download, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import { SOIL_TYPE_CATEGORIES } from "@/lib/soilTypeColors";
 
 interface LayerPanelProps {
@@ -151,13 +152,21 @@ export const LayerPanel = ({
   onExportGwQuality,
   onClearGwQuality,
 }: LayerPanelProps) => {
+  const [collapsed, setCollapsed] = useState(window.innerWidth < 640);
+  
   return (
-    <Card className="absolute top-4 right-4 w-80 bg-card/95 backdrop-blur-sm shadow-lg border-border overflow-hidden">
-      <div className="bg-sgu-maroon text-white p-3 flex items-center gap-2">
+    <Card className="absolute top-4 right-4 w-[calc(100vw-2rem)] sm:w-80 max-w-80 bg-card/95 backdrop-blur-sm shadow-lg border-border overflow-hidden z-20">
+      <button 
+        onClick={() => setCollapsed(!collapsed)}
+        className="w-full bg-sgu-maroon text-white p-3 flex items-center gap-2 cursor-pointer"
+      >
         <Layers className="w-5 h-5" />
-        <h3 className="font-semibold">Kartlager</h3>
-      </div>
+        <h3 className="font-semibold flex-1 text-left">Kartlager</h3>
+        {collapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+      </button>
       
+      {!collapsed && (
+      <>
       <div className="p-4 space-y-4 max-h-[calc(100vh-200px)] overflow-y-auto">
         {/* Wells Layer Control */}
         <div className="space-y-3">
@@ -970,6 +979,8 @@ export const LayerPanel = ({
           </a>
         </p>
       </div>
+      </>
+      )}
     </Card>
   );
 };
