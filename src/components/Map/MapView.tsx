@@ -13,6 +13,7 @@ import proj4 from "proj4";
 import { get as getProjection } from "ol/proj";
 import { defaults as defaultControls } from "ol/control";
 import { Style, Circle, Fill, Stroke } from "ol/style";
+import Point from "ol/geom/Point";
 import Feature from "ol/Feature";
 import "ol/ol.css";
 import { LayerPanel } from "./LayerPanel";
