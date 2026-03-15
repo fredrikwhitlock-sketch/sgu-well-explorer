@@ -134,14 +134,13 @@ export const SearchControl = ({ onSearchResult, expanded, setExpanded, onLocate,
             Sök
           </Button>
           <Button
-            variant="outline"
+            variant={isTracking ? "default" : "outline"}
             size="sm"
             className="h-9 w-9 p-0 shrink-0"
-            onClick={handleLocate}
-            disabled={isLocating}
-            title="Min position"
+            onClick={onLocate}
+            title={isTracking ? "Stoppa positionering" : "Visa min position"}
           >
-            <Locate className={`h-4 w-4 ${isLocating ? 'animate-pulse text-primary' : ''}`} />
+            <Locate className={`h-4 w-4 ${isTracking ? 'animate-pulse' : ''}`} />
           </Button>
           <Button
             variant="ghost"
