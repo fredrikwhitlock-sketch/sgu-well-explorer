@@ -8,6 +8,8 @@ interface SearchControlProps {
   onSearchResult: (coordinates: [number, number], zoom?: number) => void;
   expanded: boolean;
   setExpanded: (v: boolean) => void;
+  onLocate: () => void;
+  isTracking: boolean;
 }
 
 export const SearchControl = ({ onSearchResult, expanded, setExpanded }: SearchControlProps) => {
