@@ -981,7 +981,68 @@ export const MapView = () => {
 
     return () => {
       map.setTarget(undefined);
+      // Clean up geolocation watch
+      if (geolocationWatchRef.current !== null) {
+        navigator.geolocation.clearWatch(geolocationWatchRef.current);
+      }
     };
+  }, []);
+
+  // Geolocation tracking - start/stop watching position
+  const startTracking = useCallback(() => {
+    if (!navigator.geolocation) {
+      toast.error("Positionering stöds inte i din webbläsare");
+      return;
+    }
+    
+    setIsTracking(true);
+    
+    const updatePosition = (position: GeolocationPosition) => {
+      const { latitude, longitude } = position.coords;
+      const x = longitude * 20037508.34 / 180;
+      const y = Math.log(Math.tan((90 + latitude) * Math.PI / 360)) / (Math.PI / 180) * 20037508.34 / 180;
+      
+      const source = geolocationLayerRef.current?.getSource();
+      if (source) {
+        source.clear();
+        const feature = new Feature({ geometry: new Point([x, y]) });
+        source.addFeature(feature);
+      }
+    };
+
+    // Get initial position and pan to it
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        updatePosition(position);
+        const { latitude, longitude } = position.coords;
+        const x = longitude * 20037508.34 / 180;
+        const y = Math.log(Math.tan((90 + latitude) * Math.PI / 360)) / (Math.PI / 180) * 20037508.34 / 180;
+        mapInstanceRef.current?.getView().animate({ center: [x, y], zoom: 15, duration: 1000 });
+        toast.success("Din position hittad");
+      },
+      (err) => {
+        console.error("Geolocation error:", err);
+        toast.error("Kunde inte hämta din position");
+        setIsTracking(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+
+    // Watch for updates
+    geolocationWatchRef.current = navigator.geolocation.watchPosition(
+      updatePosition,
+      (err) => console.error("Watch error:", err),
+      { enableHighAccuracy: true, maximumAge: 5000 }
+    );
+  }, []);
+
+  const stopTracking = useCallback(() => {
+    if (geolocationWatchRef.current !== null) {
+      navigator.geolocation.clearWatch(geolocationWatchRef.current);
+      geolocationWatchRef.current = null;
+    }
+    geolocationLayerRef.current?.getSource()?.clear();
+    setIsTracking(false);
   }, []);
 
   // Update Sources visibility and load data when enabled
