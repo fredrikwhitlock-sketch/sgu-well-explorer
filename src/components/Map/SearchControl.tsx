@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, X, ChevronUp, ChevronDown } from "lucide-react";
+import { Search, X, Locate } from "lucide-react";
 import { toast } from "sonner";
 
 interface SearchControlProps {
@@ -13,6 +13,32 @@ interface SearchControlProps {
 export const SearchControl = ({ onSearchResult, expanded, setExpanded }: SearchControlProps) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
+  const [isLocating, setIsLocating] = useState(false);
+
+  const handleLocate = () => {
+    if (!navigator.geolocation) {
+      toast.error("Positionering stöds inte i din webbläsare");
+      return;
+    }
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        const x = longitude * 20037508.34 / 180;
+        const y = Math.log(Math.tan((90 + latitude) * Math.PI / 360)) / (Math.PI / 180) * 20037508.34 / 180;
+        onSearchResult([x, y], 15);
+        toast.success("Din position hittad");
+        setExpanded(false);
+        setIsLocating(false);
+      },
+      (error) => {
+        console.error("Geolocation error:", error);
+        toast.error("Kunde inte hämta din position");
+        setIsLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
@@ -130,6 +156,16 @@ export const SearchControl = ({ onSearchResult, expanded, setExpanded }: SearchC
             className="h-9 px-3"
           >
             Sök
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9 w-9 p-0 shrink-0"
+            onClick={handleLocate}
+            disabled={isLocating}
+            title="Min position"
+          >
+            <Locate className={`h-4 w-4 ${isLocating ? 'animate-pulse text-primary' : ''}`} />
           </Button>
           <Button
             variant="ghost"
