@@ -1291,6 +1291,14 @@ export const MapView = () => {
           </button>
           <div className="w-px h-6 bg-border" />
           <button
+            onClick={isTracking ? stopTracking : startTracking}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-full transition-colors ${isTracking ? 'bg-primary text-primary-foreground' : 'hover:bg-secondary'}`}
+            title={isTracking ? "Stoppa positionering" : "Min position"}
+          >
+            <Locate className={`h-4 w-4 ${isTracking ? 'animate-pulse' : 'text-muted-foreground'}`} />
+          </button>
+          <div className="w-px h-6 bg-border" />
+          <button
             onClick={() => setAiChatOpen(true)}
             className="flex items-center gap-2 px-3 py-1.5 rounded-full hover:bg-secondary transition-colors"
             title="AI-analys"
