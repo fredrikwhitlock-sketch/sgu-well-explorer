@@ -1276,7 +1276,7 @@ export const MapView = () => {
     <div className="relative w-full h-screen">
       <div ref={mapRef} className="absolute inset-0" />
       
-      <SearchControl onSearchResult={handleSearchResult} expanded={searchExpanded} setExpanded={setSearchExpanded} />
+      <SearchControl onSearchResult={handleSearchResult} expanded={searchExpanded} setExpanded={setSearchExpanded} onLocate={isTracking ? stopTracking : startTracking} isTracking={isTracking} />
 
       {/* Combined toolbar for search + AI */}
       {!searchExpanded && !aiChatOpen && (
