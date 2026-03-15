@@ -111,6 +111,9 @@ export const MapView = () => {
   const sguJordarter1MLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
   const sguJordarter25kLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
   const sguGvTillgangLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
+  const geolocationLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
+  const geolocationWatchRef = useRef<number | null>(null);
+  const [isTracking, setIsTracking] = useState(false);
 
   useEffect(() => {
     if (!mapRef.current) return;
