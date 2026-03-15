@@ -3,7 +3,6 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search, X, Locate } from "lucide-react";
 import { toast } from "sonner";
-import { toast } from "sonner";
 
 interface SearchControlProps {
   onSearchResult: (coordinates: [number, number], zoom?: number) => void;
