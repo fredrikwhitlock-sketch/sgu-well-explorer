@@ -158,6 +158,16 @@ export const SearchControl = ({ onSearchResult, expanded, setExpanded }: SearchC
             Sök
           </Button>
           <Button
+            variant="outline"
+            size="sm"
+            className="h-9 w-9 p-0 shrink-0"
+            onClick={handleLocate}
+            disabled={isLocating}
+            title="Min position"
+          >
+            <Locate className={`h-4 w-4 ${isLocating ? 'animate-pulse text-primary' : ''}`} />
+          </Button>
+          <Button
             variant="ghost"
             size="sm"
             className="h-9 w-9 p-0 shrink-0"
