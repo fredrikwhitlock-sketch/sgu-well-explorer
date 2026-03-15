@@ -820,6 +820,32 @@ export const MapView = () => {
     });
     gwQualityLayerRef.current = gwQualityLayer;
 
+    // Geolocation tracking layer (blue dot)
+    const geolocationSource = new VectorSource();
+    const geolocationLayer = new VectorLayer({
+      source: geolocationSource,
+      style: [
+        // Accuracy circle
+        new Style({
+          image: new Circle({
+            radius: 20,
+            fill: new Fill({ color: "rgba(59, 130, 246, 0.1)" }),
+            stroke: new Stroke({ color: "rgba(59, 130, 246, 0.3)", width: 1 }),
+          }),
+        }),
+        // Blue dot
+        new Style({
+          image: new Circle({
+            radius: 7,
+            fill: new Fill({ color: "rgba(59, 130, 246, 0.9)" }),
+            stroke: new Stroke({ color: "rgba(255, 255, 255, 1)", width: 2.5 }),
+          }),
+        }),
+      ],
+      zIndex: 9999,
+    });
+    geolocationLayerRef.current = geolocationLayer;
+
     // Create map
     const map = new OLMap({
       target: mapRef.current,
@@ -842,7 +868,8 @@ export const MapView = () => {
         gwQualityLayer, 
         gwLevelsObservedLayer, 
         wellsLayer, 
-        sourcesLayer
+        sourcesLayer,
+        geolocationLayer,
       ],
       view: new View({
         center: [1784000, 8347000], // Uppsala center in Web Mercator
