@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import OLMap from "ol/Map";
 import View from "ol/View";
 import TileLayer from "ol/layer/Tile";
@@ -13,6 +13,7 @@ import proj4 from "proj4";
 import { get as getProjection } from "ol/proj";
 import { defaults as defaultControls } from "ol/control";
 import { Style, Circle, Fill, Stroke } from "ol/style";
+import Point from "ol/geom/Point";
 import Feature from "ol/Feature";
 import "ol/ol.css";
 import { LayerPanel } from "./LayerPanel";
@@ -23,7 +24,7 @@ import { SearchControl } from "./SearchControl";
 import { ChartViewer } from "./ChartViewer";
 import WmsLegend from "./WmsLegend";
 import { AIChatPanel } from "./AIChatPanel";
-import { Search, Bot } from "lucide-react";
+import { Search, Bot, Locate } from "lucide-react";
 import { toast } from "sonner";
 import { getSoilTypeColor } from "@/lib/soilTypeColors";
 import { exportWellsToCSV, exportFeaturesToCSV } from "@/lib/exportWells";
@@ -110,6 +111,9 @@ export const MapView = () => {
   const sguJordarter1MLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
   const sguJordarter25kLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
   const sguGvTillgangLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
+  const geolocationLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
+  const geolocationWatchRef = useRef<number | null>(null);
+  const [isTracking, setIsTracking] = useState(false);
 
   useEffect(() => {
     if (!mapRef.current) return;
@@ -816,6 +820,32 @@ export const MapView = () => {
     });
     gwQualityLayerRef.current = gwQualityLayer;
 
+    // Geolocation tracking layer (blue dot)
+    const geolocationSource = new VectorSource();
+    const geolocationLayer = new VectorLayer({
+      source: geolocationSource,
+      style: [
+        // Accuracy circle
+        new Style({
+          image: new Circle({
+            radius: 20,
+            fill: new Fill({ color: "rgba(59, 130, 246, 0.1)" }),
+            stroke: new Stroke({ color: "rgba(59, 130, 246, 0.3)", width: 1 }),
+          }),
+        }),
+        // Blue dot
+        new Style({
+          image: new Circle({
+            radius: 7,
+            fill: new Fill({ color: "rgba(59, 130, 246, 0.9)" }),
+            stroke: new Stroke({ color: "rgba(255, 255, 255, 1)", width: 2.5 }),
+          }),
+        }),
+      ],
+      zIndex: 9999,
+    });
+    geolocationLayerRef.current = geolocationLayer;
+
     // Create map
     const map = new OLMap({
       target: mapRef.current,
@@ -838,7 +868,8 @@ export const MapView = () => {
         gwQualityLayer, 
         gwLevelsObservedLayer, 
         wellsLayer, 
-        sourcesLayer
+        sourcesLayer,
+        geolocationLayer,
       ],
       view: new View({
         center: [1784000, 8347000], // Uppsala center in Web Mercator
@@ -950,7 +981,68 @@ export const MapView = () => {
 
     return () => {
       map.setTarget(undefined);
+      // Clean up geolocation watch
+      if (geolocationWatchRef.current !== null) {
+        navigator.geolocation.clearWatch(geolocationWatchRef.current);
+      }
     };
+  }, []);
+
+  // Geolocation tracking - start/stop watching position
+  const startTracking = useCallback(() => {
+    if (!navigator.geolocation) {
+      toast.error("Positionering stöds inte i din webbläsare");
+      return;
+    }
+    
+    setIsTracking(true);
+    
+    const updatePosition = (position: GeolocationPosition) => {
+      const { latitude, longitude } = position.coords;
+      const x = longitude * 20037508.34 / 180;
+      const y = Math.log(Math.tan((90 + latitude) * Math.PI / 360)) / (Math.PI / 180) * 20037508.34 / 180;
+      
+      const source = geolocationLayerRef.current?.getSource();
+      if (source) {
+        source.clear();
+        const feature = new Feature({ geometry: new Point([x, y]) });
+        source.addFeature(feature);
+      }
+    };
+
+    // Get initial position and pan to it
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        updatePosition(position);
+        const { latitude, longitude } = position.coords;
+        const x = longitude * 20037508.34 / 180;
+        const y = Math.log(Math.tan((90 + latitude) * Math.PI / 360)) / (Math.PI / 180) * 20037508.34 / 180;
+        mapInstanceRef.current?.getView().animate({ center: [x, y], zoom: 15, duration: 1000 });
+        toast.success("Din position hittad");
+      },
+      (err) => {
+        console.error("Geolocation error:", err);
+        toast.error("Kunde inte hämta din position");
+        setIsTracking(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+
+    // Watch for updates
+    geolocationWatchRef.current = navigator.geolocation.watchPosition(
+      updatePosition,
+      (err) => console.error("Watch error:", err),
+      { enableHighAccuracy: true, maximumAge: 5000 }
+    );
+  }, []);
+
+  const stopTracking = useCallback(() => {
+    if (geolocationWatchRef.current !== null) {
+      navigator.geolocation.clearWatch(geolocationWatchRef.current);
+      geolocationWatchRef.current = null;
+    }
+    geolocationLayerRef.current?.getSource()?.clear();
+    setIsTracking(false);
   }, []);
 
   // Update Sources visibility and load data when enabled
@@ -1184,7 +1276,7 @@ export const MapView = () => {
     <div className="relative w-full h-screen">
       <div ref={mapRef} className="absolute inset-0" />
       
-      <SearchControl onSearchResult={handleSearchResult} expanded={searchExpanded} setExpanded={setSearchExpanded} />
+      <SearchControl onSearchResult={handleSearchResult} expanded={searchExpanded} setExpanded={setSearchExpanded} onLocate={isTracking ? stopTracking : startTracking} isTracking={isTracking} />
 
       {/* Combined toolbar for search + AI */}
       {!searchExpanded && !aiChatOpen && (
@@ -1196,6 +1288,14 @@ export const MapView = () => {
           >
             <Search className="h-4 w-4 text-muted-foreground" />
             <span className="hidden sm:inline text-sm text-muted-foreground">Sök plats...</span>
+          </button>
+          <div className="w-px h-6 bg-border" />
+          <button
+            onClick={isTracking ? stopTracking : startTracking}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-full transition-colors ${isTracking ? 'bg-primary text-primary-foreground' : 'hover:bg-secondary'}`}
+            title={isTracking ? "Stoppa positionering" : "Min position"}
+          >
+            <Locate className={`h-4 w-4 ${isTracking ? 'animate-pulse' : 'text-muted-foreground'}`} />
           </button>
           <div className="w-px h-6 bg-border" />
           <button

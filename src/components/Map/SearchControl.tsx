@@ -8,37 +8,13 @@ interface SearchControlProps {
   onSearchResult: (coordinates: [number, number], zoom?: number) => void;
   expanded: boolean;
   setExpanded: (v: boolean) => void;
+  onLocate: () => void;
+  isTracking: boolean;
 }
 
-export const SearchControl = ({ onSearchResult, expanded, setExpanded }: SearchControlProps) => {
+export const SearchControl = ({ onSearchResult, expanded, setExpanded, onLocate, isTracking }: SearchControlProps) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
-  const [isLocating, setIsLocating] = useState(false);
-
-  const handleLocate = () => {
-    if (!navigator.geolocation) {
-      toast.error("Positionering stöds inte i din webbläsare");
-      return;
-    }
-    setIsLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-        const x = longitude * 20037508.34 / 180;
-        const y = Math.log(Math.tan((90 + latitude) * Math.PI / 360)) / (Math.PI / 180) * 20037508.34 / 180;
-        onSearchResult([x, y], 15);
-        toast.success("Din position hittad");
-        setExpanded(false);
-        setIsLocating(false);
-      },
-      (error) => {
-        console.error("Geolocation error:", error);
-        toast.error("Kunde inte hämta din position");
-        setIsLocating(false);
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
-  };
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
@@ -158,14 +134,13 @@ export const SearchControl = ({ onSearchResult, expanded, setExpanded }: SearchC
             Sök
           </Button>
           <Button
-            variant="outline"
+            variant={isTracking ? "default" : "outline"}
             size="sm"
             className="h-9 w-9 p-0 shrink-0"
-            onClick={handleLocate}
-            disabled={isLocating}
-            title="Min position"
+            onClick={onLocate}
+            title={isTracking ? "Stoppa positionering" : "Visa min position"}
           >
-            <Locate className={`h-4 w-4 ${isLocating ? 'animate-pulse text-primary' : ''}`} />
+            <Locate className={`h-4 w-4 ${isTracking ? 'animate-pulse' : ''}`} />
           </Button>
           <Button
             variant="ghost"
