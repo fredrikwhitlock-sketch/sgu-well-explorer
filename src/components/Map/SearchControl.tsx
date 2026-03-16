@@ -1,18 +1,16 @@
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, X, Locate } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { toast } from "sonner";
 
 interface SearchControlProps {
   onSearchResult: (coordinates: [number, number], zoom?: number) => void;
-  expanded: boolean;
-  setExpanded: (v: boolean) => void;
-  onLocate: () => void;
-  isTracking: boolean;
+  isOpen: boolean;
+  onClose: () => void;
 }
 
-export const SearchControl = ({ onSearchResult, expanded, setExpanded, onLocate, isTracking }: SearchControlProps) => {
+export const SearchControl = ({ onSearchResult, isOpen, onClose }: SearchControlProps) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
 
@@ -52,7 +50,7 @@ export const SearchControl = ({ onSearchResult, expanded, setExpanded, onLocate,
         }
         
         onSearchResult([x, y], 14);
-        setExpanded(false);
+        onClose();
       } else {
         const response = await fetch(
           `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery)}&format=json&countrycodes=se&limit=1`
@@ -75,7 +73,7 @@ export const SearchControl = ({ onSearchResult, expanded, setExpanded, onLocate,
         
         onSearchResult([x, y], 14);
         toast.success(`Hittade: ${result.display_name}`);
-        setExpanded(false);
+        onClose();
       }
     } catch (error) {
       console.error("Search error:", error);
@@ -91,67 +89,67 @@ export const SearchControl = ({ onSearchResult, expanded, setExpanded, onLocate,
     }
   };
 
-  const clearSearch = () => {
-    setSearchQuery("");
-  };
-
-  if (!expanded) {
-    return null;
-  }
-
   return (
-    <div className="absolute bottom-16 left-2 right-2 sm:bottom-auto sm:top-4 sm:left-1/2 sm:-translate-x-1/2 sm:right-auto z-30 sm:w-96 sm:max-w-[calc(100vw-2rem)]">
-      <div className="bg-card/95 backdrop-blur-sm shadow-lg border border-border rounded-lg p-2.5">
-        <div className="flex gap-2">
-          <div className="relative flex-1">
+    <>
+      {/* Backdrop */}
+      {isOpen && (
+        <div
+          className="absolute inset-0 z-20 bg-black/20 backdrop-blur-[1px]"
+          onClick={onClose}
+        />
+      )}
+      {/* Drawer */}
+      <div
+        className={`absolute top-0 right-0 h-full w-80 max-w-[calc(100vw-3.5rem)] bg-card/98 backdrop-blur-sm shadow-2xl border-l border-border z-30 flex flex-col transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
+      >
+        {/* Header */}
+        <div className="bg-sgu-maroon text-white px-4 py-3 flex items-center gap-2 shrink-0">
+          <Search className="w-5 h-5" />
+          <h3 className="font-semibold flex-1">Sök plats</h3>
+          <button onClick={onClose} className="p-1 rounded hover:bg-white/20 transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="p-4 flex flex-col gap-3">
+          <p className="text-xs text-muted-foreground">
+            Sök på adress, ortnamn eller koordinat (WGS84 / SWEREF 99 TM)
+          </p>
+          <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               type="text"
-              placeholder="Sök adress, plats eller koordinat..."
+              placeholder="Adress, plats eller koordinat..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyPress={handleKeyPress}
-              className="pl-8 pr-8 h-9 text-sm"
-              autoFocus
+              className="pl-8 pr-8 h-10 text-sm"
+              autoFocus={isOpen}
             />
             {searchQuery && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
-                onClick={clearSearch}
+              <button
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                onClick={() => setSearchQuery("")}
               >
                 <X className="h-3.5 w-3.5" />
-              </Button>
+              </button>
             )}
           </div>
-          <Button 
-            onClick={handleSearch} 
+          <Button
+            onClick={handleSearch}
             disabled={isSearching}
-            size="sm"
-            className="h-9 px-3"
+            className="w-full h-10"
           >
-            Sök
+            {isSearching ? "Söker..." : "Sök"}
           </Button>
-          <Button
-            variant={isTracking ? "default" : "outline"}
-            size="sm"
-            className="h-9 w-9 p-0 shrink-0"
-            onClick={onLocate}
-            title={isTracking ? "Stoppa positionering" : "Visa min position"}
-          >
-            <Locate className={`h-4 w-4 ${isTracking ? 'animate-pulse' : ''}`} />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-9 w-9 p-0 shrink-0"
-            onClick={() => setExpanded(false)}
-          >
-            <X className="h-4 w-4" />
-          </Button>
+          <div className="text-xs text-muted-foreground space-y-1 pt-2 border-t border-border">
+            <p className="font-medium text-foreground">Exempel:</p>
+            <p>Uppsala</p>
+            <p>59.8586, 17.6389</p>
+            <p>6638870, 657890 (SWEREF)</p>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };

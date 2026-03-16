@@ -24,7 +24,7 @@ import { SearchControl } from "./SearchControl";
 import { ChartViewer } from "./ChartViewer";
 import WmsLegend from "./WmsLegend";
 import { AIChatPanel } from "./AIChatPanel";
-import { Search, Bot, Locate } from "lucide-react";
+import { Search, Bot, Locate, Layers } from "lucide-react";
 import { toast } from "sonner";
 import { getSoilTypeColor } from "@/lib/soilTypeColors";
 import { exportWellsToCSV, exportFeaturesToCSV } from "@/lib/exportWells";
@@ -1269,47 +1269,69 @@ export const MapView = () => {
     }
   };
 
-  const [searchExpanded, setSearchExpanded] = useState(false);
+  const [activePanel, setActivePanel] = useState<'search' | 'locate' | 'layers' | null>(null);
   const [aiChatOpen, setAiChatOpen] = useState(false);
+
+  const openPanel = (panel: 'search' | 'locate' | 'layers') => {
+    setActivePanel(prev => prev === panel ? null : panel);
+  };
+
+  const closePanel = () => setActivePanel(null);
 
   return (
     <div className="relative w-full h-screen">
       <div ref={mapRef} className="absolute inset-0" />
       
-      <SearchControl onSearchResult={handleSearchResult} expanded={searchExpanded} setExpanded={setSearchExpanded} onLocate={isTracking ? stopTracking : startTracking} isTracking={isTracking} />
+      <SearchControl
+        onSearchResult={handleSearchResult}
+        isOpen={activePanel === 'search'}
+        onClose={closePanel}
+      />
 
-      {/* Combined toolbar for search + AI */}
-      {!searchExpanded && !aiChatOpen && (
-        <div className="absolute bottom-16 left-1/2 -translate-x-1/2 sm:bottom-auto sm:top-4 z-10 flex items-center gap-2 bg-card/95 backdrop-blur-sm shadow-lg border border-border rounded-full px-2 py-1.5">
+      {/* Right-side icon toolbar */}
+      <div className="absolute right-0 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-1 pr-0">
+        <div className="flex flex-col bg-card/95 backdrop-blur-sm shadow-lg border border-border rounded-l-xl overflow-hidden">
+          {/* Sök */}
           <button
-            onClick={() => setSearchExpanded(true)}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-full hover:bg-secondary transition-colors"
-            title="Sök"
+            onClick={() => openPanel('search')}
+            className={`w-12 h-12 flex items-center justify-center transition-colors ${activePanel === 'search' ? 'bg-sgu-maroon text-white' : 'hover:bg-secondary text-muted-foreground'}`}
+            title="Sök plats"
           >
-            <Search className="h-4 w-4 text-muted-foreground" />
-            <span className="hidden sm:inline text-sm text-muted-foreground">Sök plats...</span>
+            <Search className="w-5 h-5" />
           </button>
-          <div className="w-px h-6 bg-border" />
+          <div className="h-px bg-border mx-2" />
+          {/* Positionering */}
           <button
-            onClick={isTracking ? stopTracking : startTracking}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-full transition-colors ${isTracking ? 'bg-primary text-primary-foreground' : 'hover:bg-secondary'}`}
+            onClick={() => { isTracking ? stopTracking() : startTracking(); }}
+            className={`w-12 h-12 flex items-center justify-center transition-colors ${isTracking ? 'bg-sgu-maroon text-white' : 'hover:bg-secondary text-muted-foreground'}`}
             title={isTracking ? "Stoppa positionering" : "Min position"}
           >
-            <Locate className={`h-4 w-4 ${isTracking ? 'animate-pulse' : 'text-muted-foreground'}`} />
+            <Locate className={`w-5 h-5 ${isTracking ? 'animate-pulse' : ''}`} />
           </button>
-          <div className="w-px h-6 bg-border" />
+          <div className="h-px bg-border mx-2" />
+          {/* Kartlager */}
+          <button
+            onClick={() => openPanel('layers')}
+            className={`w-12 h-12 flex items-center justify-center transition-colors ${activePanel === 'layers' ? 'bg-sgu-maroon text-white' : 'hover:bg-secondary text-muted-foreground'}`}
+            title="Kartlager"
+          >
+            <Layers className="w-5 h-5" />
+          </button>
+          <div className="h-px bg-border mx-2" />
+          {/* AI-analys */}
           <button
             onClick={() => setAiChatOpen(true)}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-full hover:bg-secondary transition-colors"
+            className={`w-12 h-12 flex items-center justify-center transition-colors ${aiChatOpen ? 'bg-sgu-maroon text-white' : 'hover:bg-secondary'}`}
             title="AI-analys"
           >
-            <Bot className="h-4 w-4 text-sgu-maroon" />
-            <span className="hidden sm:inline text-sm text-muted-foreground">AI-analys</span>
+            <Bot className="w-5 h-5 text-sgu-maroon" />
           </button>
         </div>
-      )}
+      </div>
       
       <LayerPanel
+        isOpen={activePanel === 'layers'}
+        onClose={closePanel}
         sourcesVisible={sourcesVisible}
         wellsVisible={wellsVisible}
         aquifersVisible={aquifersVisible}

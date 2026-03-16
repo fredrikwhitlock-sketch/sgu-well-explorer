@@ -1,10 +1,9 @@
 import { useState } from "react";
-import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
-import { Layers, ExternalLink, Download, Trash2, ChevronDown, ChevronUp } from "lucide-react";
+import { Layers, ExternalLink, Download, Trash2, X } from "lucide-react";
 import { SOIL_TYPE_CATEGORIES } from "@/lib/soilTypeColors";
 
 interface LayerPanelProps {
@@ -80,6 +79,8 @@ interface LayerPanelProps {
   onClearGwLevelsObserved?: () => void;
   onExportGwQuality?: () => void;
   onClearGwQuality?: () => void;
+  isOpen: boolean;
+  onClose: () => void;
 }
 
 export const LayerPanel = ({
@@ -151,23 +152,32 @@ export const LayerPanel = ({
   onClearGwLevelsObserved,
   onExportGwQuality,
   onClearGwQuality,
+  isOpen,
+  onClose,
 }: LayerPanelProps) => {
-  const [collapsed, setCollapsed] = useState(window.innerWidth < 640);
-  
   return (
-    <Card className="absolute top-4 right-4 w-[calc(100vw-2rem)] sm:w-80 max-w-80 bg-card/95 backdrop-blur-sm shadow-lg border-border overflow-hidden z-20">
-      <button 
-        onClick={() => setCollapsed(!collapsed)}
-        className="w-full bg-sgu-maroon text-white p-3 flex items-center gap-2 cursor-pointer"
+    <>
+      {/* Backdrop */}
+      {isOpen && (
+        <div
+          className="absolute inset-0 z-20 bg-black/20 backdrop-blur-[1px]"
+          onClick={onClose}
+        />
+      )}
+      {/* Drawer */}
+      <div
+        className={`absolute top-0 right-0 h-full w-80 max-w-[calc(100vw-3.5rem)] bg-card/98 backdrop-blur-sm shadow-2xl border-l border-border z-30 flex flex-col transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
       >
+      {/* Header */}
+      <div className="bg-sgu-maroon text-white px-4 py-3 flex items-center gap-2 shrink-0">
         <Layers className="w-5 h-5" />
-        <h3 className="font-semibold flex-1 text-left">Kartlager</h3>
-        {collapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
-      </button>
-      
-      {!collapsed && (
-      <>
-      <div className="p-4 space-y-4 max-h-[calc(100vh-200px)] overflow-y-auto">
+        <h3 className="font-semibold flex-1">Kartlager</h3>
+        <button onClick={onClose} className="p-1 rounded hover:bg-white/20 transition-colors">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      <div className="p-4 space-y-4 overflow-y-auto flex-1">
         {/* Wells Layer Control */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
@@ -979,8 +989,7 @@ export const LayerPanel = ({
           </a>
         </p>
       </div>
-      </>
-      )}
-    </Card>
+      </div>
+    </>
   );
 };
