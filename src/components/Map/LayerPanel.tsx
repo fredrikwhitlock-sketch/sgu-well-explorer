@@ -98,6 +98,7 @@ export const LayerPanel = ({
   waterBodiesVisible,
   gwLevelsObservedVisible,
   gwQualityVisible,
+  observationsVisible,
   topoWebbVisible,
   ortofotoVisible,
   terrangskuggningVisible,
