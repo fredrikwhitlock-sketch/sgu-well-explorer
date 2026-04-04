@@ -975,7 +975,7 @@ export const MapView = () => {
 
     // Handle feature clicks - collect all features at the same location
     map.on("click", async (evt) => {
-      const clickedItems: { properties: Record<string, any>; type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType' | 'gvTillgang' }[] = [];
+      const clickedItems: { properties: Record<string, any>; type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType' | 'gvTillgang' | 'observation' }[] = [];
       
       map.forEachFeatureAtPixel(evt.pixel, (f, layer) => {
         if (layer === sourcesLayer || layer === wellsLayer || layer === aquifersLayer || layer === waterBodiesLayer || layer === gwLevelsObservedLayer || layer === gwQualityLayer || layer === soilTypesLayer) {
