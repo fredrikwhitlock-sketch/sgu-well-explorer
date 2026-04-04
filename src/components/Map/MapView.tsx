@@ -1464,6 +1464,7 @@ export const MapView = () => {
         onWaterBodiesVisibleChange={setWaterBodiesVisible}
         onGwLevelsObservedVisibleChange={setGwLevelsObservedVisible}
         onGwQualityVisibleChange={setGwQualityVisible}
+        onObservationsVisibleChange={setObservationsVisible}
         onTopoWebbVisibleChange={setTopoWebbVisible}
         onOrtofotoVisibleChange={setOrtofotoVisible}
         onTerrangskuggningVisibleChange={setTerrangskuggningVisible}
