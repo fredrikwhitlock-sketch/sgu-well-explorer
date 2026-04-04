@@ -1600,6 +1600,16 @@ export const MapView = () => {
         onClearGwQuality={() => {
           if (gwQualityLayerRef.current) { gwQualityLayerRef.current.getSource()?.clear(); setGwQualityLoaded(0); toast.success('Rensade alla provplatser'); }
         }}
+        onExportObservations={() => {
+          const features = observationsLayerRef.current?.getSource()?.getFeatures() || [];
+          if (features.length > 0) {
+            try { exportFeaturesToCSV(features, 'observationer'); toast.success(`Exporterade ${features.length} observationer till CSV`); }
+            catch { toast.error('Kunde inte exportera observationer'); }
+          } else { toast.info('Inga observationer att exportera'); }
+        }}
+        onClearObservations={() => {
+          if (observationsLayerRef.current) { observationsLayerRef.current.getSource()?.clear(); setObservationsLoaded(0); toast.success('Rensade alla observationer'); }
+        }}
       />
       
       <CoordinateDisplay coordinates={coordinates} zoom={currentZoom} />
