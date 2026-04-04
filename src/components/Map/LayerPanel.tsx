@@ -120,6 +120,7 @@ export const LayerPanel = ({
   waterBodiesLoaded,
   gwLevelsObservedLoaded,
   gwQualityLoaded,
+  observationsLoaded,
   onSourcesVisibleChange,
   onWellsVisibleChange,
   onAquifersVisibleChange,
