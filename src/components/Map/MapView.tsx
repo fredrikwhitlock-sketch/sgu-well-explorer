@@ -82,12 +82,15 @@ export const MapView = () => {
   const [waterBodiesVisible, setWaterBodiesVisible] = useState(false);
   const [gwLevelsObservedVisible, setGwLevelsObservedVisible] = useState(false);
   const [gwQualityVisible, setGwQualityVisible] = useState(false);
+  const [observationsVisible, setObservationsVisible] = useState(false);
   const [loadingWaterBodies, setLoadingWaterBodies] = useState(false);
   const [loadingGwLevelsObserved, setLoadingGwLevelsObserved] = useState(false);
   const [loadingGwQuality, setLoadingGwQuality] = useState(false);
+  const [loadingObservations, setLoadingObservations] = useState(false);
   const [waterBodiesLoaded, setWaterBodiesLoaded] = useState(0);
   const [gwLevelsObservedLoaded, setGwLevelsObservedLoaded] = useState(0);
   const [gwQualityLoaded, setGwQualityLoaded] = useState(0);
+  const [observationsLoaded, setObservationsLoaded] = useState(0);
   const [chartOpen, setChartOpen] = useState(false);
   const [chartLocation, setChartLocation] = useState<ChartLocation | null>(null);
   const [chartLocations, setChartLocations] = useState<ChartLocation[]>([]);
