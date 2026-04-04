@@ -1769,6 +1769,7 @@ export const MapView = () => {
             { name: "Grundvattenförekomster", ref: waterBodiesLayerRef, count: waterBodiesLoaded },
             { name: "GV-nivåer observerade", ref: gwLevelsObservedLayerRef, count: gwLevelsObservedLoaded },
             { name: "Grundvattenkvalitet", ref: gwQualityLayerRef, count: gwQualityLoaded },
+            { name: "Observationer", ref: observationsLayerRef, count: observationsLoaded },
           ];
           return layers.map(l => {
             const features = l.ref.current?.getSource()?.getFeatures() || [];
