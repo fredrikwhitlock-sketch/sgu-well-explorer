@@ -82,6 +82,8 @@ interface LayerPanelProps {
   onClearGwLevelsObserved?: () => void;
   onExportGwQuality?: () => void;
   onClearGwQuality?: () => void;
+  onExportObservations?: () => void;
+  onClearObservations?: () => void;
   isOpen: boolean;
   onClose: () => void;
 }
