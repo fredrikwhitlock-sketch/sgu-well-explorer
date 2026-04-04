@@ -824,6 +824,77 @@ export const MapView = () => {
     });
     gwQualityLayerRef.current = gwQualityLayer;
 
+    // Observations layer from external OGC API
+    const observationsSource = new VectorSource({
+      format: new GeoJSON(),
+      loader: async () => {
+        try {
+          setLoadingObservations(true);
+          setObservationsLoaded(0);
+          console.log("Loading observations from external OGC API...");
+          
+          const allFeatures: any[] = [];
+          let nextUrl: string | null = `https://vwjynydirkjirkkzwdnb.supabase.co/functions/v1/ogc-api/collections/observations/items?limit=1000`;
+          
+          while (nextUrl) {
+            const response = await fetch(nextUrl);
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const data = await response.json();
+            if (data.features) {
+              allFeatures.push(...data.features);
+              setObservationsLoaded(allFeatures.length);
+            }
+            nextUrl = null;
+            if (data.links) {
+              const nextLink = data.links.find((l: any) => l.rel === 'next');
+              if (nextLink) nextUrl = nextLink.href;
+            }
+          }
+          
+          const featuresWithGeometry = allFeatures.filter(f => f.geometry !== null);
+          console.log(`Received ${featuresWithGeometry.length} observations`);
+          
+          if (featuresWithGeometry.length > 0) {
+            const features = new GeoJSON().readFeatures(
+              { type: "FeatureCollection", features: featuresWithGeometry },
+              { dataProjection: "EPSG:4326", featureProjection: "EPSG:3857" }
+            );
+            
+            observationsSource.addFeatures(features);
+            setObservationsLoaded(features.length);
+            
+            if (observationsLayerRef.current) {
+              observationsLayerRef.current.setVisible(true);
+              observationsLayerRef.current.changed();
+            }
+            
+            toast.success(`Laddade ${features.length} observationer`);
+          }
+        } catch (error) {
+          console.error("Error loading observations:", error);
+          toast.error("Kunde inte ladda observationer");
+        } finally {
+          setLoadingObservations(false);
+        }
+      },
+    });
+
+    const observationsLayer = new VectorLayer({
+      source: observationsSource,
+      visible: observationsVisible,
+      style: new Style({
+        image: new Circle({
+          radius: 7,
+          fill: new Fill({ color: "rgba(16, 185, 129, 0.8)" }), // Emerald/teal color
+          stroke: new Stroke({
+            color: "rgba(255, 255, 255, 0.9)",
+            width: 2,
+          }),
+        }),
+      }),
+    });
+    observationsLayerRef.current = observationsLayer;
+
     // Geolocation tracking layer (blue dot)
     const geolocationSource = new VectorSource();
     const geolocationLayer = new VectorLayer({

@@ -14,7 +14,7 @@ interface LagerItem {
 
 interface WellPopupProps {
   properties: Record<string, any>;
-  type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType' | 'gvTillgang';
+  type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType' | 'gvTillgang' | 'observation';
   analysisResults?: any[];
   onClose: () => void;
   onOpenChart?: (location: { id: string; name: string; type: 'level' | 'quality'; platsbeteckning?: string; provplatsid?: string }) => void;
