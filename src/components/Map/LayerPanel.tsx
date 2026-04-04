@@ -130,6 +130,7 @@ export const LayerPanel = ({
   onWaterBodiesVisibleChange,
   onGwLevelsObservedVisibleChange,
   onGwQualityVisibleChange,
+  onObservationsVisibleChange,
   onTopoWebbVisibleChange,
   onOrtofotoVisibleChange,
   onTerrangskuggningVisibleChange,
