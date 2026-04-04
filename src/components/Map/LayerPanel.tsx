@@ -40,6 +40,7 @@ interface LayerPanelProps {
   waterBodiesLoaded: number;
   gwLevelsObservedLoaded: number;
   gwQualityLoaded: number;
+  observationsLoaded: number;
   onSourcesVisibleChange: (visible: boolean) => void;
   onWellsVisibleChange: (visible: boolean) => void;
   onAquifersVisibleChange: (visible: boolean) => void;
