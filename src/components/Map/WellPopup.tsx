@@ -189,6 +189,7 @@ export const WellPopup = ({
     if (type === 'gwQuality') return 'Grundvattenkvalitet - Provplats';
     if (type === 'soilType') return 'Jordartsinformation';
     if (type === 'gvTillgang') return 'Grundvattentillgång';
+    if (type === 'observation') return 'Observation';
     return 'Källinformation';
   };
 
