@@ -1614,7 +1614,7 @@ export const MapView = () => {
       
       <CoordinateDisplay coordinates={coordinates} zoom={currentZoom} />
       
-      {(loadingSources || loadingWells || loadingAquifers || loadingSoilTypes || loadingWaterBodies || loadingGwLevelsObserved || loadingGwQuality) && (
+      {(loadingSources || loadingWells || loadingAquifers || loadingSoilTypes || loadingWaterBodies || loadingGwLevelsObserved || loadingGwQuality || loadingObservations) && (
         <div className="absolute top-20 left-1/2 transform -translate-x-1/2 bg-background/95 backdrop-blur-sm p-4 rounded-lg shadow-lg border z-10 min-w-[300px]">
           <div className="space-y-3">
             {loadingSources && (
