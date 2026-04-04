@@ -265,20 +265,32 @@ export const MapView = () => {
           setSourcesLoaded(0);
           console.log("Loading sources from OGC API...");
           
-          const url = `https://api.sgu.se/oppnadata/kallor/ogc/features/v1/collections/kallor/items?f=json`;
+          const allFeatures: any[] = [];
+          let nextUrl: string | null = `https://api.sgu.se/oppnadata/kallor/ogc/features/v1/collections/kallor/items?f=json&limit=1000`;
           
-          const response = await fetch(url);
-          
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+          while (nextUrl) {
+            const response = await fetch(nextUrl);
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const data = await response.json();
+            
+            if (data.features) {
+              allFeatures.push(...data.features);
+              setSourcesLoaded(allFeatures.length);
+            }
+            
+            // Check for next page link
+            nextUrl = null;
+            if (data.links) {
+              const nextLink = data.links.find((l: any) => l.rel === 'next');
+              if (nextLink) nextUrl = nextLink.href;
+            }
           }
           
-          const data = await response.json();
-          console.log(`Received ${data.features?.length || 0} total sources`);
+          console.log(`Received ${allFeatures.length} total sources`);
           
-          if (data.features && data.features.length > 0) {
+          if (allFeatures.length > 0) {
             const features = new GeoJSON().readFeatures(
-              { type: "FeatureCollection", features: data.features },
+              { type: "FeatureCollection", features: allFeatures },
               {
                 dataProjection: "EPSG:4326",
                 featureProjection: "EPSG:3857",
