@@ -69,7 +69,7 @@ export const MapView = () => {
   const [sguGvTillgangVisible, setSguGvTillgangVisible] = useState(false);
   const [sguGvTillgangOpacity, setSguGvTillgangOpacity] = useState(0.7);
   const [coordinates, setCoordinates] = useState<[number, number] | null>(null);
-  const [selectedFeatures, setSelectedFeatures] = useState<{ properties: Record<string, any>; type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType' | 'gvTillgang'; analysisResults?: any[] }[]>([]);
+  const [selectedFeatures, setSelectedFeatures] = useState<{ properties: Record<string, any>; type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType' | 'gvTillgang' | 'observation'; analysisResults?: any[] }[]>([]);
   const [selectedFeatureIndex, setSelectedFeatureIndex] = useState(0);
   const [loadingSources, setLoadingSources] = useState(false);
   const [loadingWells, setLoadingWells] = useState(false);
@@ -82,12 +82,15 @@ export const MapView = () => {
   const [waterBodiesVisible, setWaterBodiesVisible] = useState(false);
   const [gwLevelsObservedVisible, setGwLevelsObservedVisible] = useState(false);
   const [gwQualityVisible, setGwQualityVisible] = useState(false);
+  const [observationsVisible, setObservationsVisible] = useState(false);
   const [loadingWaterBodies, setLoadingWaterBodies] = useState(false);
   const [loadingGwLevelsObserved, setLoadingGwLevelsObserved] = useState(false);
   const [loadingGwQuality, setLoadingGwQuality] = useState(false);
+  const [loadingObservations, setLoadingObservations] = useState(false);
   const [waterBodiesLoaded, setWaterBodiesLoaded] = useState(0);
   const [gwLevelsObservedLoaded, setGwLevelsObservedLoaded] = useState(0);
   const [gwQualityLoaded, setGwQualityLoaded] = useState(0);
+  const [observationsLoaded, setObservationsLoaded] = useState(0);
   const [chartOpen, setChartOpen] = useState(false);
   const [chartLocation, setChartLocation] = useState<ChartLocation | null>(null);
   const [chartLocations, setChartLocations] = useState<ChartLocation[]>([]);
@@ -99,6 +102,7 @@ export const MapView = () => {
   const waterBodiesLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const gwLevelsObservedLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const gwQualityLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
+  const observationsLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const loadWellsForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
   const loadSoilTypesForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
   // Lantmäteriet WMS layer refs
@@ -820,6 +824,77 @@ export const MapView = () => {
     });
     gwQualityLayerRef.current = gwQualityLayer;
 
+    // Observations layer from external OGC API
+    const observationsSource = new VectorSource({
+      format: new GeoJSON(),
+      loader: async () => {
+        try {
+          setLoadingObservations(true);
+          setObservationsLoaded(0);
+          console.log("Loading observations from external OGC API...");
+          
+          const allFeatures: any[] = [];
+          let nextUrl: string | null = `https://vwjynydirkjirkkzwdnb.supabase.co/functions/v1/ogc-api/collections/observations/items?limit=1000`;
+          
+          while (nextUrl) {
+            const response = await fetch(nextUrl);
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const data = await response.json();
+            if (data.features) {
+              allFeatures.push(...data.features);
+              setObservationsLoaded(allFeatures.length);
+            }
+            nextUrl = null;
+            if (data.links) {
+              const nextLink = data.links.find((l: any) => l.rel === 'next');
+              if (nextLink) nextUrl = nextLink.href;
+            }
+          }
+          
+          const featuresWithGeometry = allFeatures.filter(f => f.geometry !== null);
+          console.log(`Received ${featuresWithGeometry.length} observations`);
+          
+          if (featuresWithGeometry.length > 0) {
+            const features = new GeoJSON().readFeatures(
+              { type: "FeatureCollection", features: featuresWithGeometry },
+              { dataProjection: "EPSG:4326", featureProjection: "EPSG:3857" }
+            );
+            
+            observationsSource.addFeatures(features);
+            setObservationsLoaded(features.length);
+            
+            if (observationsLayerRef.current) {
+              observationsLayerRef.current.setVisible(true);
+              observationsLayerRef.current.changed();
+            }
+            
+            toast.success(`Laddade ${features.length} observationer`);
+          }
+        } catch (error) {
+          console.error("Error loading observations:", error);
+          toast.error("Kunde inte ladda observationer");
+        } finally {
+          setLoadingObservations(false);
+        }
+      },
+    });
+
+    const observationsLayer = new VectorLayer({
+      source: observationsSource,
+      visible: observationsVisible,
+      style: new Style({
+        image: new Circle({
+          radius: 7,
+          fill: new Fill({ color: "rgba(16, 185, 129, 0.8)" }), // Emerald/teal color
+          stroke: new Stroke({
+            color: "rgba(255, 255, 255, 0.9)",
+            width: 2,
+          }),
+        }),
+      }),
+    });
+    observationsLayerRef.current = observationsLayer;
+
     // Geolocation tracking layer (blue dot)
     const geolocationSource = new VectorSource();
     const geolocationLayer = new VectorLayer({
@@ -867,6 +942,7 @@ export const MapView = () => {
         aquifersLayer, 
         gwQualityLayer, 
         gwLevelsObservedLayer, 
+        observationsLayer,
         wellsLayer, 
         sourcesLayer,
         geolocationLayer,
@@ -892,25 +968,26 @@ export const MapView = () => {
       // Change cursor when hovering over features
       const pixel = map.getEventPixel(evt.originalEvent);
       const hit = map.hasFeatureAtPixel(pixel, {
-        layerFilter: (layer) => layer === sourcesLayer || layer === wellsLayer || layer === aquifersLayer || layer === waterBodiesLayer || layer === gwLevelsObservedLayer || layer === gwQualityLayer || layer === soilTypesLayer,
+        layerFilter: (layer) => layer === sourcesLayer || layer === wellsLayer || layer === aquifersLayer || layer === waterBodiesLayer || layer === gwLevelsObservedLayer || layer === gwQualityLayer || layer === soilTypesLayer || layer === observationsLayer,
       });
       map.getTargetElement().style.cursor = hit ? "pointer" : "";
     });
 
     // Handle feature clicks - collect all features at the same location
     map.on("click", async (evt) => {
-      const clickedItems: { properties: Record<string, any>; type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType' | 'gvTillgang' }[] = [];
+      const clickedItems: { properties: Record<string, any>; type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType' | 'gvTillgang' | 'observation' }[] = [];
       
       map.forEachFeatureAtPixel(evt.pixel, (f, layer) => {
-        if (layer === sourcesLayer || layer === wellsLayer || layer === aquifersLayer || layer === waterBodiesLayer || layer === gwLevelsObservedLayer || layer === gwQualityLayer || layer === soilTypesLayer) {
+        if (layer === sourcesLayer || layer === wellsLayer || layer === aquifersLayer || layer === waterBodiesLayer || layer === gwLevelsObservedLayer || layer === gwQualityLayer || layer === soilTypesLayer || layer === observationsLayer) {
           const properties = f.getProperties();
-          let type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType' | 'gvTillgang' = 'source';
+          let type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType' | 'gvTillgang' | 'observation' = 'source';
           if (layer === wellsLayer) type = 'well';
           else if (layer === aquifersLayer) type = 'aquifer';
           else if (layer === waterBodiesLayer) type = 'waterBody';
           else if (layer === gwLevelsObservedLayer) type = 'gwLevelsObserved';
           else if (layer === gwQualityLayer) type = 'gwQuality';
           else if (layer === soilTypesLayer) type = 'soilType';
+          else if (layer === observationsLayer) type = 'observation';
           clickedItems.push({ properties, type });
         }
       });
@@ -1161,6 +1238,20 @@ export const MapView = () => {
     }
   }, [gwQualityVisible]);
 
+  // Update Observations visibility and load data when enabled
+  useEffect(() => {
+    if (observationsLayerRef.current) {
+      if (observationsVisible && observationsLayerRef.current.getSource()?.getFeatures().length === 0) {
+        observationsLayerRef.current.getSource()?.loadFeatures(
+          observationsLayerRef.current.getSource()!.getExtent(),
+          1,
+          observationsLayerRef.current.getSource()!.getProjection()
+        );
+      }
+      observationsLayerRef.current.setVisible(observationsVisible);
+    }
+  }, [observationsVisible]);
+
   // Update Lantmäteriet Topografisk Webbkarta visibility
   useEffect(() => {
     if (topoWebbLayerRef.current) {
@@ -1341,6 +1432,7 @@ export const MapView = () => {
         waterBodiesVisible={waterBodiesVisible}
         gwLevelsObservedVisible={gwLevelsObservedVisible}
         gwQualityVisible={gwQualityVisible}
+        observationsVisible={observationsVisible}
         topoWebbVisible={topoWebbVisible}
         ortofotoVisible={ortofotoVisible}
         terrangskuggningVisible={terrangskuggningVisible}
@@ -1362,6 +1454,7 @@ export const MapView = () => {
         waterBodiesLoaded={waterBodiesLoaded}
         gwLevelsObservedLoaded={gwLevelsObservedLoaded}
         gwQualityLoaded={gwQualityLoaded}
+        observationsLoaded={observationsLoaded}
         onSourcesVisibleChange={setSourcesVisible}
         onWellsVisibleChange={setWellsVisible}
         onAquifersVisibleChange={setAquifersVisible}
@@ -1371,6 +1464,7 @@ export const MapView = () => {
         onWaterBodiesVisibleChange={setWaterBodiesVisible}
         onGwLevelsObservedVisibleChange={setGwLevelsObservedVisible}
         onGwQualityVisibleChange={setGwQualityVisible}
+        onObservationsVisibleChange={setObservationsVisible}
         onTopoWebbVisibleChange={setTopoWebbVisible}
         onOrtofotoVisibleChange={setOrtofotoVisible}
         onTerrangskuggningVisibleChange={setTerrangskuggningVisible}
@@ -1506,11 +1600,21 @@ export const MapView = () => {
         onClearGwQuality={() => {
           if (gwQualityLayerRef.current) { gwQualityLayerRef.current.getSource()?.clear(); setGwQualityLoaded(0); toast.success('Rensade alla provplatser'); }
         }}
+        onExportObservations={() => {
+          const features = observationsLayerRef.current?.getSource()?.getFeatures() || [];
+          if (features.length > 0) {
+            try { exportFeaturesToCSV(features, 'observationer'); toast.success(`Exporterade ${features.length} observationer till CSV`); }
+            catch { toast.error('Kunde inte exportera observationer'); }
+          } else { toast.info('Inga observationer att exportera'); }
+        }}
+        onClearObservations={() => {
+          if (observationsLayerRef.current) { observationsLayerRef.current.getSource()?.clear(); setObservationsLoaded(0); toast.success('Rensade alla observationer'); }
+        }}
       />
       
       <CoordinateDisplay coordinates={coordinates} zoom={currentZoom} />
       
-      {(loadingSources || loadingWells || loadingAquifers || loadingSoilTypes || loadingWaterBodies || loadingGwLevelsObserved || loadingGwQuality) && (
+      {(loadingSources || loadingWells || loadingAquifers || loadingSoilTypes || loadingWaterBodies || loadingGwLevelsObserved || loadingGwQuality || loadingObservations) && (
         <div className="absolute top-20 left-1/2 transform -translate-x-1/2 bg-background/95 backdrop-blur-sm p-4 rounded-lg shadow-lg border z-10 min-w-[300px]">
           <div className="space-y-3">
             {loadingSources && (
@@ -1590,6 +1694,17 @@ export const MapView = () => {
                 </div>
               </div>
             )}
+            {loadingObservations && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium">Laddar observationer...</span>
+                  <span className="text-muted-foreground">{observationsLoaded} observationer</span>
+                </div>
+                <div className="w-full bg-secondary rounded-full h-2 overflow-hidden">
+                  <div className="h-full bg-primary transition-all duration-300 rounded-full animate-pulse" style={{ width: '100%' }} />
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1654,6 +1769,7 @@ export const MapView = () => {
             { name: "Grundvattenförekomster", ref: waterBodiesLayerRef, count: waterBodiesLoaded },
             { name: "GV-nivåer observerade", ref: gwLevelsObservedLayerRef, count: gwLevelsObservedLoaded },
             { name: "Grundvattenkvalitet", ref: gwQualityLayerRef, count: gwQualityLoaded },
+            { name: "Observationer", ref: observationsLayerRef, count: observationsLoaded },
           ];
           return layers.map(l => {
             const features = l.ref.current?.getSource()?.getFeatures() || [];

@@ -16,6 +16,7 @@ interface LayerPanelProps {
   waterBodiesVisible: boolean;
   gwLevelsObservedVisible: boolean;
   gwQualityVisible: boolean;
+  observationsVisible: boolean;
   // Lantmäteriet WMS layers
   topoWebbVisible: boolean;
   ortofotoVisible: boolean;
@@ -39,6 +40,7 @@ interface LayerPanelProps {
   waterBodiesLoaded: number;
   gwLevelsObservedLoaded: number;
   gwQualityLoaded: number;
+  observationsLoaded: number;
   onSourcesVisibleChange: (visible: boolean) => void;
   onWellsVisibleChange: (visible: boolean) => void;
   onAquifersVisibleChange: (visible: boolean) => void;
@@ -48,6 +50,7 @@ interface LayerPanelProps {
   onWaterBodiesVisibleChange: (visible: boolean) => void;
   onGwLevelsObservedVisibleChange: (visible: boolean) => void;
   onGwQualityVisibleChange: (visible: boolean) => void;
+  onObservationsVisibleChange: (visible: boolean) => void;
   // Lantmäteriet WMS layer callbacks
   onTopoWebbVisibleChange: (visible: boolean) => void;
   onOrtofotoVisibleChange: (visible: boolean) => void;
@@ -79,6 +82,8 @@ interface LayerPanelProps {
   onClearGwLevelsObserved?: () => void;
   onExportGwQuality?: () => void;
   onClearGwQuality?: () => void;
+  onExportObservations?: () => void;
+  onClearObservations?: () => void;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -93,6 +98,7 @@ export const LayerPanel = ({
   waterBodiesVisible,
   gwLevelsObservedVisible,
   gwQualityVisible,
+  observationsVisible,
   topoWebbVisible,
   ortofotoVisible,
   terrangskuggningVisible,
@@ -114,6 +120,7 @@ export const LayerPanel = ({
   waterBodiesLoaded,
   gwLevelsObservedLoaded,
   gwQualityLoaded,
+  observationsLoaded,
   onSourcesVisibleChange,
   onWellsVisibleChange,
   onAquifersVisibleChange,
@@ -123,6 +130,7 @@ export const LayerPanel = ({
   onWaterBodiesVisibleChange,
   onGwLevelsObservedVisibleChange,
   onGwQualityVisibleChange,
+  onObservationsVisibleChange,
   onTopoWebbVisibleChange,
   onOrtofotoVisibleChange,
   onTerrangskuggningVisibleChange,
@@ -152,6 +160,8 @@ export const LayerPanel = ({
   onClearGwLevelsObserved,
   onExportGwQuality,
   onClearGwQuality,
+  onExportObservations,
+  onClearObservations,
   isOpen,
   onClose,
 }: LayerPanelProps) => {
@@ -579,6 +589,49 @@ export const LayerPanel = ({
                   )}
                   {onClearGwQuality && (
                     <Button variant="outline" size="sm" onClick={onClearGwQuality} className="text-xs h-7">
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Observations Layer Control */}
+        <div className="space-y-3 pt-4 border-t border-border">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label htmlFor="observations-layer" className="text-sm font-medium">
+                Observationer
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Fältobservationer {observationsLoaded > 0 && `(${observationsLoaded})`}
+              </p>
+            </div>
+            <Switch
+              id="observations-layer"
+              checked={observationsVisible}
+              onCheckedChange={onObservationsVisibleChange}
+            />
+          </div>
+          
+          {observationsVisible && (
+            <div className="mt-2 space-y-2 text-xs">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-[rgb(16,185,129)]" />
+                <span className="text-muted-foreground">Klickbara observationer</span>
+              </div>
+              {observationsLoaded > 0 && (
+                <div className="flex gap-2 mt-2">
+                  {onExportObservations && (
+                    <Button variant="outline" size="sm" onClick={onExportObservations} className="flex-1 text-xs h-7">
+                      <Download className="w-3 h-3 mr-1" />
+                      Exportera ({observationsLoaded})
+                    </Button>
+                  )}
+                  {onClearObservations && (
+                    <Button variant="outline" size="sm" onClick={onClearObservations} className="text-xs h-7">
                       <Trash2 className="w-3 h-3" />
                     </Button>
                   )}
