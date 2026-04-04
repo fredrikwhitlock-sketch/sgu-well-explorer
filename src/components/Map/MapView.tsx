@@ -1432,6 +1432,7 @@ export const MapView = () => {
         waterBodiesVisible={waterBodiesVisible}
         gwLevelsObservedVisible={gwLevelsObservedVisible}
         gwQualityVisible={gwQualityVisible}
+        observationsVisible={observationsVisible}
         topoWebbVisible={topoWebbVisible}
         ortofotoVisible={ortofotoVisible}
         terrangskuggningVisible={terrangskuggningVisible}
@@ -1453,6 +1454,7 @@ export const MapView = () => {
         waterBodiesLoaded={waterBodiesLoaded}
         gwLevelsObservedLoaded={gwLevelsObservedLoaded}
         gwQualityLoaded={gwQualityLoaded}
+        observationsLoaded={observationsLoaded}
         onSourcesVisibleChange={setSourcesVisible}
         onWellsVisibleChange={setWellsVisible}
         onAquifersVisibleChange={setAquifersVisible}
