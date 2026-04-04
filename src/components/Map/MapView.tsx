@@ -1238,6 +1238,20 @@ export const MapView = () => {
     }
   }, [gwQualityVisible]);
 
+  // Update Observations visibility and load data when enabled
+  useEffect(() => {
+    if (observationsLayerRef.current) {
+      if (observationsVisible && observationsLayerRef.current.getSource()?.getFeatures().length === 0) {
+        observationsLayerRef.current.getSource()?.loadFeatures(
+          observationsLayerRef.current.getSource()!.getExtent(),
+          1,
+          observationsLayerRef.current.getSource()!.getProjection()
+        );
+      }
+      observationsLayerRef.current.setVisible(observationsVisible);
+    }
+  }, [observationsVisible]);
+
   // Update Lantmäteriet Topografisk Webbkarta visibility
   useEffect(() => {
     if (topoWebbLayerRef.current) {
