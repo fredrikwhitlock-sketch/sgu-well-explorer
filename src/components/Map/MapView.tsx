@@ -942,6 +942,7 @@ export const MapView = () => {
         aquifersLayer, 
         gwQualityLayer, 
         gwLevelsObservedLayer, 
+        observationsLayer,
         wellsLayer, 
         sourcesLayer,
         geolocationLayer,
