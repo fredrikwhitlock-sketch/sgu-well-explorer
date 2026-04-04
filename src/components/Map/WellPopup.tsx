@@ -1069,6 +1069,80 @@ export const WellPopup = ({
               </a>
             </div>
           </>
+        ) : type === 'observation' ? (
+          <>
+            {properties.station_name && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Station</dt>
+                <dd className="text-sm font-semibold text-foreground mt-1">{formatValue(properties.station_name)}</dd>
+              </div>
+            )}
+            {properties.station_id && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Stations-ID</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.station_id)}</dd>
+              </div>
+            )}
+            {properties.obs_datum && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Observationsdatum</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.obs_datum)}</dd>
+              </div>
+            )}
+            {properties.kalltyp && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Källtyp</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.kalltyp)}</dd>
+              </div>
+            )}
+            <Separator className="my-3" />
+            {properties.temperatur !== null && properties.temperatur !== undefined && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Temperatur</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.temperatur)} °C</dd>
+              </div>
+            )}
+            {properties.ph_falt !== null && properties.ph_falt !== undefined && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">pH (fält)</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.ph_falt)}</dd>
+              </div>
+            )}
+            {properties.konduktivitet_falt !== null && properties.konduktivitet_falt !== undefined && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Konduktivitet (fält)</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.konduktivitet_falt)} µS/cm</dd>
+              </div>
+            )}
+            {properties.flode !== null && properties.flode !== undefined && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Flöde</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.flode)} l/s</dd>
+              </div>
+            )}
+            {properties.utfallningar && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Utfällningar</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.utfallningar)}</dd>
+              </div>
+            )}
+            {properties.kommentar && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Kommentar</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.kommentar)}</dd>
+              </div>
+            )}
+            {properties.foto_url && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Foto</dt>
+                <dd className="text-sm mt-1">
+                  <a href={properties.foto_url} target="_blank" rel="noopener noreferrer" className="text-sgu-link hover:underline inline-flex items-center gap-1">
+                    Visa foto <ExternalLink className="w-3 h-3" />
+                  </a>
+                </dd>
+              </div>
+            )}
+          </>
         ) : type === 'gvTillgang' ? (
           <>
             {properties.GRAY_INDEX !== undefined && (
