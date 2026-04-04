@@ -1694,6 +1694,17 @@ export const MapView = () => {
                 </div>
               </div>
             )}
+            {loadingObservations && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium">Laddar observationer...</span>
+                  <span className="text-muted-foreground">{observationsLoaded} observationer</span>
+                </div>
+                <div className="w-full bg-secondary rounded-full h-2 overflow-hidden">
+                  <div className="h-full bg-primary transition-all duration-300 rounded-full animate-pulse" style={{ width: '100%' }} />
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
