@@ -50,6 +50,7 @@ interface LayerPanelProps {
   onWaterBodiesVisibleChange: (visible: boolean) => void;
   onGwLevelsObservedVisibleChange: (visible: boolean) => void;
   onGwQualityVisibleChange: (visible: boolean) => void;
+  onObservationsVisibleChange: (visible: boolean) => void;
   // Lantmäteriet WMS layer callbacks
   onTopoWebbVisibleChange: (visible: boolean) => void;
   onOrtofotoVisibleChange: (visible: boolean) => void;
