@@ -978,15 +978,16 @@ export const MapView = () => {
       const clickedItems: { properties: Record<string, any>; type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType' | 'gvTillgang' | 'observation' }[] = [];
       
       map.forEachFeatureAtPixel(evt.pixel, (f, layer) => {
-        if (layer === sourcesLayer || layer === wellsLayer || layer === aquifersLayer || layer === waterBodiesLayer || layer === gwLevelsObservedLayer || layer === gwQualityLayer || layer === soilTypesLayer) {
+        if (layer === sourcesLayer || layer === wellsLayer || layer === aquifersLayer || layer === waterBodiesLayer || layer === gwLevelsObservedLayer || layer === gwQualityLayer || layer === soilTypesLayer || layer === observationsLayer) {
           const properties = f.getProperties();
-          let type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType' | 'gvTillgang' = 'source';
+          let type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType' | 'gvTillgang' | 'observation' = 'source';
           if (layer === wellsLayer) type = 'well';
           else if (layer === aquifersLayer) type = 'aquifer';
           else if (layer === waterBodiesLayer) type = 'waterBody';
           else if (layer === gwLevelsObservedLayer) type = 'gwLevelsObserved';
           else if (layer === gwQualityLayer) type = 'gwQuality';
           else if (layer === soilTypesLayer) type = 'soilType';
+          else if (layer === observationsLayer) type = 'observation';
           clickedItems.push({ properties, type });
         }
       });
