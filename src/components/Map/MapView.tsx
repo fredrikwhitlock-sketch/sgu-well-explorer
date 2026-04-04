@@ -102,6 +102,7 @@ export const MapView = () => {
   const waterBodiesLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const gwLevelsObservedLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const gwQualityLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
+  const observationsLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const loadWellsForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
   const loadSoilTypesForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
   // Lantmäteriet WMS layer refs
