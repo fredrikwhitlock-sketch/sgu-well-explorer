@@ -160,6 +160,8 @@ export const LayerPanel = ({
   onClearGwLevelsObserved,
   onExportGwQuality,
   onClearGwQuality,
+  onExportObservations,
+  onClearObservations,
   isOpen,
   onClose,
 }: LayerPanelProps) => {
