@@ -16,6 +16,7 @@ interface LayerPanelProps {
   waterBodiesVisible: boolean;
   gwLevelsObservedVisible: boolean;
   gwQualityVisible: boolean;
+  observationsVisible: boolean;
   // Lantmäteriet WMS layers
   topoWebbVisible: boolean;
   ortofotoVisible: boolean;
