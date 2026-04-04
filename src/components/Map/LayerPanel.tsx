@@ -598,6 +598,49 @@ export const LayerPanel = ({
           )}
         </div>
 
+        {/* Observations Layer Control */}
+        <div className="space-y-3 pt-4 border-t border-border">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label htmlFor="observations-layer" className="text-sm font-medium">
+                Observationer
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Fältobservationer {observationsLoaded > 0 && `(${observationsLoaded})`}
+              </p>
+            </div>
+            <Switch
+              id="observations-layer"
+              checked={observationsVisible}
+              onCheckedChange={onObservationsVisibleChange}
+            />
+          </div>
+          
+          {observationsVisible && (
+            <div className="mt-2 space-y-2 text-xs">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-[rgb(16,185,129)]" />
+                <span className="text-muted-foreground">Klickbara observationer</span>
+              </div>
+              {observationsLoaded > 0 && (
+                <div className="flex gap-2 mt-2">
+                  {onExportObservations && (
+                    <Button variant="outline" size="sm" onClick={onExportObservations} className="flex-1 text-xs h-7">
+                      <Download className="w-3 h-3 mr-1" />
+                      Exportera ({observationsLoaded})
+                    </Button>
+                  )}
+                  {onClearObservations && (
+                    <Button variant="outline" size="sm" onClick={onClearObservations} className="text-xs h-7">
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* Lantmäteriet WMS Section Header */}
         <div className="pt-4 border-t-2 border-primary/30">
           <h4 className="text-sm font-semibold text-primary mb-3">Lantmäteriet bakgrundskartor</h4>
