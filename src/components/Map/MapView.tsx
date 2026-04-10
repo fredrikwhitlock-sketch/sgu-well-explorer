@@ -69,7 +69,7 @@ export const MapView = () => {
   const [sguGvTillgangVisible, setSguGvTillgangVisible] = useState(false);
   const [sguGvTillgangOpacity, setSguGvTillgangOpacity] = useState(0.7);
   const [coordinates, setCoordinates] = useState<[number, number] | null>(null);
-  const [selectedFeatures, setSelectedFeatures] = useState<{ properties: Record<string, any>; type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType' | 'gvTillgang' | 'observation'; analysisResults?: any[] }[]>([]);
+  const [selectedFeatures, setSelectedFeatures] = useState<{ properties: Record<string, any>; type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType' | 'gvTillgang' | 'observation' | 'hypoArea'; analysisResults?: any[] }[]>([]);
   const [selectedFeatureIndex, setSelectedFeatureIndex] = useState(0);
   const [loadingSources, setLoadingSources] = useState(false);
   const [loadingWells, setLoadingWells] = useState(false);
@@ -91,6 +91,11 @@ export const MapView = () => {
   const [gwLevelsObservedLoaded, setGwLevelsObservedLoaded] = useState(0);
   const [gwQualityLoaded, setGwQualityLoaded] = useState(0);
   const [observationsLoaded, setObservationsLoaded] = useState(0);
+  const [hypoAreasVisible, setHypoAreasVisible] = useState(false);
+  const [loadingHypoAreas, setLoadingHypoAreas] = useState(false);
+  const [hypoAreasLoaded, setHypoAreasLoaded] = useState(0);
+  const [hypoAreasOpacity, setHypoAreasOpacity] = useState(0.7);
+  const [hypoAreasDate, setHypoAreasDate] = useState('2024-01');
   const [chartOpen, setChartOpen] = useState(false);
   const [chartLocation, setChartLocation] = useState<ChartLocation | null>(null);
   const [chartLocations, setChartLocations] = useState<ChartLocation[]>([]);
@@ -105,6 +110,9 @@ export const MapView = () => {
   const observationsLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const loadWellsForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
   const loadSoilTypesForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
+  const hypoAreasLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
+  const fetchAndJoinHypoLevelsRef = useRef<((date: string) => Promise<void>) | null>(null);
+  const hypoAreasDateRef = useRef('2024-01');
   // Lantmäteriet WMS layer refs
   const topoWebbLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
   const ortofotoLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
@@ -907,6 +915,122 @@ export const MapView = () => {
     });
     observationsLayerRef.current = observationsLayer;
 
+    // OGC API Features layer for SGU-HYPE beräknade grundvattennivåer (omraden)
+    const hypoAreasSource = new VectorSource({
+      format: new GeoJSON(),
+      loader: async () => {
+        try {
+          setLoadingHypoAreas(true);
+          setHypoAreasLoaded(0);
+          console.log("Loading HYPE areas from OGC API...");
+
+          const allFeatures = await fetchAllPages(
+            `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/omraden/items?f=json`,
+            (count) => setHypoAreasLoaded(count)
+          );
+
+          console.log(`Received ${allFeatures.length} HYPE areas`);
+
+          if (allFeatures.length > 0) {
+            const features = new GeoJSON().readFeatures(
+              { type: "FeatureCollection", features: allFeatures },
+              { dataProjection: "EPSG:4326", featureProjection: "EPSG:3857" }
+            );
+            hypoAreasSource.addFeatures(features);
+            setHypoAreasLoaded(features.length);
+
+            // Fetch level data for the current date after polygons are loaded
+            if (fetchAndJoinHypoLevelsRef.current) {
+              await fetchAndJoinHypoLevelsRef.current(hypoAreasDateRef.current);
+            }
+
+            if (hypoAreasLayerRef.current) {
+              hypoAreasLayerRef.current.setVisible(true);
+            }
+
+            toast.success(`Laddade ${features.length} HYPE-områden`);
+          }
+        } catch (error) {
+          console.error("Error loading HYPE areas:", error);
+          toast.error("Kunde inte ladda beräknade grundvattennivåer");
+        } finally {
+          setLoadingHypoAreas(false);
+        }
+      },
+    });
+
+    const hypoAreasStyleFunction = (feature: any) => {
+      const fyllnad = feature.get('fyllnadsgrad_sma');
+      let fillColor = 'rgba(200, 200, 200, 0.4)'; // gray – ingen data
+
+      if (fyllnad !== null && fyllnad !== undefined && fyllnad !== -1) {
+        if (fyllnad < 10) fillColor = 'rgba(165, 0, 38, 0.75)';       // Mycket under normalt
+        else if (fyllnad < 25) fillColor = 'rgba(215, 90, 40, 0.75)'; // Under normalt
+        else if (fyllnad < 75) fillColor = 'rgba(254, 224, 70, 0.75)'; // Normalt
+        else if (fyllnad < 90) fillColor = 'rgba(90, 174, 97, 0.75)'; // Över normalt
+        else fillColor = 'rgba(0, 104, 55, 0.75)';                    // Mycket över normalt
+      }
+
+      return new Style({
+        stroke: new Stroke({ color: 'rgba(0, 0, 0, 0.2)', width: 0.5 }),
+        fill: new Fill({ color: fillColor }),
+      });
+    };
+
+    const hypoAreasLayer = new VectorLayer({
+      source: hypoAreasSource,
+      visible: hypoAreasVisible,
+      opacity: hypoAreasOpacity,
+      style: hypoAreasStyleFunction,
+    });
+    hypoAreasLayerRef.current = hypoAreasLayer;
+
+    // Define function to fetch and join level data for a given month
+    const fetchAndJoinHypoLevels = async (date: string) => {
+      const apiDate = date.length === 7 ? `${date}-01` : date;
+      try {
+        const url = `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/grundvattennivaer-tidigare/items?f=json&limit=5000&filter=${encodeURIComponent(`datum='${apiDate}'`)}`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+
+        const levelMap = new Map<number, any>();
+        if (data.features) {
+          for (const f of data.features) {
+            levelMap.set(f.properties.omrade_id, f.properties);
+          }
+        }
+
+        if (levelMap.size === 0) {
+          toast.info(`Ingen data tillgänglig för ${date}`);
+          return;
+        }
+
+        const features = hypoAreasSource.getFeatures();
+        for (const feature of features) {
+          const omradeId = feature.get('omrade_id');
+          const levelData = levelMap.get(omradeId);
+          if (levelData) {
+            feature.set('grundvattensituation_sma', levelData.grundvattensituation_sma);
+            feature.set('grundvattensituation_stora', levelData.grundvattensituation_stora);
+            feature.set('fyllnadsgrad_sma', levelData.fyllnadsgrad_sma);
+            feature.set('fyllnadsgrad_stora', levelData.fyllnadsgrad_stora);
+            feature.set('datum', levelData.datum);
+          } else {
+            feature.set('fyllnadsgrad_sma', null);
+            feature.set('datum', apiDate);
+          }
+        }
+
+        hypoAreasLayerRef.current?.changed();
+      } catch (error) {
+        console.error("Error fetching HYPE level data:", error);
+        toast.error("Kunde inte hämta beräknade grundvattennivåer");
+      }
+    };
+
+    fetchAndJoinHypoLevelsRef.current = fetchAndJoinHypoLevels;
+
     // Geolocation tracking layer (blue dot)
     const geolocationSource = new VectorSource();
     const geolocationLayer = new VectorLayer({
@@ -949,8 +1073,9 @@ export const MapView = () => {
         sguJordarter25kLayer,
         sguGvTillgangLayer,
         // Vector layers on top
-        soilTypesLayer, 
-        waterBodiesLayer, 
+        hypoAreasLayer,
+        soilTypesLayer,
+        waterBodiesLayer,
         aquifersLayer, 
         gwQualityLayer, 
         gwLevelsObservedLayer, 
@@ -980,19 +1105,19 @@ export const MapView = () => {
       // Change cursor when hovering over features
       const pixel = map.getEventPixel(evt.originalEvent);
       const hit = map.hasFeatureAtPixel(pixel, {
-        layerFilter: (layer) => layer === sourcesLayer || layer === wellsLayer || layer === aquifersLayer || layer === waterBodiesLayer || layer === gwLevelsObservedLayer || layer === gwQualityLayer || layer === soilTypesLayer || layer === observationsLayer,
+        layerFilter: (layer) => layer === sourcesLayer || layer === wellsLayer || layer === aquifersLayer || layer === waterBodiesLayer || layer === gwLevelsObservedLayer || layer === gwQualityLayer || layer === soilTypesLayer || layer === observationsLayer || layer === hypoAreasLayer,
       });
       map.getTargetElement().style.cursor = hit ? "pointer" : "";
     });
 
     // Handle feature clicks - collect all features at the same location
     map.on("click", async (evt) => {
-      const clickedItems: { properties: Record<string, any>; type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType' | 'gvTillgang' | 'observation' }[] = [];
-      
+      const clickedItems: { properties: Record<string, any>; type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType' | 'gvTillgang' | 'observation' | 'hypoArea' }[] = [];
+
       map.forEachFeatureAtPixel(evt.pixel, (f, layer) => {
-        if (layer === sourcesLayer || layer === wellsLayer || layer === aquifersLayer || layer === waterBodiesLayer || layer === gwLevelsObservedLayer || layer === gwQualityLayer || layer === soilTypesLayer || layer === observationsLayer) {
+        if (layer === sourcesLayer || layer === wellsLayer || layer === aquifersLayer || layer === waterBodiesLayer || layer === gwLevelsObservedLayer || layer === gwQualityLayer || layer === soilTypesLayer || layer === observationsLayer || layer === hypoAreasLayer) {
           const properties = f.getProperties();
-          let type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType' | 'gvTillgang' | 'observation' = 'source';
+          let type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType' | 'gvTillgang' | 'observation' | 'hypoArea' = 'source';
           if (layer === wellsLayer) type = 'well';
           else if (layer === aquifersLayer) type = 'aquifer';
           else if (layer === waterBodiesLayer) type = 'waterBody';
@@ -1000,6 +1125,7 @@ export const MapView = () => {
           else if (layer === gwQualityLayer) type = 'gwQuality';
           else if (layer === soilTypesLayer) type = 'soilType';
           else if (layer === observationsLayer) type = 'observation';
+          else if (layer === hypoAreasLayer) type = 'hypoArea';
           clickedItems.push({ properties, type });
         }
       });
@@ -1362,6 +1488,40 @@ export const MapView = () => {
     }
   }, [sguGvTillgangOpacity]);
 
+  // Update HYPE areas visibility and load data when enabled
+  useEffect(() => {
+    if (hypoAreasLayerRef.current) {
+      if (hypoAreasVisible && hypoAreasLayerRef.current.getSource()?.getFeatures().length === 0) {
+        hypoAreasLayerRef.current.getSource()?.loadFeatures(
+          hypoAreasLayerRef.current.getSource()!.getExtent(),
+          1,
+          hypoAreasLayerRef.current.getSource()!.getProjection()
+        );
+      }
+      hypoAreasLayerRef.current.setVisible(hypoAreasVisible);
+    }
+  }, [hypoAreasVisible]);
+
+  // Update HYPE areas opacity
+  useEffect(() => {
+    if (hypoAreasLayerRef.current) {
+      hypoAreasLayerRef.current.setOpacity(hypoAreasOpacity);
+    }
+  }, [hypoAreasOpacity]);
+
+  // Keep date ref in sync with state
+  useEffect(() => {
+    hypoAreasDateRef.current = hypoAreasDate;
+  }, [hypoAreasDate]);
+
+  // Re-fetch level data when date changes (only if polygons already loaded)
+  useEffect(() => {
+    const source = hypoAreasLayerRef.current?.getSource();
+    if (source && source.getFeatures().length > 0) {
+      fetchAndJoinHypoLevelsRef.current?.(hypoAreasDate);
+    }
+  }, [hypoAreasDate]);
+
   const handleSearchResult = (coordinates: [number, number], zoom?: number) => {
     if (mapInstanceRef.current) {
       mapInstanceRef.current.getView().animate({
@@ -1467,6 +1627,23 @@ export const MapView = () => {
         gwLevelsObservedLoaded={gwLevelsObservedLoaded}
         gwQualityLoaded={gwQualityLoaded}
         observationsLoaded={observationsLoaded}
+        hypoAreasVisible={hypoAreasVisible}
+        loadingHypoAreas={loadingHypoAreas}
+        hypoAreasLoaded={hypoAreasLoaded}
+        hypoAreasOpacity={hypoAreasOpacity}
+        hypoAreasDate={hypoAreasDate}
+        onHypoAreasVisibleChange={setHypoAreasVisible}
+        onHypoAreasOpacityChange={setHypoAreasOpacity}
+        onHypoAreasDateChange={(date) => {
+          setHypoAreasDate(date);
+          hypoAreasDateRef.current = date;
+        }}
+        onClearHypoAreas={() => {
+          if (hypoAreasLayerRef.current) {
+            hypoAreasLayerRef.current.getSource()?.clear();
+            setHypoAreasLoaded(0);
+          }
+        }}
         onSourcesVisibleChange={setSourcesVisible}
         onWellsVisibleChange={setWellsVisible}
         onAquifersVisibleChange={setAquifersVisible}
