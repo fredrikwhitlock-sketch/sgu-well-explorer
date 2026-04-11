@@ -98,7 +98,7 @@ export const MapView = () => {
   const [loadingHypoAreas, setLoadingHypoAreas] = useState(false);
   const [hypoAreasLoaded, setHypoAreasLoaded] = useState(0);
   const [hypoAreasOpacity, setHypoAreasOpacity] = useState(0.7);
-  const [hypoAreasDate, setHypoAreasDate] = useState('2024-01-01');
+  const [hypoAreasDate, setHypoAreasDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [chartOpen, setChartOpen] = useState(false);
   const [chartLocation, setChartLocation] = useState<ChartLocation | null>(null);
   const [chartLocations, setChartLocations] = useState<ChartLocation[]>([]);
@@ -119,7 +119,7 @@ export const MapView = () => {
   const hypoSitSmaLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const hypoSitStoraLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const fetchAndJoinHypoLevelsRef = useRef<((date: string) => Promise<void>) | null>(null);
-  const hypoAreasDateRef = useRef('2024-01-01');
+  const hypoAreasDateRef = useRef(new Date().toISOString().split('T')[0]);
   // Lantmäteriet WMS layer refs
   const topoWebbLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
   const ortofotoLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
