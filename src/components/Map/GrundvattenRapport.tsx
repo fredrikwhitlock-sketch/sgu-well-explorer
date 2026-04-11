@@ -1,5 +1,5 @@
-import { useEffect, useState, useRef } from "react";
-import { X, Droplets, Loader2, MapPin, AlertCircle } from "lucide-react";
+import { useEffect, useState, useRef, useCallback } from "react";
+import { X, Droplets, Loader2, MapPin, AlertCircle, RefreshCw } from "lucide-react";
 import proj4 from "proj4";
 
 interface Props {
@@ -70,6 +70,7 @@ function fyllnadBg(v: number | null | undefined): string {
 }
 
 export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) => {
+  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<ReportData | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -106,15 +107,14 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
     };
   }, []);
 
-  useEffect(() => {
-    const run = async () => {
-      setLoading(true);
-      setError(null);
-      try {
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
         const [lon, lat] = mercatorToWGS84(coordinate[0], coordinate[1]);
         const sweref = proj4('EPSG:4326', 'EPSG:3006', [lon, lat]) as [number, number];
 
-        const today = new Date().toISOString().split('T')[0];
+        const today = selectedDate;
         const delta = 0.002; // ~200m around point for GFI + omrade
         const deltaBbox = `${lon - delta},${lat - delta},${lon + delta},${lat + delta}`;
         const brunnarDelta = 0.15; // ~15km for nearby brunnar
@@ -240,10 +240,11 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
       } finally {
         setLoading(false);
       }
-    };
+  }, [coordinate, wmsProxyUrl, selectedDate]);
 
-    run();
-  }, [coordinate, wmsProxyUrl]);
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   return (
     <div
@@ -261,6 +262,26 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
         </div>
         <button onClick={onClose} className="hover:bg-white/20 rounded p-0.5 transition-colors">
           <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Date selector */}
+      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-secondary/30 shrink-0">
+        <span className="text-xs text-muted-foreground whitespace-nowrap">Datum (HYPE):</span>
+        <input
+          type="date"
+          value={selectedDate}
+          min="1961-01-01"
+          onChange={e => setSelectedDate(e.target.value)}
+          className="flex-1 text-xs bg-background border border-border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-sgu-maroon"
+        />
+        <button
+          onClick={() => fetchData()}
+          disabled={loading}
+          className="shrink-0 p-1.5 rounded hover:bg-secondary transition-colors disabled:opacity-50"
+          title="Uppdatera"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 text-muted-foreground ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
 

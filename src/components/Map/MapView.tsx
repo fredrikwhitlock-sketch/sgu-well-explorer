@@ -127,6 +127,9 @@ export const MapView = () => {
   const jorddjupSprickLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const loadWellsForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
   const loadSoilTypesForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
+  const loadJorddjupObsForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
+  const loadJorddjupKartorForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
+  const loadJorddjupSprickForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
   const hypoAreasSourceRef = useRef<VectorSource | null>(null);
   const hypoFyllnadSmaLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const hypoFyllnadStoraLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
@@ -937,40 +940,50 @@ export const MapView = () => {
     });
     observationsLayerRef.current = observationsLayer;
 
-    // ── Jorddjupsmodell – tre kollektioner ───────────────────────────────────
+    // ── Jorddjupsmodell – tre kollektioner (extent-based loading, minzoom 12) ──
+
+    const loadedJorddjupObsExtents: string[] = [];
+    const loadedJorddjupKartorExtents: string[] = [];
+    const loadedJorddjupSprickExtents: string[] = [];
+    const MIN_ZOOM_FOR_JORDDJUP = 12;
 
     // 1. Punktobservationer (underlag-jorddjup) – färgas efter djup
-    const jorddjupObsSource = new VectorSource({
-      format: new GeoJSON(),
-      loader: async () => {
-        try {
-          setLoadingJorddjupObs(true);
-          setJorddjupObsLoaded(0);
-          const all = await fetchAllPages(
-            `https://api.sgu.se/oppnadata/jorddjupsmodell/ogc/features/v1/collections/underlag-jorddjup/items?f=json`,
-            (n) => setJorddjupObsLoaded(n)
+    const jorddjupObsSource = new VectorSource({ format: new GeoJSON() });
+
+    const loadJorddjupObsForExtent = async (extent: number[]) => {
+      const zoom = mapInstanceRef.current?.getView().getZoom() || 0;
+      if (zoom < MIN_ZOOM_FOR_JORDDJUP) return;
+      const gridKey = extentToGridKey(extent);
+      if (loadedJorddjupObsExtents.includes(gridKey)) return;
+      const [minX, minY, maxX, maxY] = extent;
+      const minLon = (minX / 20037508.34) * 180;
+      const maxLon = (maxX / 20037508.34) * 180;
+      const minLat = (Math.atan(Math.exp((minY / 20037508.34) * Math.PI)) * 360 / Math.PI) - 90;
+      const maxLat = (Math.atan(Math.exp((maxY / 20037508.34) * Math.PI)) * 360 / Math.PI) - 90;
+      setLoadingJorddjupObs(true);
+      try {
+        const all = await fetchAllPages(
+          `https://api.sgu.se/oppnadata/jorddjupsmodell/ogc/features/v1/collections/underlag-jorddjup/items?f=json&bbox=${minLon},${minLat},${maxLon},${maxLat}`,
+          (n) => setJorddjupObsLoaded(jorddjupObsSource.getFeatures().length + n)
+        );
+        if (all.length > 0) {
+          const feats = new GeoJSON().readFeatures(
+            { type: "FeatureCollection", features: all },
+            { dataProjection: "EPSG:3006", featureProjection: "EPSG:3857" }
           );
-          if (all.length > 0) {
-            const feats = new GeoJSON().readFeatures(
-              { type: "FeatureCollection", features: all },
-              { dataProjection: "EPSG:3006", featureProjection: "EPSG:3857" }
-            );
-            jorddjupObsSource.addFeatures(feats);
-            setJorddjupObsLoaded(feats.length);
-            if (jorddjupObsLayerRef.current) {
-              jorddjupObsLayerRef.current.setVisible(true);
-              jorddjupObsLayerRef.current.changed();
-            }
-            toast.success(`Laddade ${feats.length} jorddjupsobservationer`);
-          }
-        } catch (e) {
-          console.error("Error loading jorddjup obs:", e);
-          toast.error("Kunde inte ladda jorddjupsobservationer");
-        } finally {
-          setLoadingJorddjupObs(false);
+          jorddjupObsSource.addFeatures(feats);
+          setJorddjupObsLoaded(jorddjupObsSource.getFeatures().length);
+          jorddjupObsLayerRef.current?.changed();
         }
-      },
-    });
+        loadedJorddjupObsExtents.push(gridKey);
+      } catch (e) {
+        console.error("Error loading jorddjup obs:", e);
+        toast.error("Kunde inte ladda jorddjupsobservationer");
+      } finally {
+        setLoadingJorddjupObs(false);
+      }
+    };
+    loadJorddjupObsForExtentRef.current = loadJorddjupObsForExtent;
 
     const jorddjupObsStyleFn = (feature: any) => {
       const djup = feature.get('djup') ?? 0;
@@ -997,37 +1010,42 @@ export const MapView = () => {
     jorddjupObsLayerRef.current = jorddjupObsLayer;
 
     // 2. Jordartskartor-polygoner (underlag-jordartskartor)
-    const jorddjupKartorSource = new VectorSource({
-      format: new GeoJSON(),
-      loader: async () => {
-        try {
-          setLoadingJorddjupKartor(true);
-          setJorddjupKartorLoaded(0);
-          const all = await fetchAllPages(
-            `https://api.sgu.se/oppnadata/jorddjupsmodell/ogc/features/v1/collections/underlag-jordartskartor/items?f=json`,
-            (n) => setJorddjupKartorLoaded(n)
+    const jorddjupKartorSource = new VectorSource({ format: new GeoJSON() });
+
+    const loadJorddjupKartorForExtent = async (extent: number[]) => {
+      const zoom = mapInstanceRef.current?.getView().getZoom() || 0;
+      if (zoom < MIN_ZOOM_FOR_JORDDJUP) return;
+      const gridKey = extentToGridKey(extent);
+      if (loadedJorddjupKartorExtents.includes(gridKey)) return;
+      const [minX, minY, maxX, maxY] = extent;
+      const minLon = (minX / 20037508.34) * 180;
+      const maxLon = (maxX / 20037508.34) * 180;
+      const minLat = (Math.atan(Math.exp((minY / 20037508.34) * Math.PI)) * 360 / Math.PI) - 90;
+      const maxLat = (Math.atan(Math.exp((maxY / 20037508.34) * Math.PI)) * 360 / Math.PI) - 90;
+      setLoadingJorddjupKartor(true);
+      try {
+        const all = await fetchAllPages(
+          `https://api.sgu.se/oppnadata/jorddjupsmodell/ogc/features/v1/collections/underlag-jordartskartor/items?f=json&bbox=${minLon},${minLat},${maxLon},${maxLat}`,
+          (n) => setJorddjupKartorLoaded(jorddjupKartorSource.getFeatures().length + n)
+        );
+        if (all.length > 0) {
+          const feats = new GeoJSON().readFeatures(
+            { type: "FeatureCollection", features: all },
+            { dataProjection: "EPSG:3006", featureProjection: "EPSG:3857" }
           );
-          if (all.length > 0) {
-            const feats = new GeoJSON().readFeatures(
-              { type: "FeatureCollection", features: all },
-              { dataProjection: "EPSG:3006", featureProjection: "EPSG:3857" }
-            );
-            jorddjupKartorSource.addFeatures(feats);
-            setJorddjupKartorLoaded(feats.length);
-            if (jorddjupKartorLayerRef.current) {
-              jorddjupKartorLayerRef.current.setVisible(true);
-              jorddjupKartorLayerRef.current.changed();
-            }
-            toast.success(`Laddade ${feats.length} jordartskartområden`);
-          }
-        } catch (e) {
-          console.error("Error loading jorddjup kartor:", e);
-          toast.error("Kunde inte ladda jordartskartor");
-        } finally {
-          setLoadingJorddjupKartor(false);
+          jorddjupKartorSource.addFeatures(feats);
+          setJorddjupKartorLoaded(jorddjupKartorSource.getFeatures().length);
+          jorddjupKartorLayerRef.current?.changed();
         }
-      },
-    });
+        loadedJorddjupKartorExtents.push(gridKey);
+      } catch (e) {
+        console.error("Error loading jorddjup kartor:", e);
+        toast.error("Kunde inte ladda jordartskartor");
+      } finally {
+        setLoadingJorddjupKartor(false);
+      }
+    };
+    loadJorddjupKartorForExtentRef.current = loadJorddjupKartorForExtent;
 
     const jorddjupKartorLayer = new VectorLayer({
       source: jorddjupKartorSource,
@@ -1040,37 +1058,42 @@ export const MapView = () => {
     jorddjupKartorLayerRef.current = jorddjupKartorLayer;
 
     // 3. Sprickzoner (underlag-sprickzoner) – linjer
-    const jorddjupSprickSource = new VectorSource({
-      format: new GeoJSON(),
-      loader: async () => {
-        try {
-          setLoadingJorddjupSprick(true);
-          setJorddjupSprickLoaded(0);
-          const all = await fetchAllPages(
-            `https://api.sgu.se/oppnadata/jorddjupsmodell/ogc/features/v1/collections/underlag-sprickzoner/items?f=json`,
-            (n) => setJorddjupSprickLoaded(n)
+    const jorddjupSprickSource = new VectorSource({ format: new GeoJSON() });
+
+    const loadJorddjupSprickForExtent = async (extent: number[]) => {
+      const zoom = mapInstanceRef.current?.getView().getZoom() || 0;
+      if (zoom < MIN_ZOOM_FOR_JORDDJUP) return;
+      const gridKey = extentToGridKey(extent);
+      if (loadedJorddjupSprickExtents.includes(gridKey)) return;
+      const [minX, minY, maxX, maxY] = extent;
+      const minLon = (minX / 20037508.34) * 180;
+      const maxLon = (maxX / 20037508.34) * 180;
+      const minLat = (Math.atan(Math.exp((minY / 20037508.34) * Math.PI)) * 360 / Math.PI) - 90;
+      const maxLat = (Math.atan(Math.exp((maxY / 20037508.34) * Math.PI)) * 360 / Math.PI) - 90;
+      setLoadingJorddjupSprick(true);
+      try {
+        const all = await fetchAllPages(
+          `https://api.sgu.se/oppnadata/jorddjupsmodell/ogc/features/v1/collections/underlag-sprickzoner/items?f=json&bbox=${minLon},${minLat},${maxLon},${maxLat}`,
+          (n) => setJorddjupSprickLoaded(jorddjupSprickSource.getFeatures().length + n)
+        );
+        if (all.length > 0) {
+          const feats = new GeoJSON().readFeatures(
+            { type: "FeatureCollection", features: all },
+            { dataProjection: "EPSG:3006", featureProjection: "EPSG:3857" }
           );
-          if (all.length > 0) {
-            const feats = new GeoJSON().readFeatures(
-              { type: "FeatureCollection", features: all },
-              { dataProjection: "EPSG:3006", featureProjection: "EPSG:3857" }
-            );
-            jorddjupSprickSource.addFeatures(feats);
-            setJorddjupSprickLoaded(feats.length);
-            if (jorddjupSprickLayerRef.current) {
-              jorddjupSprickLayerRef.current.setVisible(true);
-              jorddjupSprickLayerRef.current.changed();
-            }
-            toast.success(`Laddade ${feats.length} sprickzoner`);
-          }
-        } catch (e) {
-          console.error("Error loading sprickzoner:", e);
-          toast.error("Kunde inte ladda sprickzoner");
-        } finally {
-          setLoadingJorddjupSprick(false);
+          jorddjupSprickSource.addFeatures(feats);
+          setJorddjupSprickLoaded(jorddjupSprickSource.getFeatures().length);
+          jorddjupSprickLayerRef.current?.changed();
         }
-      },
-    });
+        loadedJorddjupSprickExtents.push(gridKey);
+      } catch (e) {
+        console.error("Error loading sprickzoner:", e);
+        toast.error("Kunde inte ladda sprickzoner");
+      } finally {
+        setLoadingJorddjupSprick(false);
+      }
+    };
+    loadJorddjupSprickForExtentRef.current = loadJorddjupSprickForExtent;
 
     const jorddjupSprickLayer = new VectorLayer({
       source: jorddjupSprickSource,
@@ -1368,6 +1391,16 @@ export const MapView = () => {
 
         if (soilTypesLayerRef.current?.getVisible() && loadSoilTypesForExtentRef.current) {
           loadSoilTypesForExtentRef.current(extent);
+        }
+
+        if (jorddjupObsLayerRef.current?.getVisible() && loadJorddjupObsForExtentRef.current) {
+          loadJorddjupObsForExtentRef.current(extent);
+        }
+        if (jorddjupKartorLayerRef.current?.getVisible() && loadJorddjupKartorForExtentRef.current) {
+          loadJorddjupKartorForExtentRef.current(extent);
+        }
+        if (jorddjupSprickLayerRef.current?.getVisible() && loadJorddjupSprickForExtentRef.current) {
+          loadJorddjupSprickForExtentRef.current(extent);
         }
       }
     });
@@ -1668,40 +1701,46 @@ export const MapView = () => {
     }
   }, [sguGvTillgangOpacity]);
 
-  // Jorddjupsmodell – load on first enable
+  // Jorddjupsmodell – extent-based loading (minzoom 12), same pattern as brunnar
   useEffect(() => {
     if (jorddjupObsLayerRef.current) {
-      if (jorddjupObsVisible && jorddjupObsLayerRef.current.getSource()?.getFeatures().length === 0) {
-        jorddjupObsLayerRef.current.getSource()?.loadFeatures(
-          jorddjupObsLayerRef.current.getSource()!.getExtent(), 1,
-          jorddjupObsLayerRef.current.getSource()!.getProjection()
-        );
-      }
       jorddjupObsLayerRef.current.setVisible(jorddjupObsVisible);
+      if (jorddjupObsVisible && mapInstanceRef.current && loadJorddjupObsForExtentRef.current) {
+        const zoom = mapInstanceRef.current.getView().getZoom() || 0;
+        if (zoom < 12) {
+          toast.info("Zooma in för att ladda jorddjupsobservationer (minst zoomnivå 12)");
+        } else {
+          loadJorddjupObsForExtentRef.current(mapInstanceRef.current.getView().calculateExtent());
+        }
+      }
     }
   }, [jorddjupObsVisible]);
 
   useEffect(() => {
     if (jorddjupKartorLayerRef.current) {
-      if (jorddjupKartorVisible && jorddjupKartorLayerRef.current.getSource()?.getFeatures().length === 0) {
-        jorddjupKartorLayerRef.current.getSource()?.loadFeatures(
-          jorddjupKartorLayerRef.current.getSource()!.getExtent(), 1,
-          jorddjupKartorLayerRef.current.getSource()!.getProjection()
-        );
-      }
       jorddjupKartorLayerRef.current.setVisible(jorddjupKartorVisible);
+      if (jorddjupKartorVisible && mapInstanceRef.current && loadJorddjupKartorForExtentRef.current) {
+        const zoom = mapInstanceRef.current.getView().getZoom() || 0;
+        if (zoom < 12) {
+          toast.info("Zooma in för att ladda jordartskartor (minst zoomnivå 12)");
+        } else {
+          loadJorddjupKartorForExtentRef.current(mapInstanceRef.current.getView().calculateExtent());
+        }
+      }
     }
   }, [jorddjupKartorVisible]);
 
   useEffect(() => {
     if (jorddjupSprickLayerRef.current) {
-      if (jorddjupSprickVisible && jorddjupSprickLayerRef.current.getSource()?.getFeatures().length === 0) {
-        jorddjupSprickLayerRef.current.getSource()?.loadFeatures(
-          jorddjupSprickLayerRef.current.getSource()!.getExtent(), 1,
-          jorddjupSprickLayerRef.current.getSource()!.getProjection()
-        );
-      }
       jorddjupSprickLayerRef.current.setVisible(jorddjupSprickVisible);
+      if (jorddjupSprickVisible && mapInstanceRef.current && loadJorddjupSprickForExtentRef.current) {
+        const zoom = mapInstanceRef.current.getView().getZoom() || 0;
+        if (zoom < 12) {
+          toast.info("Zooma in för att ladda sprickzoner (minst zoomnivå 12)");
+        } else {
+          loadJorddjupSprickForExtentRef.current(mapInstanceRef.current.getView().calculateExtent());
+        }
+      }
     }
   }, [jorddjupSprickVisible]);
 
