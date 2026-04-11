@@ -20,11 +20,12 @@ import { LayerPanel } from "./LayerPanel";
 import { CoordinateDisplay } from "./CoordinateDisplay";
 import { WellPopup } from "./WellPopup";
 import { SearchControl } from "./SearchControl";
+import { GrundvattenRapport } from "./GrundvattenRapport";
 
 import { ChartViewer } from "./ChartViewer";
 import WmsLegend from "./WmsLegend";
 import { AIChatPanel } from "./AIChatPanel";
-import { Search, Bot, Locate, Layers } from "lucide-react";
+import { Search, Bot, Locate, Layers, Droplets } from "lucide-react";
 import { toast } from "sonner";
 import { getSoilTypeColor } from "@/lib/soilTypeColors";
 import { exportWellsToCSV, exportFeaturesToCSV } from "@/lib/exportWells";
@@ -146,6 +147,7 @@ export const MapView = () => {
   const geolocationLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const geolocationWatchRef = useRef<number | null>(null);
   const [isTracking, setIsTracking] = useState(false);
+  const rapportModeRef = useRef(false);
 
   useEffect(() => {
     if (!mapRef.current) return;
@@ -1280,6 +1282,12 @@ export const MapView = () => {
 
     // Handle feature clicks - collect all features at the same location
     map.on("click", async (evt) => {
+      // In rapport mode, set coordinate and show the analysis panel instead of feature popup
+      if (rapportModeRef.current) {
+        setRapportCoordinate([evt.coordinate[0], evt.coordinate[1]]);
+        return;
+      }
+
       const clickedItems: { properties: Record<string, any>; type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType' | 'gvTillgang' | 'observation' | 'hypoArea' | 'jorddjupObs' | 'jorddjupKartor' | 'jorddjupSprick' }[] = [];
 
       const hypoLayers = [hypoFyllnadSmaLayer, hypoFyllnadStoraLayer, hypoSitSmaLayer, hypoSitStoraLayer];
@@ -1729,6 +1737,11 @@ export const MapView = () => {
     }
   }, [hypoAreasDate]);
 
+  // Keep rapportModeRef in sync so the map click handler closure can read current value
+  useEffect(() => {
+    rapportModeRef.current = rapportMode;
+  }, [rapportMode]);
+
   const handleSearchResult = (coordinates: [number, number], zoom?: number) => {
     if (mapInstanceRef.current) {
       mapInstanceRef.current.getView().animate({
@@ -1741,6 +1754,9 @@ export const MapView = () => {
 
   const [activePanel, setActivePanel] = useState<'search' | 'locate' | 'layers' | null>(null);
   const [aiChatOpen, setAiChatOpen] = useState(false);
+  const [rapportMode, setRapportMode] = useState(false);
+  const [rapportCoordinate, setRapportCoordinate] = useState<[number, number] | null>(null);
+  const wmsProxyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wms-proxy`;
 
   const openPanel = (panel: 'search' | 'locate' | 'layers') => {
     setActivePanel(prev => prev === panel ? null : panel);
@@ -1786,6 +1802,18 @@ export const MapView = () => {
             title="Kartlager"
           >
             <Layers className="w-5 h-5" />
+          </button>
+          <div className="h-px bg-border mx-2" />
+          {/* Grundvattenanalys */}
+          <button
+            onClick={() => {
+              setRapportMode(prev => !prev);
+              setRapportCoordinate(null);
+            }}
+            className={`w-12 h-12 flex items-center justify-center transition-colors ${rapportMode ? 'bg-sgu-maroon text-white' : 'hover:bg-secondary text-muted-foreground'}`}
+            title={rapportMode ? 'Avsluta grundvattenanalys' : 'Grundvattenanalys – klicka på kartan'}
+          >
+            <Droplets className="w-5 h-5" />
           </button>
           <div className="h-px bg-border mx-2" />
           {/* AI-analys */}
@@ -2148,6 +2176,23 @@ export const MapView = () => {
           totalFeatures={selectedFeatures.length}
           currentFeatureIndex={selectedFeatureIndex}
           onNavigateFeature={(index) => setSelectedFeatureIndex(index)}
+        />
+      )}
+
+      {rapportMode && !rapportCoordinate && (
+        <div className="absolute left-1/2 -translate-x-1/2 top-4 z-30 bg-sgu-maroon text-white text-sm px-4 py-2 rounded-full shadow-lg pointer-events-none">
+          Klicka på kartan för att analysera en punkt
+        </div>
+      )}
+
+      {rapportCoordinate && (
+        <GrundvattenRapport
+          coordinate={rapportCoordinate}
+          wmsProxyUrl={wmsProxyUrl}
+          onClose={() => {
+            setRapportCoordinate(null);
+            setRapportMode(false);
+          }}
         />
       )}
 
