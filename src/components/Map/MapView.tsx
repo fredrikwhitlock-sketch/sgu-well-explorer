@@ -1737,11 +1737,6 @@ export const MapView = () => {
     }
   }, [hypoAreasDate]);
 
-  // Keep rapportModeRef in sync so the map click handler closure can read current value
-  useEffect(() => {
-    rapportModeRef.current = rapportMode;
-  }, [rapportMode]);
-
   const handleSearchResult = (coordinates: [number, number], zoom?: number) => {
     if (mapInstanceRef.current) {
       mapInstanceRef.current.getView().animate({
