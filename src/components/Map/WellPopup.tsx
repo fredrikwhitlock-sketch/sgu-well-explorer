@@ -14,7 +14,7 @@ interface LagerItem {
 
 interface WellPopupProps {
   properties: Record<string, any>;
-  type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType' | 'gvTillgang' | 'observation' | 'hypoArea';
+  type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType' | 'gvTillgang' | 'observation' | 'hypoArea' | 'jorddjupObs' | 'jorddjupKartor' | 'jorddjupSprick';
   analysisResults?: any[];
   onClose: () => void;
   onOpenChart?: (location: { id: string; name: string; type: 'level' | 'quality'; platsbeteckning?: string; provplatsid?: string }) => void;
@@ -191,6 +191,9 @@ export const WellPopup = ({
     if (type === 'gvTillgang') return 'Grundvattentillgång';
     if (type === 'observation') return 'Observation';
     if (type === 'hypoArea') return 'Beräknad grundvattennivå';
+    if (type === 'jorddjupObs') return 'Jorddjupsobservation';
+    if (type === 'jorddjupKartor') return 'Jordartskartor – underlag';
+    if (type === 'jorddjupSprick') return 'Sprickzon – underlag';
     return 'Källinformation';
   };
 
@@ -1168,6 +1171,97 @@ export const WellPopup = ({
                 className="text-sm text-sgu-link hover:underline inline-flex items-center gap-1"
               >
                 Produktbeskrivning <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+          </>
+        ) : type === 'jorddjupObs' ? (
+          <>
+            {properties.djup !== undefined && (
+              <div className="bg-primary/10 rounded-lg p-3">
+                <dt className="text-xs font-medium text-muted-foreground">Jorddjup</dt>
+                <dd className="text-2xl font-bold text-foreground mt-1">{properties.djup} m</dd>
+              </div>
+            )}
+            {properties.avslut && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Avslut</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.avslut)}</dd>
+              </div>
+            )}
+            {properties.db_del && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Datakälla</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.db_del)}</dd>
+              </div>
+            )}
+            {(properties.n !== undefined || properties.e !== undefined) && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Koordinater (SWEREF99)</dt>
+                <dd className="text-sm text-foreground mt-1">N {properties.n} / E {properties.e}</dd>
+              </div>
+            )}
+            <div className="mt-2">
+              <a href="https://www.sgu.se/produkter-och-tjanster/geologiska-data/jorddjupsmodell/" target="_blank" rel="noopener noreferrer" className="text-sm text-sgu-link hover:underline inline-flex items-center gap-1">
+                Om jorddjupsmodellen <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+          </>
+        ) : type === 'jorddjupKartor' ? (
+          <>
+            {properties.karttyp !== undefined && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Karttyp</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.karttyp)}</dd>
+              </div>
+            )}
+            {properties.kartering && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Kartering</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.kartering)}</dd>
+              </div>
+            )}
+            {properties.insamling && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Insamlingsmetod</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.insamling)}</dd>
+              </div>
+            )}
+            {properties.rek_skala && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Rekommenderad skala</dt>
+                <dd className="text-sm text-foreground mt-1">1:{formatValue(properties.rek_skala)}</dd>
+              </div>
+            )}
+            {properties.avslut_ar && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Avslutningsår</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.avslut_ar)}</dd>
+              </div>
+            )}
+            {properties.und_hojd && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Höjdmodell</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.und_hojd)}</dd>
+              </div>
+            )}
+          </>
+        ) : type === 'jorddjupSprick' ? (
+          <>
+            {properties.struktur && (
+              <div className="bg-primary/10 rounded-lg p-3">
+                <dt className="text-xs font-medium text-muted-foreground">Struktur</dt>
+                <dd className="text-sm font-semibold text-foreground mt-1">{formatValue(properties.struktur)}</dd>
+              </div>
+            )}
+            {properties.geom_length !== undefined && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Längd</dt>
+                <dd className="text-sm text-foreground mt-1">{Math.round(properties.geom_length)} m</dd>
+              </div>
+            )}
+            <div className="mt-2">
+              <a href="https://www.sgu.se/produkter-och-tjanster/geologiska-data/jorddjupsmodell/" target="_blank" rel="noopener noreferrer" className="text-sm text-sgu-link hover:underline inline-flex items-center gap-1">
+                Om jorddjupsmodellen <ExternalLink className="w-3 h-3" />
               </a>
             </div>
           </>
