@@ -84,12 +84,18 @@ interface LayerPanelProps {
   onClearGwQuality?: () => void;
   onExportObservations?: () => void;
   onClearObservations?: () => void;
-  hypoAreasVisible: boolean;
+  hypoFyllnadSmaVisible: boolean;
+  hypoFyllnadStoraVisible: boolean;
+  hypoSitSmaVisible: boolean;
+  hypoSitStoraVisible: boolean;
   loadingHypoAreas: boolean;
   hypoAreasLoaded: number;
   hypoAreasOpacity: number;
   hypoAreasDate: string;
-  onHypoAreasVisibleChange: (visible: boolean) => void;
+  onHypoFyllnadSmaVisibleChange: (v: boolean) => void;
+  onHypoFyllnadStoraVisibleChange: (v: boolean) => void;
+  onHypoSitSmaVisibleChange: (v: boolean) => void;
+  onHypoSitStoraVisibleChange: (v: boolean) => void;
   onHypoAreasOpacityChange: (opacity: number) => void;
   onHypoAreasDateChange: (date: string) => void;
   onClearHypoAreas?: () => void;
@@ -171,12 +177,18 @@ export const LayerPanel = ({
   onClearGwQuality,
   onExportObservations,
   onClearObservations,
-  hypoAreasVisible,
+  hypoFyllnadSmaVisible,
+  hypoFyllnadStoraVisible,
+  hypoSitSmaVisible,
+  hypoSitStoraVisible,
   loadingHypoAreas,
   hypoAreasLoaded,
   hypoAreasOpacity,
   hypoAreasDate,
-  onHypoAreasVisibleChange,
+  onHypoFyllnadSmaVisibleChange,
+  onHypoFyllnadStoraVisibleChange,
+  onHypoSitSmaVisibleChange,
+  onHypoSitStoraVisibleChange,
   onHypoAreasOpacityChange,
   onHypoAreasDateChange,
   onClearHypoAreas,
@@ -565,31 +577,35 @@ export const LayerPanel = ({
           )}
         </div>
 
-        {/* HYPE Beräknade grundvattennivåer Layer Control */}
+        {/* HYPE Beräknade grundvattennivåer – fyra lager */}
         <div className="space-y-3 pt-4 border-t border-border">
-          <div className="flex items-center justify-between">
-            <div className="space-y-1">
-              <Label htmlFor="hypo-areas-layer" className="text-sm font-medium">
-                Beräknade grundvattennivåer
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                SGU-HYPE {loadingHypoAreas ? '(laddar…)' : hypoAreasLoaded > 0 ? `(${hypoAreasLoaded} områden)` : ''}
-              </p>
-            </div>
-            <Switch
-              id="hypo-areas-layer"
-              checked={hypoAreasVisible}
-              onCheckedChange={onHypoAreasVisibleChange}
-            />
+          <div className="space-y-1">
+            <Label className="text-sm font-medium">Beräknade grundvattennivåer</Label>
+            <p className="text-xs text-muted-foreground">
+              SGU-HYPE {loadingHypoAreas ? '(laddar…)' : hypoAreasLoaded > 0 ? `(${hypoAreasLoaded} områden)` : ''}
+            </p>
           </div>
 
-          {hypoAreasVisible && (
-            <div className="mt-3 space-y-3">
+          {/* Four sub-layer toggles */}
+          <div className="space-y-2 pl-1">
+            {[
+              { id: 'hypo-fyllnad-sma', label: 'Fyllnadsgrad – Små magasin', checked: hypoFyllnadSmaVisible, onChange: onHypoFyllnadSmaVisibleChange },
+              { id: 'hypo-fyllnad-stora', label: 'Fyllnadsgrad – Stora magasin', checked: hypoFyllnadStoraVisible, onChange: onHypoFyllnadStoraVisibleChange },
+              { id: 'hypo-sit-sma', label: 'Grundvattensituation – Små magasin', checked: hypoSitSmaVisible, onChange: onHypoSitSmaVisibleChange },
+              { id: 'hypo-sit-stora', label: 'Grundvattensituation – Stora magasin', checked: hypoSitStoraVisible, onChange: onHypoSitStoraVisibleChange },
+            ].map(({ id, label, checked, onChange }) => (
+              <div key={id} className="flex items-center justify-between">
+                <Label htmlFor={id} className="text-xs text-foreground cursor-pointer">{label}</Label>
+                <Switch id={id} checked={checked} onCheckedChange={onChange} />
+              </div>
+            ))}
+          </div>
+
+          {(hypoFyllnadSmaVisible || hypoFyllnadStoraVisible || hypoSitSmaVisible || hypoSitStoraVisible) && (
+            <div className="space-y-3">
               {/* Date selector */}
               <div className="space-y-1">
-                <Label htmlFor="hypo-areas-date" className="text-xs text-muted-foreground">
-                  Månad
-                </Label>
+                <Label htmlFor="hypo-areas-date" className="text-xs text-muted-foreground">Månad</Label>
                 <input
                   id="hypo-areas-date"
                   type="month"
@@ -608,24 +624,22 @@ export const LayerPanel = ({
                 </Label>
                 <Slider
                   id="hypo-areas-opacity"
-                  min={0}
-                  max={1}
-                  step={0.1}
+                  min={0} max={1} step={0.1}
                   value={[hypoAreasOpacity]}
-                  onValueChange={([value]) => onHypoAreasOpacityChange(value)}
+                  onValueChange={([v]) => onHypoAreasOpacityChange(v)}
                   className="w-full"
                 />
               </div>
 
               {/* Legend */}
               <div className="space-y-1 text-xs">
-                <p className="text-muted-foreground font-medium">Fyllnadsgrad (percentil):</p>
+                <p className="text-muted-foreground font-medium">Färgskala (percentil):</p>
                 {[
-                  { color: 'rgb(165,0,38)', label: 'Mycket under normalt (<10%)' },
-                  { color: 'rgb(215,90,40)', label: 'Under normalt (10–25%)' },
-                  { color: 'rgb(254,224,70)', label: 'Normalt (25–75%)' },
-                  { color: 'rgb(90,174,97)', label: 'Över normalt (75–90%)' },
-                  { color: 'rgb(0,104,55)', label: 'Mycket över normalt (>90%)' },
+                  { color: 'rgb(165,0,38)',   label: 'Mycket under normalt (<10%)' },
+                  { color: 'rgb(215,90,40)',   label: 'Under normalt (10–25%)' },
+                  { color: 'rgb(254,224,70)',  label: 'Normalt (25–75%)' },
+                  { color: 'rgb(90,174,97)',   label: 'Över normalt (75–90%)' },
+                  { color: 'rgb(0,104,55)',    label: 'Mycket över normalt (>90%)' },
                   { color: 'rgb(200,200,200)', label: 'Ingen data' },
                 ].map(({ color, label }) => (
                   <div key={label} className="flex items-center gap-2">
