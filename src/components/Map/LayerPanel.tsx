@@ -605,13 +605,12 @@ export const LayerPanel = ({
             <div className="space-y-3">
               {/* Date selector */}
               <div className="space-y-1">
-                <Label htmlFor="hypo-areas-date" className="text-xs text-muted-foreground">Månad</Label>
+                <Label htmlFor="hypo-areas-date" className="text-xs text-muted-foreground">Datum</Label>
                 <input
                   id="hypo-areas-date"
-                  type="month"
+                  type="date"
                   value={hypoAreasDate}
-                  min="1961-01"
-                  max="2025-12"
+                  min="1961-01-01"
                   onChange={(e) => onHypoAreasDateChange(e.target.value)}
                   className="w-full text-xs border border-border rounded px-2 py-1 bg-background text-foreground"
                 />
