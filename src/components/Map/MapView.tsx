@@ -98,7 +98,7 @@ export const MapView = () => {
   const [loadingHypoAreas, setLoadingHypoAreas] = useState(false);
   const [hypoAreasLoaded, setHypoAreasLoaded] = useState(0);
   const [hypoAreasOpacity, setHypoAreasOpacity] = useState(0.7);
-  const [hypoAreasDate, setHypoAreasDate] = useState('2024-01');
+  const [hypoAreasDate, setHypoAreasDate] = useState('2024-01-01');
   const [chartOpen, setChartOpen] = useState(false);
   const [chartLocation, setChartLocation] = useState<ChartLocation | null>(null);
   const [chartLocations, setChartLocations] = useState<ChartLocation[]>([]);
@@ -119,7 +119,7 @@ export const MapView = () => {
   const hypoSitSmaLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const hypoSitStoraLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const fetchAndJoinHypoLevelsRef = useRef<((date: string) => Promise<void>) | null>(null);
-  const hypoAreasDateRef = useRef('2024-01');
+  const hypoAreasDateRef = useRef('2024-01-01');
   // Lantmäteriet WMS layer refs
   const topoWebbLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
   const ortofotoLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
@@ -992,7 +992,7 @@ export const MapView = () => {
 
     // Fetch and join level data – uses fetchAllPages for full pagination
     const fetchAndJoinHypoLevels = async (date: string) => {
-      const apiDate = date.length === 7 ? `${date}-01` : date;
+      const apiDate = date;
       try {
         const baseUrl = `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/grundvattennivaer-tidigare/items?f=json&filter=${encodeURIComponent(`datum='${apiDate}'`)}`;
         const allLevelFeatures = await fetchAllPages(baseUrl);
