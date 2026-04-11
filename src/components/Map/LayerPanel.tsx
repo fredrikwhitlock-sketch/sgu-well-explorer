@@ -84,6 +84,15 @@ interface LayerPanelProps {
   onClearGwQuality?: () => void;
   onExportObservations?: () => void;
   onClearObservations?: () => void;
+  hypoAreasVisible: boolean;
+  loadingHypoAreas: boolean;
+  hypoAreasLoaded: number;
+  hypoAreasOpacity: number;
+  hypoAreasDate: string;
+  onHypoAreasVisibleChange: (visible: boolean) => void;
+  onHypoAreasOpacityChange: (opacity: number) => void;
+  onHypoAreasDateChange: (date: string) => void;
+  onClearHypoAreas?: () => void;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -162,6 +171,15 @@ export const LayerPanel = ({
   onClearGwQuality,
   onExportObservations,
   onClearObservations,
+  hypoAreasVisible,
+  loadingHypoAreas,
+  hypoAreasLoaded,
+  hypoAreasOpacity,
+  hypoAreasDate,
+  onHypoAreasVisibleChange,
+  onHypoAreasOpacityChange,
+  onHypoAreasDateChange,
+  onClearHypoAreas,
   isOpen,
   onClose,
 }: LayerPanelProps) => {
@@ -543,6 +561,98 @@ export const LayerPanel = ({
                   )}
                 </div>
               )}
+            </div>
+          )}
+        </div>
+
+        {/* HYPE Beräknade grundvattennivåer Layer Control */}
+        <div className="space-y-3 pt-4 border-t border-border">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label htmlFor="hypo-areas-layer" className="text-sm font-medium">
+                Beräknade grundvattennivåer
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                SGU-HYPE {loadingHypoAreas ? '(laddar…)' : hypoAreasLoaded > 0 ? `(${hypoAreasLoaded} områden)` : ''}
+              </p>
+            </div>
+            <Switch
+              id="hypo-areas-layer"
+              checked={hypoAreasVisible}
+              onCheckedChange={onHypoAreasVisibleChange}
+            />
+          </div>
+
+          {hypoAreasVisible && (
+            <div className="mt-3 space-y-3">
+              {/* Date selector */}
+              <div className="space-y-1">
+                <Label htmlFor="hypo-areas-date" className="text-xs text-muted-foreground">
+                  Månad
+                </Label>
+                <input
+                  id="hypo-areas-date"
+                  type="month"
+                  value={hypoAreasDate}
+                  min="1961-01"
+                  max="2025-12"
+                  onChange={(e) => onHypoAreasDateChange(e.target.value)}
+                  className="w-full text-xs border border-border rounded px-2 py-1 bg-background text-foreground"
+                />
+              </div>
+
+              {/* Opacity slider */}
+              <div className="space-y-2">
+                <Label htmlFor="hypo-areas-opacity" className="text-xs text-muted-foreground">
+                  Transparens: {Math.round(hypoAreasOpacity * 100)}%
+                </Label>
+                <Slider
+                  id="hypo-areas-opacity"
+                  min={0}
+                  max={1}
+                  step={0.1}
+                  value={[hypoAreasOpacity]}
+                  onValueChange={([value]) => onHypoAreasOpacityChange(value)}
+                  className="w-full"
+                />
+              </div>
+
+              {/* Legend */}
+              <div className="space-y-1 text-xs">
+                <p className="text-muted-foreground font-medium">Fyllnadsgrad (percentil):</p>
+                {[
+                  { color: 'rgb(165,0,38)', label: 'Mycket under normalt (<10%)' },
+                  { color: 'rgb(215,90,40)', label: 'Under normalt (10–25%)' },
+                  { color: 'rgb(254,224,70)', label: 'Normalt (25–75%)' },
+                  { color: 'rgb(90,174,97)', label: 'Över normalt (75–90%)' },
+                  { color: 'rgb(0,104,55)', label: 'Mycket över normalt (>90%)' },
+                  { color: 'rgb(200,200,200)', label: 'Ingen data' },
+                ].map(({ color, label }) => (
+                  <div key={label} className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-sm shrink-0" style={{ backgroundColor: color }} />
+                    <span className="text-muted-foreground">{label}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="text-xs space-y-1">
+                <a
+                  href="https://www.sgu.se/grundvatten/grundvattennivaer/berakningsmodell/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sgu-link hover:underline inline-flex items-center gap-1"
+                >
+                  Om beräkningsmodellen <ExternalLink className="w-3 h-3" />
+                </a>
+                {hypoAreasLoaded > 0 && onClearHypoAreas && (
+                  <div>
+                    <Button variant="outline" size="sm" onClick={onClearHypoAreas} className="text-xs h-7 mt-1">
+                      <Trash2 className="w-3 h-3 mr-1" />
+                      Rensa ({hypoAreasLoaded})
+                    </Button>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>

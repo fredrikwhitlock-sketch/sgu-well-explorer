@@ -14,7 +14,7 @@ interface LagerItem {
 
 interface WellPopupProps {
   properties: Record<string, any>;
-  type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType' | 'gvTillgang' | 'observation';
+  type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType' | 'gvTillgang' | 'observation' | 'hypoArea';
   analysisResults?: any[];
   onClose: () => void;
   onOpenChart?: (location: { id: string; name: string; type: 'level' | 'quality'; platsbeteckning?: string; provplatsid?: string }) => void;
@@ -190,6 +190,7 @@ export const WellPopup = ({
     if (type === 'soilType') return 'Jordartsinformation';
     if (type === 'gvTillgang') return 'Grundvattentillgång';
     if (type === 'observation') return 'Observation';
+    if (type === 'hypoArea') return 'Beräknad grundvattennivå';
     return 'Källinformation';
   };
 
@@ -1160,13 +1161,118 @@ export const WellPopup = ({
                 </div>
               ))}
             <div className="mt-2">
-              <a 
-                href="https://resource.sgu.se/dokument/produkter/grundvattentillgang-sma-magasin-beskrivning.pdf" 
-                target="_blank" 
+              <a
+                href="https://resource.sgu.se/dokument/produkter/grundvattentillgang-sma-magasin-beskrivning.pdf"
+                target="_blank"
                 rel="noopener noreferrer"
                 className="text-sm text-sgu-link hover:underline inline-flex items-center gap-1"
               >
                 Produktbeskrivning <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+          </>
+        ) : type === 'hypoArea' ? (
+          <>
+            {/* Area ID */}
+            {properties.omrade_id !== undefined && (
+              <div className="bg-primary/10 rounded-lg p-3">
+                <dt className="text-xs font-medium text-muted-foreground">Område-ID (HYPE)</dt>
+                <dd className="text-lg font-bold text-foreground mt-1">{properties.omrade_id}</dd>
+              </div>
+            )}
+
+            {/* Datum */}
+            {properties.datum && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Datum</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.datum)}</dd>
+              </div>
+            )}
+
+            <Separator className="my-3" />
+
+            {/* Små magasin */}
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Små magasin</p>
+
+            {properties.fyllnadsgrad_sma !== undefined && properties.fyllnadsgrad_sma !== null && properties.fyllnadsgrad_sma !== -1 && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Fyllnadsgrad (percentil)</dt>
+                <dd className="text-sm text-foreground mt-1 font-semibold">
+                  {properties.fyllnadsgrad_sma}%
+                  {' '}
+                  <span className="font-normal text-muted-foreground">
+                    {properties.fyllnadsgrad_sma < 10 ? '— Mycket under normalt' :
+                     properties.fyllnadsgrad_sma < 25 ? '— Under normalt' :
+                     properties.fyllnadsgrad_sma < 75 ? '— Normalt' :
+                     properties.fyllnadsgrad_sma < 90 ? '— Över normalt' :
+                     '— Mycket över normalt'}
+                  </span>
+                </dd>
+              </div>
+            )}
+
+            {properties.grundvattensituation_sma !== undefined && properties.grundvattensituation_sma !== null && properties.grundvattensituation_sma !== -1 && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Grundvattensituation</dt>
+                <dd className="text-sm text-foreground mt-1">{properties.grundvattensituation_sma}</dd>
+              </div>
+            )}
+
+            {/* Stora magasin */}
+            {(properties.fyllnadsgrad_stora !== undefined && properties.fyllnadsgrad_stora !== -1) && (
+              <>
+                <Separator className="my-3" />
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Stora magasin</p>
+
+                {properties.fyllnadsgrad_stora !== -1 && (
+                  <div>
+                    <dt className="text-xs font-medium text-muted-foreground">Fyllnadsgrad (percentil)</dt>
+                    <dd className="text-sm text-foreground mt-1 font-semibold">
+                      {properties.fyllnadsgrad_stora}%
+                      {' '}
+                      <span className="font-normal text-muted-foreground">
+                        {properties.fyllnadsgrad_stora < 10 ? '— Mycket under normalt' :
+                         properties.fyllnadsgrad_stora < 25 ? '— Under normalt' :
+                         properties.fyllnadsgrad_stora < 75 ? '— Normalt' :
+                         properties.fyllnadsgrad_stora < 90 ? '— Över normalt' :
+                         '— Mycket över normalt'}
+                      </span>
+                    </dd>
+                  </div>
+                )}
+
+                {properties.grundvattensituation_stora !== undefined && properties.grundvattensituation_stora !== -1 && (
+                  <div>
+                    <dt className="text-xs font-medium text-muted-foreground">Grundvattensituation</dt>
+                    <dd className="text-sm text-foreground mt-1">{properties.grundvattensituation_stora}</dd>
+                  </div>
+                )}
+              </>
+            )}
+
+            <Separator className="my-3" />
+
+            {/* Time series link */}
+            {properties.url_tidsserie && (
+              <div>
+                <a
+                  href={properties.url_tidsserie}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-sgu-link hover:underline inline-flex items-center gap-1"
+                >
+                  Tidsserie för detta område <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+            )}
+            <div className="mt-2">
+              <a
+                href="https://www.sgu.se/grundvatten/grundvattennivaer/berakningsmodell/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-sgu-link hover:underline inline-flex items-center gap-1"
+              >
+                Om beräkningsmodellen <ExternalLink className="w-3 h-3" />
               </a>
             </div>
           </>
