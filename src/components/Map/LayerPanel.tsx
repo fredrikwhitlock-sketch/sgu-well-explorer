@@ -84,6 +84,21 @@ interface LayerPanelProps {
   onClearGwQuality?: () => void;
   onExportObservations?: () => void;
   onClearObservations?: () => void;
+  jorddjupObsVisible: boolean;
+  jorddjupKartorVisible: boolean;
+  jorddjupSprickVisible: boolean;
+  loadingJorddjupObs: boolean;
+  loadingJorddjupKartor: boolean;
+  loadingJorddjupSprick: boolean;
+  jorddjupObsLoaded: number;
+  jorddjupKartorLoaded: number;
+  jorddjupSprickLoaded: number;
+  onJorddjupObsVisibleChange: (v: boolean) => void;
+  onJorddjupKartorVisibleChange: (v: boolean) => void;
+  onJorddjupSprickVisibleChange: (v: boolean) => void;
+  onClearJorddjupObs?: () => void;
+  onClearJorddjupKartor?: () => void;
+  onClearJorddjupSprick?: () => void;
   hypoFyllnadSmaVisible: boolean;
   hypoFyllnadStoraVisible: boolean;
   hypoSitSmaVisible: boolean;
@@ -177,6 +192,21 @@ export const LayerPanel = ({
   onClearGwQuality,
   onExportObservations,
   onClearObservations,
+  jorddjupObsVisible,
+  jorddjupKartorVisible,
+  jorddjupSprickVisible,
+  loadingJorddjupObs,
+  loadingJorddjupKartor,
+  loadingJorddjupSprick,
+  jorddjupObsLoaded,
+  jorddjupKartorLoaded,
+  jorddjupSprickLoaded,
+  onJorddjupObsVisibleChange,
+  onJorddjupKartorVisibleChange,
+  onJorddjupSprickVisibleChange,
+  onClearJorddjupObs,
+  onClearJorddjupKartor,
+  onClearJorddjupSprick,
   hypoFyllnadSmaVisible,
   hypoFyllnadStoraVisible,
   hypoSitSmaVisible,
@@ -575,6 +605,95 @@ export const LayerPanel = ({
               )}
             </div>
           )}
+        </div>
+
+        {/* Jorddjupsmodell */}
+        <div className="space-y-3 pt-4 border-t border-border">
+          <div className="space-y-1">
+            <Label className="text-sm font-medium">Jorddjupsmodell</Label>
+            <p className="text-xs text-muted-foreground">SGU – underlagsdata för modellen</p>
+          </div>
+
+          {/* Punktobservationer */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="jorddjup-obs" className="text-xs text-foreground">Djupobservationer</Label>
+                <p className="text-xs text-muted-foreground">
+                  {loadingJorddjupObs ? 'Laddar…' : jorddjupObsLoaded > 0 ? `${jorddjupObsLoaded} punkter` : 'Punktmätningar'}
+                </p>
+              </div>
+              <Switch id="jorddjup-obs" checked={jorddjupObsVisible} onCheckedChange={onJorddjupObsVisibleChange} />
+            </div>
+            {jorddjupObsVisible && (
+              <div className="space-y-1 text-xs pl-1">
+                <p className="text-muted-foreground font-medium">Djup (meter):</p>
+                {[
+                  { color: 'rgb(255,245,210)', label: '< 1 m' },
+                  { color: 'rgb(222,184,100)', label: '1–5 m' },
+                  { color: 'rgb(180,120,55)',  label: '5–20 m' },
+                  { color: 'rgb(120,70,20)',   label: '20–50 m' },
+                  { color: 'rgb(60,30,5)',     label: '> 50 m' },
+                ].map(({ color, label }) => (
+                  <div key={label} className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: color, border: '1px solid rgba(0,0,0,0.3)' }} />
+                    <span className="text-muted-foreground">{label}</span>
+                  </div>
+                ))}
+                {jorddjupObsLoaded > 0 && onClearJorddjupObs && (
+                  <Button variant="outline" size="sm" onClick={onClearJorddjupObs} className="text-xs h-7 mt-1">
+                    <Trash2 className="w-3 h-3 mr-1" /> Rensa ({jorddjupObsLoaded})
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Jordartskartor */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="jorddjup-kartor" className="text-xs text-foreground">Jordartskartor (underlag)</Label>
+                <p className="text-xs text-muted-foreground">
+                  {loadingJorddjupKartor ? 'Laddar…' : jorddjupKartorLoaded > 0 ? `${jorddjupKartorLoaded} ytor` : 'Polygoner'}
+                </p>
+              </div>
+              <Switch id="jorddjup-kartor" checked={jorddjupKartorVisible} onCheckedChange={onJorddjupKartorVisibleChange} />
+            </div>
+            {jorddjupKartorVisible && jorddjupKartorLoaded > 0 && onClearJorddjupKartor && (
+              <div className="pl-1">
+                <Button variant="outline" size="sm" onClick={onClearJorddjupKartor} className="text-xs h-7">
+                  <Trash2 className="w-3 h-3 mr-1" /> Rensa ({jorddjupKartorLoaded})
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {/* Sprickzoner */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="jorddjup-sprick" className="text-xs text-foreground">Sprickzoner (underlag)</Label>
+                <p className="text-xs text-muted-foreground">
+                  {loadingJorddjupSprick ? 'Laddar…' : jorddjupSprickLoaded > 0 ? `${jorddjupSprickLoaded} linjer` : 'Linjegeometrier'}
+                </p>
+              </div>
+              <Switch id="jorddjup-sprick" checked={jorddjupSprickVisible} onCheckedChange={onJorddjupSprickVisibleChange} />
+            </div>
+            {jorddjupSprickVisible && jorddjupSprickLoaded > 0 && onClearJorddjupSprick && (
+              <div className="pl-1">
+                <Button variant="outline" size="sm" onClick={onClearJorddjupSprick} className="text-xs h-7">
+                  <Trash2 className="w-3 h-3 mr-1" /> Rensa ({jorddjupSprickLoaded})
+                </Button>
+              </div>
+            )}
+          </div>
+
+          <div className="text-xs">
+            <a href="https://www.sgu.se/produkter-och-tjanster/geologiska-data/jorddjupsmodell/" target="_blank" rel="noopener noreferrer" className="text-sgu-link hover:underline inline-flex items-center gap-1">
+              Om jorddjupsmodellen <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
         </div>
 
         {/* HYPE Beräknade grundvattennivåer – fyra lager */}

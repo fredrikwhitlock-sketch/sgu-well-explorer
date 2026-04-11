@@ -69,7 +69,7 @@ export const MapView = () => {
   const [sguGvTillgangVisible, setSguGvTillgangVisible] = useState(false);
   const [sguGvTillgangOpacity, setSguGvTillgangOpacity] = useState(0.7);
   const [coordinates, setCoordinates] = useState<[number, number] | null>(null);
-  const [selectedFeatures, setSelectedFeatures] = useState<{ properties: Record<string, any>; type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType' | 'gvTillgang' | 'observation' | 'hypoArea'; analysisResults?: any[] }[]>([]);
+  const [selectedFeatures, setSelectedFeatures] = useState<{ properties: Record<string, any>; type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType' | 'gvTillgang' | 'observation' | 'hypoArea' | 'jorddjupObs' | 'jorddjupKartor' | 'jorddjupSprick'; analysisResults?: any[] }[]>([]);
   const [selectedFeatureIndex, setSelectedFeatureIndex] = useState(0);
   const [loadingSources, setLoadingSources] = useState(false);
   const [loadingWells, setLoadingWells] = useState(false);
@@ -91,6 +91,16 @@ export const MapView = () => {
   const [gwLevelsObservedLoaded, setGwLevelsObservedLoaded] = useState(0);
   const [gwQualityLoaded, setGwQualityLoaded] = useState(0);
   const [observationsLoaded, setObservationsLoaded] = useState(0);
+  // Jorddjupsmodell layers
+  const [jorddjupObsVisible, setJorddjupObsVisible] = useState(false);
+  const [jorddjupKartorVisible, setJorddjupKartorVisible] = useState(false);
+  const [jorddjupSprickVisible, setJorddjupSprickVisible] = useState(false);
+  const [loadingJorddjupObs, setLoadingJorddjupObs] = useState(false);
+  const [loadingJorddjupKartor, setLoadingJorddjupKartor] = useState(false);
+  const [loadingJorddjupSprick, setLoadingJorddjupSprick] = useState(false);
+  const [jorddjupObsLoaded, setJorddjupObsLoaded] = useState(0);
+  const [jorddjupKartorLoaded, setJorddjupKartorLoaded] = useState(0);
+  const [jorddjupSprickLoaded, setJorddjupSprickLoaded] = useState(0);
   const [hypoFyllnadSmaVisible, setHypoFyllnadSmaVisible] = useState(false);
   const [hypoFyllnadStoraVisible, setHypoFyllnadStoraVisible] = useState(false);
   const [hypoSitSmaVisible, setHypoSitSmaVisible] = useState(false);
@@ -111,6 +121,9 @@ export const MapView = () => {
   const gwLevelsObservedLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const gwQualityLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const observationsLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
+  const jorddjupObsLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
+  const jorddjupKartorLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
+  const jorddjupSprickLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const loadWellsForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
   const loadSoilTypesForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
   const hypoAreasSourceRef = useRef<VectorSource | null>(null);
@@ -922,6 +935,150 @@ export const MapView = () => {
     });
     observationsLayerRef.current = observationsLayer;
 
+    // ── Jorddjupsmodell – tre kollektioner ───────────────────────────────────
+
+    // 1. Punktobservationer (underlag-jorddjup) – färgas efter djup
+    const jorddjupObsSource = new VectorSource({
+      format: new GeoJSON(),
+      loader: async () => {
+        try {
+          setLoadingJorddjupObs(true);
+          setJorddjupObsLoaded(0);
+          const all = await fetchAllPages(
+            `https://api.sgu.se/oppnadata/jorddjupsmodell/ogc/features/v1/collections/underlag-jorddjup/items?f=json`,
+            (n) => setJorddjupObsLoaded(n)
+          );
+          if (all.length > 0) {
+            const feats = new GeoJSON().readFeatures(
+              { type: "FeatureCollection", features: all },
+              { dataProjection: "EPSG:3006", featureProjection: "EPSG:3857" }
+            );
+            jorddjupObsSource.addFeatures(feats);
+            setJorddjupObsLoaded(feats.length);
+            if (jorddjupObsLayerRef.current) {
+              jorddjupObsLayerRef.current.setVisible(true);
+              jorddjupObsLayerRef.current.changed();
+            }
+            toast.success(`Laddade ${feats.length} jorddjupsobservationer`);
+          }
+        } catch (e) {
+          console.error("Error loading jorddjup obs:", e);
+          toast.error("Kunde inte ladda jorddjupsobservationer");
+        } finally {
+          setLoadingJorddjupObs(false);
+        }
+      },
+    });
+
+    const jorddjupObsStyleFn = (feature: any) => {
+      const djup = feature.get('djup') ?? 0;
+      let color: string;
+      if      (djup < 1)  color = 'rgba(255, 245, 210, 0.9)';
+      else if (djup < 5)  color = 'rgba(222, 184, 100, 0.9)';
+      else if (djup < 20) color = 'rgba(180, 120,  55, 0.9)';
+      else if (djup < 50) color = 'rgba(120,  70,  20, 0.9)';
+      else                color = 'rgba( 60,  30,   5, 0.9)';
+      return new Style({
+        image: new Circle({
+          radius: 4,
+          fill: new Fill({ color }),
+          stroke: new Stroke({ color: 'rgba(0,0,0,0.35)', width: 0.5 }),
+        }),
+      });
+    };
+
+    const jorddjupObsLayer = new VectorLayer({
+      source: jorddjupObsSource,
+      visible: jorddjupObsVisible,
+      style: jorddjupObsStyleFn,
+    });
+    jorddjupObsLayerRef.current = jorddjupObsLayer;
+
+    // 2. Jordartskartor-polygoner (underlag-jordartskartor)
+    const jorddjupKartorSource = new VectorSource({
+      format: new GeoJSON(),
+      loader: async () => {
+        try {
+          setLoadingJorddjupKartor(true);
+          setJorddjupKartorLoaded(0);
+          const all = await fetchAllPages(
+            `https://api.sgu.se/oppnadata/jorddjupsmodell/ogc/features/v1/collections/underlag-jordartskartor/items?f=json`,
+            (n) => setJorddjupKartorLoaded(n)
+          );
+          if (all.length > 0) {
+            const feats = new GeoJSON().readFeatures(
+              { type: "FeatureCollection", features: all },
+              { dataProjection: "EPSG:3006", featureProjection: "EPSG:3857" }
+            );
+            jorddjupKartorSource.addFeatures(feats);
+            setJorddjupKartorLoaded(feats.length);
+            if (jorddjupKartorLayerRef.current) {
+              jorddjupKartorLayerRef.current.setVisible(true);
+              jorddjupKartorLayerRef.current.changed();
+            }
+            toast.success(`Laddade ${feats.length} jordartskartområden`);
+          }
+        } catch (e) {
+          console.error("Error loading jorddjup kartor:", e);
+          toast.error("Kunde inte ladda jordartskartor");
+        } finally {
+          setLoadingJorddjupKartor(false);
+        }
+      },
+    });
+
+    const jorddjupKartorLayer = new VectorLayer({
+      source: jorddjupKartorSource,
+      visible: jorddjupKartorVisible,
+      style: new Style({
+        stroke: new Stroke({ color: 'rgba(139, 90, 43, 0.7)', width: 1 }),
+        fill: new Fill({ color: 'rgba(222, 184, 135, 0.15)' }),
+      }),
+    });
+    jorddjupKartorLayerRef.current = jorddjupKartorLayer;
+
+    // 3. Sprickzoner (underlag-sprickzoner) – linjer
+    const jorddjupSprickSource = new VectorSource({
+      format: new GeoJSON(),
+      loader: async () => {
+        try {
+          setLoadingJorddjupSprick(true);
+          setJorddjupSprickLoaded(0);
+          const all = await fetchAllPages(
+            `https://api.sgu.se/oppnadata/jorddjupsmodell/ogc/features/v1/collections/underlag-sprickzoner/items?f=json`,
+            (n) => setJorddjupSprickLoaded(n)
+          );
+          if (all.length > 0) {
+            const feats = new GeoJSON().readFeatures(
+              { type: "FeatureCollection", features: all },
+              { dataProjection: "EPSG:3006", featureProjection: "EPSG:3857" }
+            );
+            jorddjupSprickSource.addFeatures(feats);
+            setJorddjupSprickLoaded(feats.length);
+            if (jorddjupSprickLayerRef.current) {
+              jorddjupSprickLayerRef.current.setVisible(true);
+              jorddjupSprickLayerRef.current.changed();
+            }
+            toast.success(`Laddade ${feats.length} sprickzoner`);
+          }
+        } catch (e) {
+          console.error("Error loading sprickzoner:", e);
+          toast.error("Kunde inte ladda sprickzoner");
+        } finally {
+          setLoadingJorddjupSprick(false);
+        }
+      },
+    });
+
+    const jorddjupSprickLayer = new VectorLayer({
+      source: jorddjupSprickSource,
+      visible: jorddjupSprickVisible,
+      style: new Style({
+        stroke: new Stroke({ color: 'rgba(190, 50, 50, 0.8)', width: 1.5 }),
+      }),
+    });
+    jorddjupSprickLayerRef.current = jorddjupSprickLayer;
+
     // OGC API Features – SGU-HYPE beräknade grundvattennivåer (shared source, 4 layers)
     const hypoAreasSource = new VectorSource({
       format: new GeoJSON(),
@@ -1078,6 +1235,9 @@ export const MapView = () => {
         sguJordarter25kLayer,
         sguGvTillgangLayer,
         // Vector layers on top
+        jorddjupKartorLayer,
+        jorddjupSprickLayer,
+        jorddjupObsLayer,
         hypoFyllnadSmaLayer,
         hypoFyllnadStoraLayer,
         hypoSitSmaLayer,
@@ -1113,20 +1273,20 @@ export const MapView = () => {
       // Change cursor when hovering over features
       const pixel = map.getEventPixel(evt.originalEvent);
       const hit = map.hasFeatureAtPixel(pixel, {
-        layerFilter: (layer) => layer === sourcesLayer || layer === wellsLayer || layer === aquifersLayer || layer === waterBodiesLayer || layer === gwLevelsObservedLayer || layer === gwQualityLayer || layer === soilTypesLayer || layer === observationsLayer || layer === hypoFyllnadSmaLayer || layer === hypoFyllnadStoraLayer || layer === hypoSitSmaLayer || layer === hypoSitStoraLayer,
+        layerFilter: (layer) => layer === sourcesLayer || layer === wellsLayer || layer === aquifersLayer || layer === waterBodiesLayer || layer === gwLevelsObservedLayer || layer === gwQualityLayer || layer === soilTypesLayer || layer === observationsLayer || layer === hypoFyllnadSmaLayer || layer === hypoFyllnadStoraLayer || layer === hypoSitSmaLayer || layer === hypoSitStoraLayer || layer === jorddjupObsLayer || layer === jorddjupKartorLayer || layer === jorddjupSprickLayer,
       });
       map.getTargetElement().style.cursor = hit ? "pointer" : "";
     });
 
     // Handle feature clicks - collect all features at the same location
     map.on("click", async (evt) => {
-      const clickedItems: { properties: Record<string, any>; type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType' | 'gvTillgang' | 'observation' | 'hypoArea' }[] = [];
+      const clickedItems: { properties: Record<string, any>; type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType' | 'gvTillgang' | 'observation' | 'hypoArea' | 'jorddjupObs' | 'jorddjupKartor' | 'jorddjupSprick' }[] = [];
 
       const hypoLayers = [hypoFyllnadSmaLayer, hypoFyllnadStoraLayer, hypoSitSmaLayer, hypoSitStoraLayer];
       map.forEachFeatureAtPixel(evt.pixel, (f, layer) => {
-        if (layer === sourcesLayer || layer === wellsLayer || layer === aquifersLayer || layer === waterBodiesLayer || layer === gwLevelsObservedLayer || layer === gwQualityLayer || layer === soilTypesLayer || layer === observationsLayer || hypoLayers.includes(layer as any)) {
+        if (layer === sourcesLayer || layer === wellsLayer || layer === aquifersLayer || layer === waterBodiesLayer || layer === gwLevelsObservedLayer || layer === gwQualityLayer || layer === soilTypesLayer || layer === observationsLayer || hypoLayers.includes(layer as any) || layer === jorddjupObsLayer || layer === jorddjupKartorLayer || layer === jorddjupSprickLayer) {
           const properties = f.getProperties();
-          let type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType' | 'gvTillgang' | 'observation' | 'hypoArea' = 'source';
+          let type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType' | 'gvTillgang' | 'observation' | 'hypoArea' | 'jorddjupObs' | 'jorddjupKartor' | 'jorddjupSprick' = 'source';
           if (layer === wellsLayer) type = 'well';
           else if (layer === aquifersLayer) type = 'aquifer';
           else if (layer === waterBodiesLayer) type = 'waterBody';
@@ -1135,6 +1295,9 @@ export const MapView = () => {
           else if (layer === soilTypesLayer) type = 'soilType';
           else if (layer === observationsLayer) type = 'observation';
           else if (hypoLayers.includes(layer as any)) type = 'hypoArea';
+          else if (layer === jorddjupObsLayer) type = 'jorddjupObs';
+          else if (layer === jorddjupKartorLayer) type = 'jorddjupKartor';
+          else if (layer === jorddjupSprickLayer) type = 'jorddjupSprick';
           clickedItems.push({ properties, type });
         }
       });
@@ -1497,6 +1660,43 @@ export const MapView = () => {
     }
   }, [sguGvTillgangOpacity]);
 
+  // Jorddjupsmodell – load on first enable
+  useEffect(() => {
+    if (jorddjupObsLayerRef.current) {
+      if (jorddjupObsVisible && jorddjupObsLayerRef.current.getSource()?.getFeatures().length === 0) {
+        jorddjupObsLayerRef.current.getSource()?.loadFeatures(
+          jorddjupObsLayerRef.current.getSource()!.getExtent(), 1,
+          jorddjupObsLayerRef.current.getSource()!.getProjection()
+        );
+      }
+      jorddjupObsLayerRef.current.setVisible(jorddjupObsVisible);
+    }
+  }, [jorddjupObsVisible]);
+
+  useEffect(() => {
+    if (jorddjupKartorLayerRef.current) {
+      if (jorddjupKartorVisible && jorddjupKartorLayerRef.current.getSource()?.getFeatures().length === 0) {
+        jorddjupKartorLayerRef.current.getSource()?.loadFeatures(
+          jorddjupKartorLayerRef.current.getSource()!.getExtent(), 1,
+          jorddjupKartorLayerRef.current.getSource()!.getProjection()
+        );
+      }
+      jorddjupKartorLayerRef.current.setVisible(jorddjupKartorVisible);
+    }
+  }, [jorddjupKartorVisible]);
+
+  useEffect(() => {
+    if (jorddjupSprickLayerRef.current) {
+      if (jorddjupSprickVisible && jorddjupSprickLayerRef.current.getSource()?.getFeatures().length === 0) {
+        jorddjupSprickLayerRef.current.getSource()?.loadFeatures(
+          jorddjupSprickLayerRef.current.getSource()!.getExtent(), 1,
+          jorddjupSprickLayerRef.current.getSource()!.getProjection()
+        );
+      }
+      jorddjupSprickLayerRef.current.setVisible(jorddjupSprickVisible);
+    }
+  }, [jorddjupSprickVisible]);
+
   // Update all four HYPE layer visibilities; trigger source load when any becomes visible
   useEffect(() => {
     const anyVisible = hypoFyllnadSmaVisible || hypoFyllnadStoraVisible || hypoSitSmaVisible || hypoSitStoraVisible;
@@ -1634,6 +1834,21 @@ export const MapView = () => {
         gwLevelsObservedLoaded={gwLevelsObservedLoaded}
         gwQualityLoaded={gwQualityLoaded}
         observationsLoaded={observationsLoaded}
+        jorddjupObsVisible={jorddjupObsVisible}
+        jorddjupKartorVisible={jorddjupKartorVisible}
+        jorddjupSprickVisible={jorddjupSprickVisible}
+        loadingJorddjupObs={loadingJorddjupObs}
+        loadingJorddjupKartor={loadingJorddjupKartor}
+        loadingJorddjupSprick={loadingJorddjupSprick}
+        jorddjupObsLoaded={jorddjupObsLoaded}
+        jorddjupKartorLoaded={jorddjupKartorLoaded}
+        jorddjupSprickLoaded={jorddjupSprickLoaded}
+        onJorddjupObsVisibleChange={setJorddjupObsVisible}
+        onJorddjupKartorVisibleChange={setJorddjupKartorVisible}
+        onJorddjupSprickVisibleChange={setJorddjupSprickVisible}
+        onClearJorddjupObs={() => { jorddjupObsLayerRef.current?.getSource()?.clear(); setJorddjupObsLoaded(0); }}
+        onClearJorddjupKartor={() => { jorddjupKartorLayerRef.current?.getSource()?.clear(); setJorddjupKartorLoaded(0); }}
+        onClearJorddjupSprick={() => { jorddjupSprickLayerRef.current?.getSource()?.clear(); setJorddjupSprickLoaded(0); }}
         hypoFyllnadSmaVisible={hypoFyllnadSmaVisible}
         hypoFyllnadStoraVisible={hypoFyllnadStoraVisible}
         hypoSitSmaVisible={hypoSitSmaVisible}
