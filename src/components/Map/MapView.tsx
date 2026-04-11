@@ -1753,6 +1753,11 @@ export const MapView = () => {
   const [rapportCoordinate, setRapportCoordinate] = useState<[number, number] | null>(null);
   const wmsProxyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wms-proxy`;
 
+  // Keep rapportModeRef in sync so the map click handler closure can read current value
+  useEffect(() => {
+    rapportModeRef.current = rapportMode;
+  }, [rapportMode]);
+
   const openPanel = (panel: 'search' | 'locate' | 'layers') => {
     setActivePanel(prev => prev === panel ? null : panel);
   };
