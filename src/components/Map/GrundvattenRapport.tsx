@@ -190,6 +190,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
 
   const dragRef = useRef({ dragging: false, startX: 0, startY: 0, startLeft: 80, startTop: 80 });
   const [position, setPosition] = useState({ left: 80, top: 80 });
+  const abortRef = useRef<AbortController | null>(null);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('button, input')) return;
@@ -209,59 +210,90 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
   }, []);
 
   const fetchData = useCallback(async () => {
+    // Cancel any in-flight request from a previous call
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const { signal } = controller;
+
     setLoading(true);
     setError(null);
     try {
       const [lon, lat] = mercatorToWGS84(coordinate[0], coordinate[1]);
       const sweref = proj4('EPSG:4326', 'EPSG:3006', [lon, lat]) as [number, number];
 
-      const delta = 0.002;
-      const deltaBbox = `${lon - delta},${lat - delta},${lon + delta},${lat + delta}`;
-      const brunnarDelta = 0.15;
+      // Tight bbox for WMS GFI (~100 m) – faster than 200 m
+      const delta = 0.001;
+      const bbox = `${lon - delta},${lat - delta},${lon + delta},${lat + delta}`;
+      // Smaller brunnar radius (8 km) to keep response fast
+      const brunnarDelta = 0.07;
       const brunnarBbox = `${lon - brunnarDelta},${lat - brunnarDelta},${lon + brunnarDelta},${lat + brunnarDelta}`;
 
-      const gfiUrl = (wmsUrl: string, layer: string) =>
-        `${wmsProxyUrl}?url=${encodeURIComponent(wmsUrl)}&LAYERS=${encodeURIComponent(layer)}&VERSION=1.1.1&SERVICE=WMS&REQUEST=GetFeatureInfo&QUERY_LAYERS=${encodeURIComponent(layer)}&INFO_FORMAT=application%2Fjson&BBOX=${deltaBbox}&SRS=EPSG:4326&WIDTH=101&HEIGHT=101&X=50&Y=50`;
+      // GV Tillgång: call api.sgu.se directly (no proxy needed – CORS supported)
+      const gvTillgangUrl =
+        `https://api.sgu.se/oppnadata/grundvattentillgang-sma-magasin/wms?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetFeatureInfo&LAYERS=grundvattentillgang-sma-magasin&QUERY_LAYERS=grundvattentillgang-sma-magasin&INFO_FORMAT=application%2Fjson&BBOX=${bbox}&SRS=EPSG:4326&WIDTH=101&HEIGHT=101&X=50&Y=50`;
+      // Jordart still needs the proxy (maps3.sgu.se has no CORS)
+      const jordartUrl =
+        `${wmsProxyUrl}?url=${encodeURIComponent('https://maps3.sgu.se/geoserver/jord/ows')}&LAYERS=jord%3ASE.GOV.SGU.JORD.GRUNDLAGER.25K&VERSION=1.1.1&SERVICE=WMS&REQUEST=GetFeatureInfo&QUERY_LAYERS=jord%3ASE.GOV.SGU.JORD.GRUNDLAGER.25K&INFO_FORMAT=application%2Fjson&BBOX=${bbox}&SRS=EPSG:4326&WIDTH=101&HEIGHT=101&X=50&Y=50`;
 
-      const [hypoRes, gvTillgangRes, jordartRes, forekomstRes, brunnarRes] = await Promise.allSettled([
-        fetch(`https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/omraden/items?f=json&bbox=${deltaBbox}&limit=1`),
-        fetch(gfiUrl('https://api.sgu.se/oppnadata/grundvattentillgang-sma-magasin/wms', 'grundvattentillgang-sma-magasin')),
-        fetch(gfiUrl('https://maps3.sgu.se/geoserver/jord/ows', 'jord:SE.GOV.SGU.JORD.GRUNDLAGER.25K')),
-        fetch(`https://api.sgu.se/oppnadata/grundvattenforekomster-eu/ogc/features/v1/collections/grundvattenforekomster/items?f=json&bbox=${deltaBbox}&limit=5`),
-        fetch(`https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar/items?f=json&bbox=${brunnarBbox}&limit=50`),
+      // KEY OPTIMISATION: chain the HYPE levels fetch directly onto the omraden
+      // response so it fires as soon as omrade_id is known, without waiting for
+      // the slower WMS proxy calls to finish.
+      let levelsPromise: Promise<any> | null = null;
+      let omradeIdCapture: number | undefined;
+
+      const omradenChain = fetch(
+        `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/omraden/items?f=json&bbox=${bbox}&limit=1`,
+        { signal }
+      )
+        .then(r => (r.ok ? r.json() : null))
+        .then(d => {
+          const id = d?.features?.[0]?.properties?.omrade_id;
+          if (id !== undefined) {
+            omradeIdCapture = id;
+            // Fire level fetch immediately – runs in parallel with WMS calls
+            levelsPromise = fetch(
+              `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/grundvattennivaer-tidigare/items?f=json&filter=${encodeURIComponent(`omrade_id=${id} AND datum='${selectedDate}'`)}&limit=1`,
+              { signal }
+            )
+              .then(r => (r.ok ? r.json() : null))
+              .catch(() => null);
+          }
+          return d;
+        })
+        .catch(() => null);
+
+      // All other fetches kick off at t=0 alongside the omraden chain
+      const [omradenRes, gvTillgangRes, jordartRes, forekomstRes, brunnarRes] = await Promise.allSettled([
+        omradenChain,
+        fetch(gvTillgangUrl, { signal }),
+        fetch(jordartUrl, { signal }),
+        fetch(`https://api.sgu.se/oppnadata/grundvattenforekomster-eu/ogc/features/v1/collections/grundvattenforekomster/items?f=json&bbox=${bbox}&limit=3`, { signal }),
+        fetch(`https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar/items?f=json&bbox=${brunnarBbox}&limit=25`, { signal }),
       ]);
+
+      if (signal.aborted) return;
+
+      // Now await the levels result (it was already in-flight during the above)
+      const levelData = levelsPromise ? await levelsPromise : null;
+
+      if (signal.aborted) return;
 
       const result: ReportData = { lon, lat, sweref };
 
-      // HYPE omrade
-      let omradeId: number | undefined;
-      if (hypoRes.status === 'fulfilled' && hypoRes.value.ok) {
-        try {
-          const d = await hypoRes.value.json();
-          if (d.features?.length > 0) { omradeId = d.features[0].properties.omrade_id; result.omradeId = omradeId; }
-        } catch { /* ignore */ }
+      // HYPE omrade id
+      if (omradenRes.status === 'fulfilled' && omradeIdCapture !== undefined) {
+        result.omradeId = omradeIdCapture;
       }
 
-      // HYPE level data for selected date
-      if (omradeId !== undefined) {
-        const tryFetch = async (url: string) => {
-          const r = await fetch(url);
-          if (!r.ok) return null;
-          const d = await r.json();
-          return d.features?.length > 0 ? d.features[0].properties : null;
-        };
-        const p = await tryFetch(
-          `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/grundvattennivaer-tidigare/items?f=json&filter=${encodeURIComponent(`omrade_id=${omradeId} AND datum='${selectedDate}'`)}&limit=1`
-        ) ?? await tryFetch(
-          `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/grundvattennivaer-tidigare/items?f=json&filter=${encodeURIComponent(`omrade_id=${omradeId}`)}&limit=1`
-        );
-        if (p) {
-          result.hypoDate = p.datum;
-          result.fyllnadsgradSma = p.fyllnadsgrad_sma;
-          result.fyllnadsgradStora = p.fyllnadsgrad_stora;
-          result.sitSma = p.grundvattensituation_sma;
-          result.sitStora = p.grundvattensituation_stora;
-        }
+      // HYPE levels
+      if (levelData?.features?.length > 0) {
+        const p = levelData.features[0].properties;
+        result.hypoDate = p.datum;
+        result.fyllnadsgradSma = p.fyllnadsgrad_sma;
+        result.fyllnadsgradStora = p.fyllnadsgrad_stora;
+        result.sitSma = p.grundvattensituation_sma;
+        result.sitStora = p.grundvattensituation_stora;
       }
 
       // GV Tillgång
@@ -314,11 +346,12 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
       }
 
       setData(result);
-    } catch (e) {
+    } catch (e: any) {
+      if (signal.aborted) return;
       console.error("GrundvattenRapport error:", e);
       setError("Kunde inte hämta data. Kontrollera din internetanslutning.");
     } finally {
-      setLoading(false);
+      if (!signal.aborted) setLoading(false);
     }
   }, [coordinate, wmsProxyUrl, selectedDate]);
 
