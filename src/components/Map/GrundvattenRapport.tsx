@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { X, Droplets, Loader2, MapPin, AlertCircle, RefreshCw, Info } from "lucide-react";
 import proj4 from "proj4";
+import { getSoilTypeColor } from "../../lib/soilTypeColors";
 
 interface Props {
   coordinate: [number, number]; // Web Mercator EPSG:3857
@@ -232,9 +233,9 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
       // GV Tillgång via proxy (api.sgu.se WMS may lack CORS headers)
       const gvTillgangUrl =
         `${wmsProxyUrl}?url=${encodeURIComponent('https://api.sgu.se/oppnadata/grundvattentillgang-sma-magasin/wms')}&LAYERS=grundvattentillgang-sma-magasin&VERSION=1.1.1&SERVICE=WMS&REQUEST=GetFeatureInfo&QUERY_LAYERS=grundvattentillgang-sma-magasin&INFO_FORMAT=application%2Fjson&BBOX=${bbox}&SRS=EPSG:4326&WIDTH=101&HEIGHT=101&X=50&Y=50`;
-      // Jordart still needs the proxy (maps3.sgu.se has no CORS)
+      // Jordart via OGC API (direct – no proxy needed)
       const jordartUrl =
-        `${wmsProxyUrl}?url=${encodeURIComponent('https://maps3.sgu.se/geoserver/jord/ows')}&LAYERS=jord%3ASE.GOV.SGU.JORD.GRUNDLAGER.25K&VERSION=1.1.1&SERVICE=WMS&REQUEST=GetFeatureInfo&QUERY_LAYERS=jord%3ASE.GOV.SGU.JORD.GRUNDLAGER.25K&INFO_FORMAT=application%2Fjson&BBOX=${bbox}&SRS=EPSG:4326&WIDTH=101&HEIGHT=101&X=50&Y=50`;
+        `https://api.sgu.se/oppnadata/jordarter25k-100k/ogc/features/v1/collections/grundlager/items?f=json&bbox=${bbox}&limit=1`;
 
       // Chain HYPE levels fetch onto the omraden response so it fires as soon as
       // omrade_id is known. Fire BOTH specific-date AND latest-available queries
@@ -308,14 +309,18 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
         } catch { /* ignore */ }
       }
 
-      // Jordart
+      // Jordart (OGC API – property jg2 is the numeric soil type code)
       if (jordartRes.status === 'fulfilled' && jordartRes.value.ok) {
         try {
           const d = await jordartRes.value.json();
           if (d.features?.length > 0) {
             const p = d.features[0].properties ?? {};
-            result.jordartNamn = p.JORDART_TEXT || p.jordart_text || p.JORDART || p.jordart || p.BETECKNING || p.beteckning;
-            result.jordartKod = p.JORDART || p.jordart || p.BETECKNING || p.beteckning;
+            const jg2 = p.jg2 ?? p.JG2;
+            if (jg2 != null) {
+              const soilInfo = getSoilTypeColor(Number(jg2));
+              result.jordartNamn = soilInfo.name;
+              result.jordartKod = String(jg2);
+            }
           }
         } catch { /* ignore */ }
       }
@@ -594,7 +599,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
             )}
 
             <div className="text-xs text-muted-foreground pt-1 border-t border-border">
-              Källa: SGU OGC API, SGU WMS · Tolkningar är uppskattningar och ersätter inte platsspecifik undersökning.
+              Källa: SGU OGC API · Tolkningar är uppskattningar och ersätter inte platsspecifik undersökning.
             </div>
           </div>
         ) : null}
