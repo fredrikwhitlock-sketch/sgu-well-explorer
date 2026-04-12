@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { X, Droplets, Loader2, MapPin, AlertCircle, RefreshCw, Info } from "lucide-react";
 import proj4 from "proj4";
+import { getSoilTypeColor } from "../../lib/soilTypeColors";
 
 interface Props {
   coordinate: [number, number]; // Web Mercator EPSG:3857
@@ -229,18 +230,21 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
       const brunnarDelta = 0.07;
       const brunnarBbox = `${lon - brunnarDelta},${lat - brunnarDelta},${lon + brunnarDelta},${lat + brunnarDelta}`;
 
-      // GV Tillgång: call api.sgu.se directly (no proxy needed – CORS supported)
+      // GV Tillgång via proxy (api.sgu.se WMS may lack CORS headers)
       const gvTillgangUrl =
-        `https://api.sgu.se/oppnadata/grundvattentillgang-sma-magasin/wms?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetFeatureInfo&LAYERS=grundvattentillgang-sma-magasin&QUERY_LAYERS=grundvattentillgang-sma-magasin&INFO_FORMAT=application%2Fjson&BBOX=${bbox}&SRS=EPSG:4326&WIDTH=101&HEIGHT=101&X=50&Y=50`;
-      // Jordart still needs the proxy (maps3.sgu.se has no CORS)
+        `${wmsProxyUrl}?url=${encodeURIComponent('https://api.sgu.se/oppnadata/grundvattentillgang-sma-magasin/wms')}&LAYERS=grundvattentillgang-sma-magasin&VERSION=1.1.1&SERVICE=WMS&REQUEST=GetFeatureInfo&QUERY_LAYERS=grundvattentillgang-sma-magasin&INFO_FORMAT=application%2Fjson&BBOX=${bbox}&SRS=EPSG:4326&WIDTH=101&HEIGHT=101&X=50&Y=50`;
+      // Jordart via OGC API (direct – no proxy needed)
       const jordartUrl =
-        `${wmsProxyUrl}?url=${encodeURIComponent('https://maps3.sgu.se/geoserver/jord/ows')}&LAYERS=jord%3ASE.GOV.SGU.JORD.GRUNDLAGER.25K&VERSION=1.1.1&SERVICE=WMS&REQUEST=GetFeatureInfo&QUERY_LAYERS=jord%3ASE.GOV.SGU.JORD.GRUNDLAGER.25K&INFO_FORMAT=application%2Fjson&BBOX=${bbox}&SRS=EPSG:4326&WIDTH=101&HEIGHT=101&X=50&Y=50`;
+        `https://api.sgu.se/oppnadata/jordarter25k-100k/ogc/features/v1/collections/grundlager/items?f=json&bbox=${bbox}&limit=1`;
 
-      // KEY OPTIMISATION: chain the HYPE levels fetch directly onto the omraden
-      // response so it fires as soon as omrade_id is known, without waiting for
-      // the slower WMS proxy calls to finish.
-      let levelsPromise: Promise<any> | null = null;
+      // Chain HYPE levels fetch onto the omraden response so it fires as soon as
+      // omrade_id is known. Fire BOTH specific-date AND latest-available queries
+      // simultaneously so we always have a fallback if today's date has no data
+      // (HYPE is a monthly model and may lag behind by weeks/months).
+      let levelsPromise: Promise<[any, any]> | null = null;
       let omradeIdCapture: number | undefined;
+
+      const levelBase = `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/grundvattennivaer-tidigare/items?f=json`;
 
       const omradenChain = fetch(
         `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/omraden/items?f=json&bbox=${bbox}&limit=1`,
@@ -251,13 +255,12 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
           const id = d?.features?.[0]?.properties?.omrade_id;
           if (id !== undefined) {
             omradeIdCapture = id;
-            // Fire level fetch immediately – runs in parallel with WMS calls
-            levelsPromise = fetch(
-              `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/grundvattennivaer-tidigare/items?f=json&filter=${encodeURIComponent(`omrade_id=${id} AND datum='${selectedDate}'`)}&limit=1`,
-              { signal }
-            )
-              .then(r => (r.ok ? r.json() : null))
-              .catch(() => null);
+            const safeJson = (r: Response) => r.ok ? r.json().catch(() => null) : null;
+            // Fire specific-date and latest-available in parallel
+            levelsPromise = Promise.all([
+              fetch(`${levelBase}&filter=${encodeURIComponent(`omrade_id=${id} AND datum='${selectedDate}'`)}&limit=1`, { signal }).then(safeJson).catch(() => null),
+              fetch(`${levelBase}&filter=${encodeURIComponent(`omrade_id=${id}`)}&limit=1`, { signal }).then(safeJson).catch(() => null),
+            ]);
           }
           return d;
         })
@@ -274,8 +277,8 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
 
       if (signal.aborted) return;
 
-      // Now await the levels result (it was already in-flight during the above)
-      const levelData = levelsPromise ? await levelsPromise : null;
+      // Await both level results (already in-flight since omraden resolved)
+      const [dateResult, latestResult] = levelsPromise ? await levelsPromise : [null, null];
 
       if (signal.aborted) return;
 
@@ -286,9 +289,11 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
         result.omradeId = omradeIdCapture;
       }
 
-      // HYPE levels
-      if (levelData?.features?.length > 0) {
-        const p = levelData.features[0].properties;
+      // Prefer specific-date result; fall back to latest available
+      const levelFeature =
+        (dateResult?.features?.length > 0 ? dateResult : latestResult)?.features?.[0];
+      if (levelFeature) {
+        const p = levelFeature.properties;
         result.hypoDate = p.datum;
         result.fyllnadsgradSma = p.fyllnadsgrad_sma;
         result.fyllnadsgradStora = p.fyllnadsgrad_stora;
@@ -304,14 +309,18 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
         } catch { /* ignore */ }
       }
 
-      // Jordart
+      // Jordart (OGC API – property jg2 is the numeric soil type code)
       if (jordartRes.status === 'fulfilled' && jordartRes.value.ok) {
         try {
           const d = await jordartRes.value.json();
           if (d.features?.length > 0) {
             const p = d.features[0].properties ?? {};
-            result.jordartNamn = p.JORDART_TEXT || p.jordart_text || p.JORDART || p.jordart || p.BETECKNING || p.beteckning;
-            result.jordartKod = p.JORDART || p.jordart || p.BETECKNING || p.beteckning;
+            const jg2 = p.jg2 ?? p.JG2;
+            if (jg2 != null) {
+              const soilInfo = getSoilTypeColor(Number(jg2));
+              result.jordartNamn = soilInfo.name;
+              result.jordartKod = String(jg2);
+            }
           }
         } catch { /* ignore */ }
       }
@@ -590,7 +599,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
             )}
 
             <div className="text-xs text-muted-foreground pt-1 border-t border-border">
-              Källa: SGU OGC API, SGU WMS · Tolkningar är uppskattningar och ersätter inte platsspecifik undersökning.
+              Källa: SGU OGC API · Tolkningar är uppskattningar och ersätter inte platsspecifik undersökning.
             </div>
           </div>
         ) : null}
