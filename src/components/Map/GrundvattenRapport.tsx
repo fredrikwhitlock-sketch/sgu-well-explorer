@@ -367,7 +367,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
   useEffect(() => { fetchData(); }, [fetchData]);
 
   // ── Derived interpretation ─────────────────────────────────────────────────
-  const aquifer = data ? classifyAquifer(data.jordartKod ?? data.jordartNamn) : null;
+  const aquifer = data ? classifyAquifer(data.jordartNamn) : null;
   const hasStoraMagasin = !!data?.gvForekomstNamn;
   const relevantFyllnad = aquifer?.useStoraMagasin || hasStoraMagasin
     ? data?.fyllnadsgradStora
@@ -470,7 +470,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
                 <div className={`rounded-lg p-3 mb-2 ${fyllnadBg(relevantFyllnad)}`}>
                   <div className="text-xs text-muted-foreground mb-1">
                     Uppskattad grundvattennivå under markyta
-                    {data.hypoDate && <span className="ml-1">· {data.hypoDate}</span>}
+                    {data.hypoDate && <span className="ml-1">· {data.hypoDate.replace(/Z$/, '')}</span>}
                   </div>
                   <div className="flex items-baseline gap-1.5">
                     <span className={`text-2xl font-bold leading-none ${fyllnadColor(relevantFyllnad)}`}>
@@ -528,7 +528,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
               {data.omradeId !== undefined ? (
                 <>
                   <div className="text-xs text-muted-foreground mb-2">
-                    SGU-HYPE område {data.omradeId}{data.hypoDate ? ` · ${data.hypoDate}` : ''}
+                    SGU-HYPE område {data.omradeId}{data.hypoDate ? ` · ${data.hypoDate.replace(/Z$/, '')}` : ''}
                   </div>
                   <div className="grid grid-cols-2 gap-2 mb-3">
                     {[
@@ -537,7 +537,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
                     ].map(({ label, val }) => (
                       <div key={label} className={`rounded-lg p-2.5 ${fyllnadBg(val)}`}>
                         <div className="text-xs text-muted-foreground mb-1 whitespace-pre-line leading-tight">{label}</div>
-                        {val != null ? (
+                        {val != null && val !== -1 ? (
                           <>
                             <div className={`text-xl font-bold leading-none ${fyllnadColor(val)}`}>
                               {Math.round(val)}<span className="text-xs font-normal text-muted-foreground">:e perc.</span>
