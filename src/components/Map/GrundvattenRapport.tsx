@@ -233,10 +233,13 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
       // GV Tillgång via proxy (api.sgu.se WMS may lack CORS headers)
       const gvTillgangUrl =
         `${wmsProxyUrl}?url=${encodeURIComponent('https://api.sgu.se/oppnadata/grundvattentillgang-sma-magasin/wms')}&LAYERS=grundvattentillgang-sma-magasin&VERSION=1.1.1&SERVICE=WMS&REQUEST=GetFeatureInfo&QUERY_LAYERS=grundvattentillgang-sma-magasin&INFO_FORMAT=application%2Fjson&BBOX=${bbox}&SRS=EPSG:4326&WIDTH=101&HEIGHT=101&X=50&Y=50`;
-      // Jordart via OGC API with CQL2 point-in-polygon filter – avoids returning
-      // an adjacent water polygon when the click is near a river/stream boundary.
-      const jordartUrl =
-        `https://api.sgu.se/oppnadata/jordarter25k-100k/ogc/features/v1/collections/grundlager/items?f=json&filter=${encodeURIComponent(`S_INTERSECTS(geometry,POINT(${lon} ${lat}))`)}&filter-lang=cql2-text&limit=1`;
+      // Jordart: fire CQL2 point-in-polygon AND bbox simultaneously.
+      // CQL2 is precise but may not be supported by all SGU endpoints.
+      // Bbox fallback picks the first non-water feature (code 91) so rivers
+      // don't shadow the surrounding soil type.
+      const jordartBase = `https://api.sgu.se/oppnadata/jordarter25k-100k/ogc/features/v1/collections/grundlager/items?f=json`;
+      const jordartCql2Url = `${jordartBase}&filter=${encodeURIComponent(`S_INTERSECTS(geometry,POINT(${lon} ${lat}))`)}&filter-lang=cql2-text&limit=1`;
+      const jordartBboxUrl = `${jordartBase}&bbox=${bbox}&limit=5`;
 
       // Chain HYPE levels fetch onto the omraden response so it fires as soon as
       // omrade_id is known. Fire BOTH specific-date AND latest-available queries
@@ -268,10 +271,11 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
         .catch(() => null);
 
       // All other fetches kick off at t=0 alongside the omraden chain
-      const [omradenRes, gvTillgangRes, jordartRes, forekomstRes, brunnarRes] = await Promise.allSettled([
+      const [omradenRes, gvTillgangRes, jordartCql2Res, jordartBboxRes, forekomstRes, brunnarRes] = await Promise.allSettled([
         omradenChain,
         fetch(gvTillgangUrl, { signal }),
-        fetch(jordartUrl, { signal }),
+        fetch(jordartCql2Url, { signal }),
+        fetch(jordartBboxUrl, { signal }),
         fetch(`https://api.sgu.se/oppnadata/grundvattenforekomster-eu/ogc/features/v1/collections/grundvattenforekomster/items?f=json&bbox=${bbox}&limit=3`, { signal }),
         fetch(`https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar/items?f=json&bbox=${brunnarBbox}&limit=25`, { signal }),
       ]);
@@ -310,21 +314,27 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
         } catch { /* ignore */ }
       }
 
-      // Jordart (OGC API – property jg2 is the numeric soil type code)
-      if (jordartRes.status === 'fulfilled' && jordartRes.value.ok) {
-        try {
-          const d = await jordartRes.value.json();
-          if (d.features?.length > 0) {
-            const p = d.features[0].properties ?? {};
-            const jg2 = p.jg2 ?? p.JG2;
-            if (jg2 != null) {
-              const soilInfo = getSoilTypeColor(Number(jg2));
-              result.jordartNamn = soilInfo.name;
-              result.jordartKod = String(jg2);
-            }
-          }
-        } catch { /* ignore */ }
-      }
+      // Jordart: prefer CQL2 (exact point containment), fall back to bbox
+      // (first non-water feature). Suppresses "Okänd" when neither has data.
+      const extractJordart = (features: any[]): { name: string; kod: string } | null => {
+        if (!features?.length) return null;
+        const f = features.find(f => (f.properties?.jg2 ?? f.properties?.JG2) !== 91) ?? features[0];
+        const jg2 = f.properties?.jg2 ?? f.properties?.JG2;
+        if (jg2 == null) return null;
+        return { name: getSoilTypeColor(Number(jg2)).name, kod: String(jg2) };
+      };
+      try {
+        let jordart: { name: string; kod: string } | null = null;
+        if (jordartCql2Res.status === 'fulfilled' && jordartCql2Res.value.ok) {
+          const d = await jordartCql2Res.value.json().catch(() => null);
+          jordart = extractJordart(d?.features);
+        }
+        if (!jordart && jordartBboxRes.status === 'fulfilled' && jordartBboxRes.value.ok) {
+          const d = await jordartBboxRes.value.json().catch(() => null);
+          jordart = extractJordart(d?.features);
+        }
+        if (jordart) { result.jordartNamn = jordart.name; result.jordartKod = jordart.kod; }
+      } catch { /* ignore */ }
 
       // GV Förekomst
       if (forekomstRes.status === 'fulfilled' && forekomstRes.value.ok) {
@@ -453,8 +463,8 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
             <div>
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Tolkning</h3>
 
-              {/* Aquifer type */}
-              {aquifer && (
+              {/* Aquifer type – only shown when we have actual jordart data */}
+              {aquifer && aquifer.type !== 'unknown' ? (
                 <div className="bg-secondary/40 rounded-lg p-3 mb-2">
                   <div className="text-xs text-muted-foreground mb-0.5">Akvifer (utifrån jordart)</div>
                   <div className="font-semibold">{aquifer.label}</div>
@@ -464,10 +474,14 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
                     </div>
                   )}
                 </div>
-              )}
+              ) : !data.jordartNamn ? (
+                <div className="text-xs text-muted-foreground mb-2">
+                  Ingen jordartsinformation tillgänglig för denna punkt
+                </div>
+              ) : null}
 
-              {/* Estimated depth */}
-              {depth && (
+              {/* Estimated depth – only meaningful when we have a real aquifer class */}
+              {depth && aquifer?.type !== 'unknown' && (
                 <div className={`rounded-lg p-3 mb-2 ${fyllnadBg(relevantFyllnad)}`}>
                   <div className="text-xs text-muted-foreground mb-1">
                     Uppskattad grundvattennivå under markyta
@@ -492,7 +506,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
               {/* Capacity interpretation */}
               <div className="rounded-lg border border-border p-3">
                 <div className="text-xs text-muted-foreground mb-1">Kapacitet – uppskattning</div>
-                {aquifer && (
+                {aquifer && aquifer.type !== 'unknown' && (
                   <div className="text-xs mb-1.5">
                     <span className="font-medium">Typisk kapacitet ({aquifer.label.split('–')[0].trim()}):</span>
                     <span className="ml-1">{aquifer.capacityLabel}</span>
