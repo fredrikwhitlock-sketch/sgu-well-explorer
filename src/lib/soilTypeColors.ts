@@ -17,25 +17,25 @@ const hexToRgbaStroke = (hex: string): string => {
   return `rgba(${Math.max(0, r - 40)}, ${Math.max(0, g - 40)}, ${Math.max(0, b - 40)}, 1)`;
 };
 
-// Officiella SGU-färger från WMS-stilen
+// Färgschema med god visuell distinktion
 const SGU_COLORS = {
-  moran: '#96C147',           // Morän - grön
-  moranLera: '#DFEDF7',       // Moränlera - ljusblå
-  isalvs: '#F3943E',          // Isälvssediment - orange
-  postglacialSand: '#FFECA3', // Postglacial sand-grus - ljusgul
-  lera: '#F9C39C',            // Lera/Silt - rosa/laxfärg
-  svamsediment: '#DFC3A2',    // Svämsediment - beige
-  alvsediment: '#E99CBA',     // Älvsediment - rosa
-  berg: '#E7E2F1',            // Berg - ljuslila/grå
-  sedimentartBerg: '#DE3534', // Sedimentärt berg - röd
-  diabas: '#0B88C5',          // Fanerozoisk diabas - blå
+  moran: '#4A7EB5',           // Morän - blå (stålblå)
+  moranLera: '#9ABBD8',       // Moränlera - ljusblå
+  isalvs: '#5FAD60',          // Isälvssediment - grön
+  postglacialSand: '#F0D050', // Postglacial sand-grus - gul
+  lera: '#CC8560',            // Lera/Silt - terrakotta
+  svamsediment: '#C8A882',    // Svämsediment - beige
+  alvsediment: '#B880C0',     // Älvsediment - lila
+  berg: '#C8C4DC',            // Berg - ljuslila/grå
+  sedimentartBerg: '#CC2828', // Sedimentärt berg - röd
+  diabas: '#1A5A9A',          // Fanerozoisk diabas - mörkblå
   fyllning: '#B84E94',        // Fyllning - magenta
-  vatten: '#1E90FF',          // Vatten - blå
-  torv: '#CA9661',            // Torv/Mosse - brun
-  karrtorv: '#D8B78F',        // Kärrtorv - ljusbrun
-  gyttja: '#D8B78F',          // Gyttja - ljusbrun  
-  kalktuff: '#BE874D',        // Kalktuff - mörkbrun
-  blockmark: '#C8C8C8',       // Blockmark - grå
+  vatten: '#1E90FF',          // Vatten - klar blå
+  torv: '#7A5030',            // Torv/Mosse - mörkbrun
+  karrtorv: '#9A6848',        // Kärrtorv - mellanbrun
+  gyttja: '#A08060',          // Gyttja - gråbrun
+  kalktuff: '#BE874D',        // Kalktuff - orange-brun
+  blockmark: '#A0A0A0',       // Blockmark - grå
   oklassat: '#FFFFFF',        // Oklassat - vit
 };
 

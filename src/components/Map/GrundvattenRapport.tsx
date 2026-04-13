@@ -233,9 +233,10 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
       // GV Tillgång via proxy (api.sgu.se WMS may lack CORS headers)
       const gvTillgangUrl =
         `${wmsProxyUrl}?url=${encodeURIComponent('https://api.sgu.se/oppnadata/grundvattentillgang-sma-magasin/wms')}&LAYERS=grundvattentillgang-sma-magasin&VERSION=1.1.1&SERVICE=WMS&REQUEST=GetFeatureInfo&QUERY_LAYERS=grundvattentillgang-sma-magasin&INFO_FORMAT=application%2Fjson&BBOX=${bbox}&SRS=EPSG:4326&WIDTH=101&HEIGHT=101&X=50&Y=50`;
-      // Jordart via OGC API (direct – no proxy needed)
+      // Jordart via OGC API with CQL2 point-in-polygon filter – avoids returning
+      // an adjacent water polygon when the click is near a river/stream boundary.
       const jordartUrl =
-        `https://api.sgu.se/oppnadata/jordarter25k-100k/ogc/features/v1/collections/grundlager/items?f=json&bbox=${bbox}&limit=1`;
+        `https://api.sgu.se/oppnadata/jordarter25k-100k/ogc/features/v1/collections/grundlager/items?f=json&filter=${encodeURIComponent(`S_INTERSECTS(geometry,POINT(${lon} ${lat}))`)}&filter-lang=cql2-text&limit=1`;
 
       // Chain HYPE levels fetch onto the omraden response so it fires as soon as
       // omrade_id is known. Fire BOTH specific-date AND latest-available queries
@@ -259,7 +260,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
             // Fire specific-date and latest-available in parallel
             levelsPromise = Promise.all([
               fetch(`${levelBase}&filter=${encodeURIComponent(`omrade_id=${id} AND datum='${selectedDate}'`)}&limit=1`, { signal }).then(safeJson).catch(() => null),
-              fetch(`${levelBase}&filter=${encodeURIComponent(`omrade_id=${id}`)}&limit=1`, { signal }).then(safeJson).catch(() => null),
+              fetch(`${levelBase}&filter=${encodeURIComponent(`omrade_id=${id}`)}&sortby=-datum&limit=1`, { signal }).then(safeJson).catch(() => null),
             ]);
           }
           return d;
