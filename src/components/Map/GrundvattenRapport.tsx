@@ -34,7 +34,8 @@ interface ReportData {
   gvForekomstEuKod?: string;
   brunnar?: BrunnInfo[];
   // Nearby observed groundwater levels for calibration
-  obsFeatures?: Array<{ djup: number; jordart?: string }>;
+  // aquiferGroup: derived from 'akvifer' code (B*=rock, J*=jord, XX/null=unknown)
+  obsFeatures?: Array<{ djup: number; jordart?: string; aquiferGroup?: 'rock' | 'jord' }>;
 }
 
 // ── Aquifer classification ────────────────────────────────────────────────────
@@ -315,7 +316,8 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
       // Chain: nivaer has no geometry so bbox filtering fails with 400.
       // Fetch stationer spatially first → extract platsbeteckning IDs → query
       // nivaer via CQL2 IN filter.  Same promise-chain pattern as HYPE omraden→levels.
-      const stJordart = new Map<string, string>();
+      const stJordart   = new Map<string, string>();
+      const stAkvifer   = new Map<string, 'rock' | 'jord'>(); // akvifer B*=rock, J*=jord
       let nivaerPromise: Promise<any> | null = null;
 
       const obsStationerChain = fetch(
@@ -329,6 +331,10 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
            const id = p.platsbeteckning;
            if (!id) continue;
            stJordart.set(String(id), p.jordart_tx ?? p.jordart ?? '');
+           // akvifer code: B* = berg (rock), J* = jord (soil), XX = unknown
+           const akv = String(p.akvifer ?? '').toUpperCase();
+           if (akv.startsWith('B')) stAkvifer.set(String(id), 'rock');
+           else if (akv.startsWith('J')) stAkvifer.set(String(id), 'jord');
            ids.push(String(id));
          }
          if (ids.length > 0) {
@@ -471,7 +477,11 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
           seenSt.add(String(sid));
           const djup = p.grundvattenniva_m_u_markyta;
           if (typeof djup !== 'number' || djup <= 0 || djup > 100) continue;
-          obsArr.push({ djup, jordart: stJordart.get(String(sid)) || undefined });
+          obsArr.push({
+            djup,
+            jordart:      stJordart.get(String(sid)) || undefined,
+            aquiferGroup: stAkvifer.get(String(sid)),
+          });
         }
       } catch { /* ignore */ }
       if (obsArr.length) result.obsFeatures = obsArr;
@@ -496,25 +506,41 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
     : data?.fyllnadsgradSma;
   const depth = aquifer && data ? estimatedDepth(aquifer, relevantFyllnad) : null;
 
-  // Observation calibration – filter by matching aquifer type, then median
+  // Observation calibration – two-level filter:
+  //   1. Primary: rock vs jord from 'akvifer' code (B*/J*) – never mix them
+  //   2. Secondary: within jord, prefer matching classifyAquifer sub-type
   const obsKalibr = (() => {
     if (!data?.obsFeatures?.length || !aquifer || aquifer.type === 'unknown') return null;
-    // Stations whose soil type matches the clicked point's aquifer type
-    const matching = data.obsFeatures.filter(o =>
+
+    const isRock = aquifer.type === 'rock';
+
+    // Level 1: hard rock/jord split (never use rock obs for soil or vice versa)
+    const groupMatch = data.obsFeatures.filter(o =>
+      o.aquiferGroup ? o.aquiferGroup === (isRock ? 'rock' : 'jord') : true
+    );
+
+    // Level 2: within same group, prefer matching sub-type (morän/sand/lera etc.)
+    const subMatch = groupMatch.filter(o =>
       o.jordart ? classifyAquifer(o.jordart).type === aquifer.type : false
     );
-    // Need ≥3 matching; fall back to all stations if not enough (flag it)
-    const pool = matching.length >= 3 ? matching :
+
+    // Use the most specific pool with ≥3; otherwise widen one level at a time
+    const pool = subMatch.length >= 3 ? subMatch :
+                 groupMatch.length >= 3 ? groupMatch :
                  data.obsFeatures.length >= 3 ? data.obsFeatures : null;
     if (!pool) return null;
+
     const sorted = pool.map(o => o.djup).sort((a, b) => a - b);
     return {
-      antal: pool.length,
-      matchingAntal: matching.length,
-      medianDjup: sorted[Math.floor(sorted.length / 2)],
-      p25: sorted[Math.floor(sorted.length * 0.25)],
-      p75: sorted[Math.floor(sorted.length * 0.75)],
-      aquiferMatch: matching.length >= 3,
+      antal:        pool.length,
+      medianDjup:   sorted[Math.floor(sorted.length / 2)],
+      p25:          sorted[Math.floor(sorted.length * 0.25)],
+      p75:          sorted[Math.floor(sorted.length * 0.75)],
+      // Label explains which level of matching was used
+      matchLabel:   subMatch.length >= 3  ? 'matchande jordart' :
+                    groupMatch.length >= 3 ? (isRock ? 'bergbrunnar' : 'jordbrunnar') :
+                                             'blandad (få stationer)',
+      aquiferMatch: subMatch.length >= 3 || groupMatch.length >= 3,
     };
   })();
 
@@ -646,11 +672,12 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
                         {depth.adj.label}
                       </div>
                       <div className="text-xs mt-1.5 text-muted-foreground">
-                        Median observerat (P25–P75): {obsKalibr!.medianDjup.toFixed(1)} m
-                        ({obsKalibr!.p25.toFixed(1)}–{obsKalibr!.p75.toFixed(1)} m)
+                        Observerat P25–P75: {obsKalibr!.p25.toFixed(1)}–{obsKalibr!.p75.toFixed(1)} m
+                        · median {obsKalibr!.medianDjup.toFixed(1)} m
                         · {obsKalibr!.antal} stationer
-                        {!obsKalibr!.aquiferMatch && <span className="text-yellow-600 dark:text-yellow-400"> · blandad jordart</span>}
-                        {obsKalibr!.aquiferMatch && <span className="text-green-700 dark:text-green-400"> · matchande jordart</span>}
+                        <span className={`ml-1 ${obsKalibr!.aquiferMatch ? 'text-green-700 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400'}`}>
+                          · {obsKalibr!.matchLabel}
+                        </span>
                       </div>
                     </>
                   ) : (
