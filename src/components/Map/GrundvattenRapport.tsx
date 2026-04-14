@@ -11,8 +11,10 @@ interface Props {
 
 interface BrunnInfo {
   id: string;
-  kapacitet_lh?: number;
-  djup?: number;
+  kapacitet?: number;    // l/h
+  djup?: number;         // totaldjup m
+  jorddjup?: number;     // soil cover m
+  isBergborrad: boolean; // totaldjup - jorddjup > 15 m
 }
 
 interface ReportData {
@@ -21,6 +23,7 @@ interface ReportData {
   sweref: [number, number];
   omradeId?: number;
   hypoDate?: string;
+  hypoDateIsFallback?: boolean; // true when selected date had no data → latest available used
   fyllnadsgradSma?: number | null;
   fyllnadsgradStora?: number | null;
   sitSma?: number | null;
@@ -32,7 +35,8 @@ interface ReportData {
   gvForekomstEuKod?: string;
   brunnar?: BrunnInfo[];
   // Nearby observed groundwater levels for calibration
-  obsFeatures?: Array<{ djup: number; jordart?: string }>;
+  // aquiferGroup: derived from 'akvifer' code (B*=rock, J*=jord, XX/null=unknown)
+  obsFeatures?: Array<{ djup: number; jordart?: string; aquiferGroup?: 'rock' | 'jord' }>;
 }
 
 // ── Aquifer classification ────────────────────────────────────────────────────
@@ -260,8 +264,8 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
       // Tight bbox for WMS GFI (~100 m) – faster than 200 m
       const delta = 0.001;
       const bbox = `${lon - delta},${lat - delta},${lon + delta},${lat + delta}`;
-      // Smaller brunnar radius (8 km) to keep response fast
-      const brunnarDelta = 0.07;
+      // ~15 km radius for brunnar
+      const brunnarDelta = 0.13;
       const brunnarBbox = `${lon - brunnarDelta},${lat - brunnarDelta},${lon + brunnarDelta},${lat + brunnarDelta}`;
 
       // GV Tillgång via proxy (api.sgu.se WMS may lack CORS headers)
@@ -313,11 +317,12 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
       // Chain: nivaer has no geometry so bbox filtering fails with 400.
       // Fetch stationer spatially first → extract platsbeteckning IDs → query
       // nivaer via CQL2 IN filter.  Same promise-chain pattern as HYPE omraden→levels.
-      const stJordart = new Map<string, string>();
+      const stJordart   = new Map<string, string>();
+      const stAkvifer   = new Map<string, 'rock' | 'jord'>(); // akvifer B*=rock, J*=jord
       let nivaerPromise: Promise<any> | null = null;
 
       const obsStationerChain = fetch(
-        `${obsBase}/stationer/items?f=json&bbox=${obs50Bbox}&limit=300`,
+        `${obsBase}/stationer/items?f=json&bbox=${obs50Bbox}&limit=500`,
         { signal }
       ).then(r => r.ok ? r.json() : null)
        .then(d => {
@@ -327,32 +332,36 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
            const id = p.platsbeteckning;
            if (!id) continue;
            stJordart.set(String(id), p.jordart_tx ?? p.jordart ?? '');
+           // akvifer code: B* = berg (rock), J* = jord (soil), XX = unknown
+           const akv = String(p.akvifer ?? '').toUpperCase();
+           if (akv.startsWith('B')) stAkvifer.set(String(id), 'rock');
+           else if (akv.startsWith('J')) stAkvifer.set(String(id), 'jord');
            ids.push(String(id));
          }
          if (ids.length > 0) {
            // Limit IN list to avoid very long URLs
-           const idList = ids.slice(0, 150).map(id => `'${id.replace(/'/g, "''")}'`).join(',');
+           const idList = ids.slice(0, 200).map(id => `'${id.replace(/'/g, "''")}'`).join(',');
            const filter = `platsbeteckning IN (${idList}) AND obsdatum > '2020-01-01'`;
            nivaerPromise = fetch(
-             `${obsBase}/nivaer/items?f=json&filter=${encodeURIComponent(filter)}&filter-lang=cql2-text&sortby=-obsdatum&limit=500`,
+             `${obsBase}/nivaer/items?f=json&filter=${encodeURIComponent(filter)}&filter-lang=cql2-text&sortby=-obsdatum&limit=1500`,
              { signal }
            ).then(r => r.ok ? r.json().catch(() => null) : null).catch(() => null);
          }
          return d;
        }).catch(() => null);
 
-      // All other fetches kick off at t=0 alongside the omraden chain
-      const [omradenRes, gvTillgangRes, jordartCql2Res, jordartBboxRes, forekomstRes, brunnarRes] =
-        await Promise.allSettled([
-          omradenChain,
-          fetch(gvTillgangUrl, { signal }),
-          fetch(jordartCql2Url, { signal }),
-          fetch(jordartBboxUrl, { signal }),
-          fetch(`https://api.sgu.se/oppnadata/grundvattenforekomster-eu/ogc/features/v1/collections/grundvattenforekomster/items?f=json&bbox=${bbox}&limit=3`, { signal }),
-          fetch(`https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar/items?f=json&bbox=${brunnarBbox}&limit=25`, { signal }),
-        ]);
-      // Ensure stationer chain has completed (triggers nivaerPromise) before we await it
-      await obsStationerChain.catch(() => null);
+      // All fetches at t=0 — obsStationerChain included so nivaer fires as soon
+      // as stationer resolves (overlaps with the other 6 parallel fetches).
+      const allResults = await Promise.allSettled([
+        omradenChain,
+        fetch(gvTillgangUrl, { signal }),
+        fetch(jordartCql2Url, { signal }),
+        fetch(jordartBboxUrl, { signal }),
+        fetch(`https://api.sgu.se/oppnadata/grundvattenforekomster-eu/ogc/features/v1/collections/grundvattenforekomster/items?f=json&bbox=${bbox}&limit=3`, { signal }),
+        fetch(`https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar/items?f=json&bbox=${brunnarBbox}&limit=25`, { signal }),
+        obsStationerChain, // side-effects: fills stJordart, sets nivaerPromise
+      ]);
+      const [omradenRes, gvTillgangRes, jordartCql2Res, jordartBboxRes, forekomstRes, brunnarRes] = allResults;
 
       if (signal.aborted) return;
 
@@ -372,22 +381,28 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
       }
 
       // Prefer specific-date result; fall back to latest available
-      const levelFeature =
-        (dateResult?.features?.length > 0 ? dateResult : latestResult)?.features?.[0];
+      const usedLatest = !(dateResult?.features?.length > 0);
+      const levelFeature = (usedLatest ? latestResult : dateResult)?.features?.[0];
       if (levelFeature) {
         const p = levelFeature.properties;
         result.hypoDate = p.datum;
+        result.hypoDateIsFallback = usedLatest;
         result.fyllnadsgradSma = p.fyllnadsgrad_sma;
         result.fyllnadsgradStora = p.fyllnadsgrad_stora;
         result.sitSma = p.grundvattensituation_sma;
         result.sitStora = p.grundvattensituation_stora;
       }
 
-      // GV Tillgång
+      // GV Tillgång små magasin (raster, l/dygn/ha)
       if (gvTillgangRes.status === 'fulfilled' && gvTillgangRes.value.ok) {
         try {
           const d = await gvTillgangRes.value.json();
-          if (d.features?.length > 0) result.gvTillgangLdha = d.features[0].properties?.GRAY_INDEX ?? null;
+          if (d.features?.length > 0) {
+            const p = d.features[0].properties ?? {};
+            result.gvTillgangLdha =
+              p.Grundvattentillgang_i_sma_magasin_l_dygn_ha ??
+              p.GRAY_INDEX ?? null;
+          }
         } catch { /* ignore */ }
       }
 
@@ -425,19 +440,29 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
         } catch { /* ignore */ }
       }
 
-      // Brunnar
+      // Brunnar – actual property is 'kapacitet' (l/h), not 'kapacitet_lh'
       if (brunnarRes.status === 'fulfilled' && brunnarRes.value.ok) {
         try {
           const d = await brunnarRes.value.json();
           if (d.features?.length > 0) {
             result.brunnar = d.features
-              .filter((f: any) => f.properties?.kapacitet_lh != null && f.properties.kapacitet_lh > 0)
-              .slice(0, 8)
-              .map((f: any) => ({
-                id: f.properties?.brunnsid || f.properties?.id || f.id || '?',
-                kapacitet_lh: f.properties?.kapacitet_lh,
-                djup: f.properties?.borrhalsdjup ?? f.properties?.djup,
-              }));
+              .filter((f: any) => {
+                const kap = f.properties?.kapacitet;
+                return kap != null && kap > 0;
+              })
+              .slice(0, 20)
+              .map((f: any) => {
+                const p = f.properties ?? {};
+                const totaldjup = p.totaldjup ?? p.borrhalsdjup ?? null;
+                const jorddjup  = p.jorddjup ?? 0;
+                return {
+                  id: p.brunnsid || p.id || f.id || '?',
+                  kapacitet: p.kapacitet,
+                  djup: totaldjup,
+                  jorddjup,
+                  isBergborrad: totaldjup != null && (totaldjup - jorddjup) > 15,
+                };
+              });
           }
         } catch { /* ignore */ }
       }
@@ -445,7 +470,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
       // Parse observed nivaer: take most recent reading per station (sorted -obsdatum),
       // join with stJordart map for soil type. Both property names verified against API.
       const seenSt = new Set<string>();
-      const obsArr: Array<{ djup: number; jordart?: string }> = [];
+      const obsArr: Array<{ djup: number; jordart?: string; aquiferGroup?: 'rock' | 'jord' }> = [];
       try {
         for (const f of nivaerData?.features ?? []) {
           const p = f.properties ?? {};
@@ -454,7 +479,11 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
           seenSt.add(String(sid));
           const djup = p.grundvattenniva_m_u_markyta;
           if (typeof djup !== 'number' || djup <= 0 || djup > 100) continue;
-          obsArr.push({ djup, jordart: stJordart.get(String(sid)) || undefined });
+          obsArr.push({
+            djup,
+            jordart:      stJordart.get(String(sid)) || undefined,
+            aquiferGroup: stAkvifer.get(String(sid)),
+          });
         }
       } catch { /* ignore */ }
       if (obsArr.length) result.obsFeatures = obsArr;
@@ -479,25 +508,51 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
     : data?.fyllnadsgradSma;
   const depth = aquifer && data ? estimatedDepth(aquifer, relevantFyllnad) : null;
 
-  // Observation calibration – filter by matching aquifer type, then median
+  // Observation calibration – two-level filter:
+  //   1. Primary: bergborrade (B*) vs jordbrunnar (J*) split
+  //      Morän ('till') is grouped with rock: in morän terrain people typically
+  //      drill through to bedrock, so nearby rock observations are the right anchor.
+  //   2. Secondary: within group, prefer matching classifyAquifer sub-type
   const obsKalibr = (() => {
     if (!data?.obsFeatures?.length || !aquifer || aquifer.type === 'unknown') return null;
-    // Stations whose soil type matches the clicked point's aquifer type
-    const matching = data.obsFeatures.filter(o =>
+    // Confining layers (lera, silt, moränlera): nearby jord observations are from
+    // permeable sand/grus lenses at 1–3 m and would give a misleadingly shallow
+    // calibrated depth. In clay terrain the relevant question is how deep you need
+    // to drill THROUGH the confining layer – skip calibration entirely.
+    if (aquifer.type === 'confining') return null;
+
+    // Morän → bergborrad is the dominant well type → use rock observations
+    const useRockPool = aquifer.type === 'rock' || aquifer.type === 'till';
+
+    // Level 1: hard berg/jord split
+    const groupMatch = data.obsFeatures.filter(o =>
+      o.aquiferGroup ? o.aquiferGroup === (useRockPool ? 'rock' : 'jord') : true
+    );
+
+    // Level 2: within same group, prefer matching sub-type (morän/sand/lera etc.)
+    // For 'till' this finds rock obs whose station jordart is also morän (overburden).
+    const subMatch = groupMatch.filter(o =>
       o.jordart ? classifyAquifer(o.jordart).type === aquifer.type : false
     );
-    // Need ≥3 matching; fall back to all stations if not enough (flag it)
-    const pool = matching.length >= 3 ? matching :
+
+    // Use the most specific pool with ≥3; otherwise widen one level at a time
+    const pool = subMatch.length >= 3 ? subMatch :
+                 groupMatch.length >= 3 ? groupMatch :
                  data.obsFeatures.length >= 3 ? data.obsFeatures : null;
     if (!pool) return null;
+
     const sorted = pool.map(o => o.djup).sort((a, b) => a - b);
+
+    const groupLabel = useRockPool ? 'bergbrunnar' : 'jordbrunnar';
     return {
-      antal: pool.length,
-      matchingAntal: matching.length,
-      medianDjup: sorted[Math.floor(sorted.length / 2)],
-      p25: sorted[Math.floor(sorted.length * 0.25)],
-      p75: sorted[Math.floor(sorted.length * 0.75)],
-      aquiferMatch: matching.length >= 3,
+      antal:        pool.length,
+      medianDjup:   sorted[Math.floor(sorted.length / 2)],
+      p25:          sorted[Math.floor(sorted.length * 0.25)],
+      p75:          sorted[Math.floor(sorted.length * 0.75)],
+      matchLabel:   subMatch.length >= 3  ? 'matchande jordart' :
+                    groupMatch.length >= 3 ? groupLabel :
+                                             'blandad (få stationer)',
+      aquiferMatch: subMatch.length >= 3 || groupMatch.length >= 3,
     };
   })();
 
@@ -512,12 +567,15 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
     };
   })();
 
-  // Median capacity from nearby brunnar
-  const medianKapacitet = (() => {
-    const vals = (data?.brunnar ?? []).map(b => b.kapacitet_lh!).filter(Boolean).sort((a, b) => a - b);
-    if (!vals.length) return null;
-    return vals[Math.floor(vals.length / 2)];
-  })();
+  // Separate median capacity for bedrock vs soil wells
+  const medianOf = (brunnar: BrunnInfo[]) => {
+    const vals = brunnar.map(b => b.kapacitet!).filter(v => v > 0).sort((a, b) => a - b);
+    return vals.length ? vals[Math.floor(vals.length / 2)] : null;
+  };
+  const bergBrunnar = (data?.brunnar ?? []).filter(b => b.isBergborrad);
+  const jordBrunnar = (data?.brunnar ?? []).filter(b => !b.isBergborrad);
+  const medianBergKapacitet = medianOf(bergBrunnar);
+  const medianJordKapacitet = medianOf(jordBrunnar);
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -614,7 +672,12 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
                     <>
                       <div className="text-xs text-muted-foreground mb-1">
                         Grundvattennivå under markyta – kalibrerad
-                        {data.hypoDate && <span className="ml-1">· {data.hypoDate.replace(/Z$/, '')}</span>}
+                        {data.hypoDate && (
+                          <span className="ml-1">
+                            · {data.hypoDate.replace(/Z$/, '')}
+                            {data.hypoDateIsFallback && <span className="italic"> (senaste tillgängliga)</span>}
+                          </span>
+                        )}
                       </div>
                       <div className="flex items-baseline gap-1.5">
                         <span className={`text-2xl font-bold leading-none ${fyllnadColor(relevantFyllnad)}`}>
@@ -626,18 +689,24 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
                         {depth.adj.label}
                       </div>
                       <div className="text-xs mt-1.5 text-muted-foreground">
-                        Median observerat (P25–P75): {obsKalibr!.medianDjup.toFixed(1)} m
-                        ({obsKalibr!.p25.toFixed(1)}–{obsKalibr!.p75.toFixed(1)} m)
+                        Observerat P25–P75: {obsKalibr!.p25.toFixed(1)}–{obsKalibr!.p75.toFixed(1)} m
+                        · median {obsKalibr!.medianDjup.toFixed(1)} m
                         · {obsKalibr!.antal} stationer
-                        {!obsKalibr!.aquiferMatch && <span className="text-yellow-600 dark:text-yellow-400"> · blandad jordart</span>}
-                        {obsKalibr!.aquiferMatch && <span className="text-green-700 dark:text-green-400"> · matchande jordart</span>}
+                        <span className={`ml-1 ${obsKalibr!.aquiferMatch ? 'text-green-700 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400'}`}>
+                          · {obsKalibr!.matchLabel}
+                        </span>
                       </div>
                     </>
                   ) : (
                     <>
                       <div className="text-xs text-muted-foreground mb-1">
                         Uppskattad grundvattennivå under markyta
-                        {data.hypoDate && <span className="ml-1">· {data.hypoDate.replace(/Z$/, '')}</span>}
+                        {data.hypoDate && (
+                          <span className="ml-1">
+                            · {data.hypoDate.replace(/Z$/, '')}
+                            {data.hypoDateIsFallback && <span className="italic"> (senaste tillgängliga)</span>}
+                          </span>
+                        )}
                       </div>
                       <div className="flex items-baseline gap-1.5">
                         <span className={`text-2xl font-bold leading-none ${fyllnadColor(relevantFyllnad)}`}>
@@ -654,7 +723,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
                     <Info className="w-3 h-3 shrink-0 mt-0.5" />
                     <span>
                       {calibratedDepth
-                        ? 'Kalibrerad mot verkliga observationsstationer (SGU) inom 50 km, justerad med SGU-HYPE-situationen. Lokala förhållanden kan avvika.'
+                        ? `Kalibrerad mot ${obsKalibr!.matchLabel} (SGU) inom 50 km, justerad med SGU-HYPE-situationen. Lokala förhållanden kan avvika.`
                         : 'Uppskattning baserad på jordart och SGU-HYPE-modellen. Osäkerheten är betydande – lokala förhållanden kan avvika.'}
                     </span>
                   </div>
@@ -666,26 +735,45 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
                 <div className="text-xs text-muted-foreground mb-1">Kapacitet – uppskattning</div>
                 {aquifer && aquifer.type !== 'unknown' && (
                   <div className="text-xs mb-1.5">
-                    <span className="font-medium">Typisk kapacitet ({aquifer.label.split('–')[0].trim()}):</span>
-                    <span className="ml-1">{aquifer.capacityLabel}</span>
+                    <span className="font-medium">Typisk ({aquifer.label.split('–')[0].trim()}):</span>
+                    <span className="ml-1 text-muted-foreground">{aquifer.capacityLabel}</span>
                   </div>
                 )}
-                {data.gvTillgangLdha != null && (
+                {/* Berg + Morän: bedrock wells are the primary reference */}
+                {(aquifer?.type === 'rock' || aquifer?.type === 'till') && medianBergKapacitet != null && (
                   <div className="text-xs mb-1.5">
-                    <span className="font-medium">Bergborrad brunn (SGU-raster):</span>
-                    <span className="ml-1 text-blue-700 dark:text-blue-400 font-semibold">
-                      {Math.round(data.gvTillgangLdha / 24)} l/h/ha
-                    </span>
-                    <span className="text-muted-foreground ml-1">({Math.round(data.gvTillgangLdha)} l/dygn/ha)</span>
+                    <span className="font-medium">Bergborrade brunnar i närheten:</span>
+                    <span className="ml-1 text-blue-700 dark:text-blue-400 font-semibold">{medianBergKapacitet} l/h</span>
+                    <span className="text-muted-foreground ml-1">(median, {bergBrunnar.length} brunnar, ca 15 km)</span>
                   </div>
                 )}
-                {medianKapacitet != null && (
-                  <div className="text-xs">
-                    <span className="font-medium">Mediankapacitet, brunnar i närheten:</span>
+                {/* Sedimentjord: show small-aquifer raster (l/dygn/ha) — not relevant for morän/berg */}
+                {aquifer?.type !== 'rock' && aquifer?.type !== 'till' && data.gvTillgangLdha != null && (
+                  <div className="text-xs mb-1.5">
+                    <span className="font-medium">Grundvattentillgång, små magasin:</span>
                     <span className="ml-1 text-blue-700 dark:text-blue-400 font-semibold">
-                      {medianKapacitet} l/h
+                      {Math.round(data.gvTillgangLdha)} l/dygn/ha
                     </span>
-                    <span className="text-muted-foreground ml-1">({data.brunnar?.length} brunnar, ca 15 km)</span>
+                  </div>
+                )}
+                {/* Jord well median – primary for sediment aquifers, reference for morän/rock */}
+                {aquifer?.type !== 'rock' && medianJordKapacitet != null && (
+                  <div className={`text-xs mb-1.5 ${aquifer?.type === 'till' ? '' : ''}`}>
+                    <span className={`font-medium ${aquifer?.type === 'till' ? 'text-muted-foreground' : ''}`}>
+                      {aquifer?.type === 'till' ? 'Grävda/rörbrunnars kapacitet nära (referens):' : 'Grävda/rörbrunnars kapacitet nära:'}
+                    </span>
+                    <span className={`ml-1 font-semibold ${aquifer?.type === 'till' ? 'text-muted-foreground' : 'text-blue-700 dark:text-blue-400'}`}>
+                      {medianJordKapacitet} l/h
+                    </span>
+                    <span className="text-muted-foreground ml-1">(median, {jordBrunnar.length} brunnar)</span>
+                  </div>
+                )}
+                {/* Bedrock wells as reference for pure sediment aquifers only */}
+                {aquifer?.type !== 'rock' && aquifer?.type !== 'till' && medianBergKapacitet != null && (
+                  <div className="text-xs">
+                    <span className="font-medium text-muted-foreground">Bergborrade brunnar nära:</span>
+                    <span className="ml-1 text-muted-foreground">{medianBergKapacitet} l/h</span>
+                    <span className="text-muted-foreground ml-1">(median, {bergBrunnar.length} st)</span>
                   </div>
                 )}
               </div>
@@ -701,7 +789,13 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
               {data.omradeId !== undefined ? (
                 <>
                   <div className="text-xs text-muted-foreground mb-2">
-                    SGU-HYPE område {data.omradeId}{data.hypoDate ? ` · ${data.hypoDate.replace(/Z$/, '')}` : ''}
+                    SGU-HYPE område {data.omradeId}
+                    {data.hypoDate && (
+                      <span>
+                        {' · '}{data.hypoDate.replace(/Z$/, '')}
+                        {data.hypoDateIsFallback && <span className="italic"> (senaste tillgängliga)</span>}
+                      </span>
+                    )}
                   </div>
                   <div className="grid grid-cols-2 gap-2 mb-3">
                     {[
@@ -749,27 +843,40 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
             </div>
 
             {/* Brunnar i närheten */}
-            {data.brunnar && data.brunnar.length > 0 && (
-              <>
-                <hr className="border-border" />
-                <div>
-                  <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
-                    Brunnar med kapacitetsdata i närheten
-                  </h3>
-                  <div className="space-y-1.5">
-                    {data.brunnar.map((b, i) => (
-                      <div key={i} className="flex items-center justify-between bg-secondary/30 rounded px-2.5 py-1.5 text-xs">
-                        <div>
-                          <span className="font-medium">{b.id}</span>
-                          {b.djup != null && <span className="text-muted-foreground ml-2">{b.djup} m djup</span>}
+            {data.brunnar && data.brunnar.length > 0 && (() => {
+              // Sort: matching aquifer type first, then by capacity descending. Cap display at 8.
+              // Berg/morän: bergborrade first; sediment: jord first
+              const preferBerg = aquifer?.type === 'rock' || aquifer?.type === 'till';
+              const sorted = [...data.brunnar].sort((a, b) => {
+                const aMatch = preferBerg ? a.isBergborrad : !a.isBergborrad;
+                const bMatch = preferBerg ? b.isBergborrad : !b.isBergborrad;
+                if (aMatch !== bMatch) return aMatch ? -1 : 1;
+                return (b.kapacitet ?? 0) - (a.kapacitet ?? 0);
+              }).slice(0, 8);
+              return (
+                <>
+                  <hr className="border-border" />
+                  <div>
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                      Brunnar med kapacitetsdata i närheten
+                      {data.brunnar.length > 8 && <span className="ml-1 font-normal">({data.brunnar.length} totalt, visar 8)</span>}
+                    </h3>
+                    <div className="space-y-1.5">
+                      {sorted.map((b, i) => (
+                        <div key={i} className="flex items-center justify-between bg-secondary/30 rounded px-2.5 py-1.5 text-xs">
+                          <div>
+                            <span className="font-medium">{b.id}</span>
+                            <span className="text-muted-foreground ml-1.5">{b.isBergborrad ? 'berg' : 'jord'}</span>
+                            {b.djup != null && <span className="text-muted-foreground ml-1.5">{b.djup} m</span>}
+                          </div>
+                          <div className="font-semibold text-blue-700 dark:text-blue-400 ml-2 shrink-0">{b.kapacitet} l/h</div>
                         </div>
-                        <div className="font-semibold text-blue-700 dark:text-blue-400 ml-2 shrink-0">{b.kapacitet_lh} l/h</div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              </>
-            )}
+                </>
+              );
+            })()}
 
             <div className="text-xs text-muted-foreground pt-1 border-t border-border">
               Källa: SGU OGC API · Tolkningar är uppskattningar och ersätter inte platsspecifik undersökning.
