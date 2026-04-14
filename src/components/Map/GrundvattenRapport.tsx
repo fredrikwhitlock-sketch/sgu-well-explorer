@@ -322,7 +322,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
       let nivaerPromise: Promise<any> | null = null;
 
       const obsStationerChain = fetch(
-        `${obsBase}/stationer/items?f=json&bbox=${obs50Bbox}&limit=300`,
+        `${obsBase}/stationer/items?f=json&bbox=${obs50Bbox}&limit=500`,
         { signal }
       ).then(r => r.ok ? r.json() : null)
        .then(d => {
@@ -340,7 +340,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
          }
          if (ids.length > 0) {
            // Limit IN list to avoid very long URLs
-           const idList = ids.slice(0, 150).map(id => `'${id.replace(/'/g, "''")}'`).join(',');
+           const idList = ids.slice(0, 200).map(id => `'${id.replace(/'/g, "''")}'`).join(',');
            const filter = `platsbeteckning IN (${idList}) AND obsdatum > '2020-01-01'`;
            nivaerPromise = fetch(
              `${obsBase}/nivaer/items?f=json&filter=${encodeURIComponent(filter)}&filter-lang=cql2-text&sortby=-obsdatum&limit=1500`,
@@ -515,6 +515,11 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
   //   2. Secondary: within group, prefer matching classifyAquifer sub-type
   const obsKalibr = (() => {
     if (!data?.obsFeatures?.length || !aquifer || aquifer.type === 'unknown') return null;
+    // Confining layers (lera, silt, moränlera): nearby jord observations are from
+    // permeable sand/grus lenses at 1–3 m and would give a misleadingly shallow
+    // calibrated depth. In clay terrain the relevant question is how deep you need
+    // to drill THROUGH the confining layer – skip calibration entirely.
+    if (aquifer.type === 'confining') return null;
 
     // Morän → bergborrad is the dominant well type → use rock observations
     const useRockPool = aquifer.type === 'rock' || aquifer.type === 'till';
