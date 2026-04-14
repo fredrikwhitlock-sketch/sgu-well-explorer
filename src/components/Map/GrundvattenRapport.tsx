@@ -53,42 +53,30 @@ function classifyAquifer(jordart: string | undefined): AquiferClass {
     capacityLabel: 'Okänd', useStoraMagasin: false,
   };
 
-  // Normalise: uppercase, trim, take first token
   const j = jordart.trim().toUpperCase();
 
-  // Coarse porous (sand, grus) – excellent shallow aquifer
-  if (/^(GR|GV|SA|S\b|MO\b|MO,|SAND|GRUS|KLARJORD)/.test(j) ||
-      j.includes('SAND') || j.includes('GRUS') || j.includes('KLARJORD')) {
+  // Torv/organiska jordar – indikerar ytligt grundvatten
+  if (j.includes('TORV') || j.includes('MOSSE') || j.includes('GYTTJA') || j.includes('KÄRR')) {
     return {
-      type: 'porous-coarse', label: 'Sand/grus – poröst magasin',
-      depthMin: 0.5, depthMax: 4,
-      capacityLabel: '500–10 000 l/h (grävd/borrad infiltrationsbrunn)',
-      useStoraMagasin: true,
-    };
-  }
-
-  // Fine-grained porous (finmo, mjäla) – poor to moderate
-  if (/^(MO\.|FMO|MJÄLA|FINMO|SI\b|SIL)/.test(j) || j.includes('MJÄLA') || j.includes('FINMO')) {
-    return {
-      type: 'porous-fine', label: 'Finmo/mjäla – svagt poröst magasin',
-      depthMin: 1, depthMax: 8,
-      capacityLabel: '50–500 l/h',
+      type: 'porous-fine', label: 'Torv/organisk jord – ytligt grundvatten',
+      depthMin: 0.2, depthMax: 2,
+      capacityLabel: 'Ej lämpligt för dricksvattenbrunn',
       useStoraMagasin: false,
     };
   }
 
-  // Clay / silt – confining layer, not an aquifer itself
-  if (/^(LE|LER|LERA|SILT|VARV)/.test(j) || j.includes('LERA') || j.includes('SILT')) {
-    return {
-      type: 'confining', label: 'Lera/silt – täckande lager',
-      depthMin: 5, depthMax: 30,
-      capacityLabel: 'Ej lämpligt för ytlig brunn; tätande lager kan dölja djupare magasin',
-      useStoraMagasin: false,
-    };
-  }
-
-  // Till / moraine
-  if (/^(MO|TM|MMH|MMG|MORÄN|TILL)/.test(j) || j.includes('MORÄN')) {
+  // Morän MÅSTE kontrolleras FÖRE sand/grus – "Sandig morän" och "Grusig morän"
+  // innehåller "SAND"/"GRUS" och klassas annars fel.
+  if (j.includes('MORÄN')) {
+    // Moränlera och moränfinlera är täckande lager utan bra magasinsegenskaper
+    if (j.includes('LERA') || j.includes('LERIG')) {
+      return {
+        type: 'confining', label: 'Moränlera – täckande lager',
+        depthMin: 5, depthMax: 30,
+        capacityLabel: 'Ej lämpligt för ytlig brunn; kan täcka djupare magasin',
+        useStoraMagasin: false,
+      };
+    }
     return {
       type: 'till', label: 'Morän – varierande magasin',
       depthMin: 2, depthMax: 12,
@@ -97,8 +85,20 @@ function classifyAquifer(jordart: string | undefined): AquiferClass {
     };
   }
 
-  // Bedrock outcrops
-  if (/^(BE|BERG|HÄLL)/.test(j) || j.includes('BERG') || j.includes('HÄLL')) {
+  // Isälvssediment (glacifluvialt) – kontrolleras före generellt sand/grus
+  if (j.includes('ISÄLV') || j.includes('RULLSTENS')) {
+    return {
+      type: 'porous-coarse', label: 'Isälvssediment – poröst grovkornigt magasin',
+      depthMin: 0.5, depthMax: 4,
+      capacityLabel: '500–10 000 l/h (grävd/borrad infiltrationsbrunn)',
+      useStoraMagasin: true,
+    };
+  }
+
+  // Berg
+  if (j.includes('BERG') || j.includes('HÄLL') || j.includes('DIABAS') ||
+      j.includes('SANDSTEN') || j.includes('KALKSTEN') || j.includes('SEDIMENTÄRT') ||
+      j.includes('TALUS') || j.includes('VITTRING')) {
     return {
       type: 'rock', label: 'Berg i dagen – sprickzonsmagasin',
       depthMin: 5, depthMax: 20,
@@ -107,12 +107,44 @@ function classifyAquifer(jordart: string | undefined): AquiferClass {
     };
   }
 
-  // Peat / wetland – poor but indicates shallow water
-  if (/^(TO|TORV|KÄRRMARK|MY)/.test(j) || j.includes('TORV')) {
+  // Lera/silt – täckande lager
+  if (j.includes('LERA') || j.includes('SILT') || j.includes('VARV')) {
     return {
-      type: 'porous-fine', label: 'Torv/organisk jord – ytligt grundvatten',
-      depthMin: 0.2, depthMax: 2,
-      capacityLabel: 'Ej lämpligt för dricksvattenbrunn',
+      type: 'confining', label: 'Lera/silt – täckande lager',
+      depthMin: 5, depthMax: 30,
+      capacityLabel: 'Ej lämpligt för ytlig brunn; tätande lager kan dölja djupare magasin',
+      useStoraMagasin: false,
+    };
+  }
+
+  // Grovkornigt poröst (sand, grus) – rent sand/grus utan morän eller isälv
+  if (j.includes('SAND') || j.includes('GRUS') || j.includes('KLARJORD') ||
+      j.includes('SVALL') || j.includes('KLAPPER') || j.includes('SKALJORD')) {
+    return {
+      type: 'porous-coarse', label: 'Sand/grus – poröst magasin',
+      depthMin: 0.5, depthMax: 4,
+      capacityLabel: '500–10 000 l/h (grävd/borrad infiltrationsbrunn)',
+      useStoraMagasin: true,
+    };
+  }
+
+  // Finkornigt poröst (svämsediment, älvsediment, finmo)
+  if (j.includes('SVÄM') || j.includes('ÄLV') || j.includes('FINMO') ||
+      j.includes('MJÄLA') || j.includes('FLYGSAND')) {
+    return {
+      type: 'porous-fine', label: 'Finkornigt sediment – svagt poröst magasin',
+      depthMin: 1, depthMax: 8,
+      capacityLabel: '50–500 l/h',
+      useStoraMagasin: false,
+    };
+  }
+
+  // Fyllning
+  if (j.includes('FYLLNING')) {
+    return {
+      type: 'unknown', label: 'Fyllning – varierande egenskaper',
+      depthMin: 1, depthMax: 10,
+      capacityLabel: 'Okänd (fyllnadsmassor)',
       useStoraMagasin: false,
     };
   }
