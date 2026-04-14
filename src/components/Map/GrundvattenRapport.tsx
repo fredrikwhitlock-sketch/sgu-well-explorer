@@ -310,25 +310,57 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
       const obs50Bbox = `${lon - lonD50},${lat - latD50},${lon + lonD50},${lat + latD50}`;
       const obsBase = 'https://api.sgu.se/oppnadata/grundvattennivaer-observerade/ogc/features/v1/collections';
 
+      // Chain: nivaer has no geometry so bbox filtering fails with 400.
+      // Fetch stationer spatially first → extract platsbeteckning IDs → query
+      // nivaer via CQL2 IN filter.  Same promise-chain pattern as HYPE omraden→levels.
+      const stJordart = new Map<string, string>();
+      let nivaerPromise: Promise<any> | null = null;
+
+      const obsStationerChain = fetch(
+        `${obsBase}/stationer/items?f=json&bbox=${obs50Bbox}&limit=300`,
+        { signal }
+      ).then(r => r.ok ? r.json() : null)
+       .then(d => {
+         const ids: string[] = [];
+         for (const f of d?.features ?? []) {
+           const p = f.properties ?? {};
+           const id = p.platsbeteckning;
+           if (!id) continue;
+           stJordart.set(String(id), p.jordart_tx ?? p.jordart ?? '');
+           ids.push(String(id));
+         }
+         if (ids.length > 0) {
+           // Limit IN list to avoid very long URLs
+           const idList = ids.slice(0, 150).map(id => `'${id.replace(/'/g, "''")}'`).join(',');
+           const filter = `platsbeteckning IN (${idList}) AND obsdatum > '2020-01-01'`;
+           nivaerPromise = fetch(
+             `${obsBase}/nivaer/items?f=json&filter=${encodeURIComponent(filter)}&filter-lang=cql2-text&sortby=-obsdatum&limit=500`,
+             { signal }
+           ).then(r => r.ok ? r.json().catch(() => null) : null).catch(() => null);
+         }
+         return d;
+       }).catch(() => null);
+
       // All other fetches kick off at t=0 alongside the omraden chain
-      const [omradenRes, gvTillgangRes, jordartCql2Res, jordartBboxRes, forekomstRes, brunnarRes,
-             obsStationerRes, obsNivaerRes] = await Promise.allSettled([
-        omradenChain,
-        fetch(gvTillgangUrl, { signal }),
-        fetch(jordartCql2Url, { signal }),
-        fetch(jordartBboxUrl, { signal }),
-        fetch(`https://api.sgu.se/oppnadata/grundvattenforekomster-eu/ogc/features/v1/collections/grundvattenforekomster/items?f=json&bbox=${bbox}&limit=3`, { signal }),
-        fetch(`https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar/items?f=json&bbox=${brunnarBbox}&limit=25`, { signal }),
-        // Observation stations within 50 km – for soil type per station
-        fetch(`${obsBase}/stationer/items?f=json&bbox=${obs50Bbox}&limit=300`, { signal }),
-        // Most recent observed levels within 50 km (sorted newest first)
-        fetch(`${obsBase}/nivaer/items?f=json&bbox=${obs50Bbox}&sortby=-datum&limit=500`, { signal }),
-      ]);
+      const [omradenRes, gvTillgangRes, jordartCql2Res, jordartBboxRes, forekomstRes, brunnarRes] =
+        await Promise.allSettled([
+          omradenChain,
+          fetch(gvTillgangUrl, { signal }),
+          fetch(jordartCql2Url, { signal }),
+          fetch(jordartBboxUrl, { signal }),
+          fetch(`https://api.sgu.se/oppnadata/grundvattenforekomster-eu/ogc/features/v1/collections/grundvattenforekomster/items?f=json&bbox=${bbox}&limit=3`, { signal }),
+          fetch(`https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar/items?f=json&bbox=${brunnarBbox}&limit=25`, { signal }),
+        ]);
+      // Ensure stationer chain has completed (triggers nivaerPromise) before we await it
+      await obsStationerChain.catch(() => null);
 
       if (signal.aborted) return;
 
-      // Await both level results (already in-flight since omraden resolved)
-      const [dateResult, latestResult] = levelsPromise ? await levelsPromise : [null, null];
+      // Await HYPE levels + observed nivaer in parallel (both already in-flight)
+      const [[dateResult, latestResult], nivaerData] = await Promise.all([
+        levelsPromise ?? Promise.resolve([null, null]),
+        nivaerPromise ?? Promise.resolve(null),
+      ]);
 
       if (signal.aborted) return;
 
@@ -410,44 +442,21 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
         } catch { /* ignore */ }
       }
 
-      // Observed groundwater levels – build station soil-type map then collect
-      // one depth reading per station (sorted desc → first = most recent).
-      // Property name variants tried in priority order (SGU API is inconsistent).
-      const stJordart = new Map<string, string>();
-      if (obsStationerRes.status === 'fulfilled' && obsStationerRes.value.ok) {
-        try {
-          const d = await obsStationerRes.value.json();
-          for (const f of d?.features ?? []) {
-            const p = f.properties ?? {};
-            const id = String(p.stationsid ?? p.stationid ?? p.omrade_id ?? f.id ?? '');
-            const jord = p.jordart ?? p.jordartsbeteckning ?? p.jordart_text ??
-                         p.bergarts_beteckning ?? p.bergart ?? '';
-            if (id) stJordart.set(id, jord);
-          }
-        } catch { /* ignore */ }
-      }
-
+      // Parse observed nivaer: take most recent reading per station (sorted -obsdatum),
+      // join with stJordart map for soil type. Both property names verified against API.
       const seenSt = new Set<string>();
       const obsArr: Array<{ djup: number; jordart?: string }> = [];
-      if (obsNivaerRes.status === 'fulfilled' && obsNivaerRes.value.ok) {
-        try {
-          const d = await obsNivaerRes.value.json();
-          for (const f of d?.features ?? []) {
-            const p = f.properties ?? {};
-            const sid = String(p.stationsid ?? p.stationid ?? p.omrade_id ?? f.id ?? '');
-            if (seenSt.has(sid)) continue; // keep only most recent per station
-            seenSt.add(sid);
-            // Depth to water table in metres below ground surface (positive = deeper)
-            const djup =
-              p.nivaer_m_u_markyta ?? p.nivaer_under_markyta ??
-              p.grundvattenniva_m_u_markyta ?? p.niva_m_u_markyta ??
-              p.djup_till_grundvatten_m ?? p.djup_m ?? p.niva_m ?? p.niva;
-            if (typeof djup !== 'number' || djup <= 0 || djup > 100) continue;
-            const jordart = stJordart.get(sid) || p.jordart || p.jordartsbeteckning;
-            obsArr.push({ djup, jordart: jordart || undefined });
-          }
-        } catch { /* ignore */ }
-      }
+      try {
+        for (const f of nivaerData?.features ?? []) {
+          const p = f.properties ?? {};
+          const sid = p.platsbeteckning;
+          if (!sid || seenSt.has(String(sid))) continue;
+          seenSt.add(String(sid));
+          const djup = p.grundvattenniva_m_u_markyta;
+          if (typeof djup !== 'number' || djup <= 0 || djup > 100) continue;
+          obsArr.push({ djup, jordart: stJordart.get(String(sid)) || undefined });
+        }
+      } catch { /* ignore */ }
       if (obsArr.length) result.obsFeatures = obsArr;
 
       setData(result);
