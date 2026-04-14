@@ -31,8 +31,8 @@ interface ReportData {
   gvTillgangLdha?: number | null;
   jordartNamn?: string;
   jordartKod?: string;
-  // Jorddjup från jorddjupsmodell (observationspunkter inom ~3 km)
-  jorddjup?: { median: number; p25: number; p75: number; antal: number };
+  // Jorddjup från jorddjupsmodell – avståndsviktad, expanderande radier
+  jorddjup?: { median: number; p25: number; p75: number; antal: number; radieM: number };
   // Grundvattenmagasin (SGU karteringsdata – mer detaljerat än EU-förekomster)
   magasin?: {
     namn: string;
@@ -229,6 +229,11 @@ function mercatorToWGS84(x: number, y: number): [number, number] {
   return [lon, lat];
 }
 
+function formatRadie(m: number): string {
+  if (m < 1000) return `~${m} m`;
+  return `~${(m / 1000).toFixed(m % 1000 === 0 ? 0 : 1)} km`;
+}
+
 // ── Source documentation helper ───────────────────────────────────────────────
 
 function SourceRow({ label, source, note, url }: {
@@ -299,9 +304,10 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
       // ~15 km radius for brunnar
       const brunnarDelta = 0.13;
       const brunnarBbox = `${lon - brunnarDelta},${lat - brunnarDelta},${lon + brunnarDelta},${lat + brunnarDelta}`;
-      // ~3 km radius for jorddjup observations (local geological context)
-      const djupDelta = 0.03;
-      const djupBbox = `${lon - djupDelta},${lat - djupDelta},${lon + djupDelta},${lat + djupDelta}`;
+      // 5 km radius for jorddjup observations – fetch wide, then filter by actual distance
+      const djupLatD = 5000 / 111111;                                       // ≈ 0.045°
+      const djupLonD = djupLatD / Math.cos((lat * Math.PI) / 180);         // wider near equator
+      const djupBbox = `${lon - djupLonD},${lat - djupLatD},${lon + djupLonD},${lat + djupLatD}`;
 
       // GV Tillgång via proxy (api.sgu.se WMS may lack CORS headers)
       const gvTillgangUrl =
@@ -519,21 +525,49 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
         } catch { /* ignore */ }
       }
 
-      // Jorddjup from jorddjupsmodell (observation points within ~3 km)
-      // djup = total soil thickness to bedrock in metres, avslut = "Berg" means bedrock hit
+      // Jorddjup from jorddjupsmodell – distance-weighted with expanding radius tiers.
+      // Fetch up to 5 km, compute actual great-circle distance per observation, then
+      // try 100 m → 500 m → 2 000 m → 5 000 m and use the first tier with ≥ 3 points.
       if (jorddjupRes.status === 'fulfilled' && jorddjupRes.value.ok) {
         try {
           const d = await jorddjupRes.value.json();
-          const depths: number[] = (d.features ?? [])
-            .map((f: any) => f.properties?.djup)
-            .filter((v: any): v is number => typeof v === 'number' && v > 0)
-            .sort((a: number, b: number) => a - b);
-          if (depths.length >= 2) {
+          // Attach distance (m) to each valid observation
+          type DjupObs = { djup: number; distM: number };
+          const cosLat = Math.cos((lat * Math.PI) / 180);
+          const withDist: DjupObs[] = (d.features ?? [])
+            .map((f: any): DjupObs | null => {
+              const djup = f.properties?.djup;
+              if (typeof djup !== 'number' || djup <= 0) return null;
+              const [fLon, fLat] = f.geometry?.coordinates ?? [null, null];
+              if (fLon == null || fLat == null) return null;
+              const dLat = (fLat - lat) * (Math.PI / 180) * 6371000;
+              const dLon = (fLon - lon) * (Math.PI / 180) * 6371000 * cosLat;
+              return { djup, distM: Math.sqrt(dLat * dLat + dLon * dLon) };
+            })
+            .filter((v): v is DjupObs => v != null)
+            .sort((a, b) => a.distM - b.distM);  // nearest first
+
+          // Expanding radius: pick smallest tier with ≥ 3 observations
+          const TIERS = [100, 500, 2000, 5000];
+          let pool: DjupObs[] = [];
+          let radieM = 5000;
+          for (const r of TIERS) {
+            const inR = withDist.filter(o => o.distM <= r);
+            if (inR.length >= 3) { pool = inR; radieM = r; break; }
+          }
+          if (pool.length === 0 && withDist.length >= 2) {
+            pool = withDist;           // use whatever exists beyond 5 km if really sparse
+            radieM = Math.ceil(withDist[withDist.length - 1].distM / 100) * 100;
+          }
+
+          if (pool.length >= 2) {
+            const sorted = pool.map(o => o.djup).sort((a, b) => a - b);
             result.jorddjup = {
-              median: depths[Math.floor(depths.length / 2)],
-              p25:    depths[Math.floor(depths.length * 0.25)],
-              p75:    depths[Math.floor(depths.length * 0.75)],
-              antal:  depths.length,
+              median: sorted[Math.floor(sorted.length / 2)],
+              p25:    sorted[Math.floor(sorted.length * 0.25)],
+              p75:    sorted[Math.floor(sorted.length * 0.75)],
+              antal:  pool.length,
+              radieM,
             };
           }
         } catch { /* ignore */ }
@@ -847,7 +881,9 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
                       {data.jorddjup.median.toFixed(1)} m
                     </span>
                     <span className="text-muted-foreground ml-1">
-                      (P25–P75: {data.jorddjup.p25.toFixed(1)}–{data.jorddjup.p75.toFixed(1)} m · {data.jorddjup.antal} obs, ~3 km)
+                      (P25–P75: {data.jorddjup.p25.toFixed(1)}–{data.jorddjup.p75.toFixed(1)} m
+                      · {data.jorddjup.antal} obs
+                      · {formatRadie(data.jorddjup.radieM)})
                     </span>
                   </div>
                 )}
@@ -937,7 +973,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
               {/* Jorddjup */}
               {data.jorddjup && (
                 <div className="flex justify-between items-baseline text-xs mb-1.5">
-                  <span className="text-muted-foreground">Jorddjup (~3 km, {data.jorddjup.antal} obs)</span>
+                  <span className="text-muted-foreground">Jorddjup ({formatRadie(data.jorddjup.radieM)}, {data.jorddjup.antal} obs)</span>
                   <span className="font-medium ml-2 text-right">
                     {data.jorddjup.median.toFixed(1)} m
                     <span className="text-muted-foreground font-normal ml-1">
@@ -1089,7 +1125,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
                   <SourceRow
                     label="Jordlager / jorddjup (m)"
                     source="SGU Jorddjupsmodell – underlag-jorddjup"
-                    note="OGC API Features – observationspunkter inom ~3 km. Fält: djup (m till berg). P25/median/P75 av lokala borrhål."
+                    note="OGC API Features – hämtar upp till 5 km, beräknar faktiskt avstånd per observation. Väljer minsta radier (100 m → 500 m → 2 km → 5 km) med ≥ 3 punkter. Fält: djup (m till berg), geometry (WGS84)."
                     url="https://api.sgu.se/oppnadata/jorddjupsmodell/ogc/features/v1"
                   />
                   <SourceRow
