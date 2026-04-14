@@ -969,7 +969,7 @@ export const MapView = () => {
         if (all.length > 0) {
           const feats = new GeoJSON().readFeatures(
             { type: "FeatureCollection", features: all },
-            { dataProjection: "EPSG:3006", featureProjection: "EPSG:3857" }
+            { dataProjection: "EPSG:4326", featureProjection: "EPSG:3857" }
           );
           jorddjupObsSource.addFeatures(feats);
           setJorddjupObsLoaded(jorddjupObsSource.getFeatures().length);
@@ -1031,7 +1031,7 @@ export const MapView = () => {
         if (all.length > 0) {
           const feats = new GeoJSON().readFeatures(
             { type: "FeatureCollection", features: all },
-            { dataProjection: "EPSG:3006", featureProjection: "EPSG:3857" }
+            { dataProjection: "EPSG:4326", featureProjection: "EPSG:3857" }
           );
           jorddjupKartorSource.addFeatures(feats);
           setJorddjupKartorLoaded(jorddjupKartorSource.getFeatures().length);
@@ -1079,7 +1079,7 @@ export const MapView = () => {
         if (all.length > 0) {
           const feats = new GeoJSON().readFeatures(
             { type: "FeatureCollection", features: all },
-            { dataProjection: "EPSG:3006", featureProjection: "EPSG:3857" }
+            { dataProjection: "EPSG:4326", featureProjection: "EPSG:3857" }
           );
           jorddjupSprickSource.addFeatures(feats);
           setJorddjupSprickLoaded(jorddjupSprickSource.getFeatures().length);

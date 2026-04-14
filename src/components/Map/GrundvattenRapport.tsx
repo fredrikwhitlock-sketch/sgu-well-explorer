@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from "react";
-import { X, Droplets, Loader2, MapPin, AlertCircle, RefreshCw, Info } from "lucide-react";
+import { X, Droplets, Loader2, MapPin, AlertCircle, RefreshCw, Info, ChevronDown } from "lucide-react";
 import proj4 from "proj4";
 import { getSoilTypeColor } from "../../lib/soilTypeColors";
 
@@ -31,6 +31,8 @@ interface ReportData {
   gvTillgangLdha?: number | null;
   jordartNamn?: string;
   jordartKod?: string;
+  // Jorddjup från jorddjupsmodell (observationspunkter inom ~3 km)
+  jorddjup?: { median: number; p25: number; p75: number; antal: number };
   // Grundvattenmagasin (SGU karteringsdata – mer detaljerat än EU-förekomster)
   magasin?: {
     namn: string;
@@ -227,6 +229,27 @@ function mercatorToWGS84(x: number, y: number): [number, number] {
   return [lon, lat];
 }
 
+// ── Source documentation helper ───────────────────────────────────────────────
+
+function SourceRow({ label, source, note, url }: {
+  label: string; source: string; note: string; url: string;
+}) {
+  return (
+    <div className="pl-1 border-l-2 border-border">
+      <div className="font-medium">{label}</div>
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-blue-700 dark:text-blue-400 underline underline-offset-2 break-all"
+      >
+        {source}
+      </a>
+      <div className="text-muted-foreground mt-0.5 leading-relaxed">{note}</div>
+    </div>
+  );
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) => {
@@ -234,6 +257,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<ReportData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [sourcesOpen, setSourcesOpen] = useState(false);
 
   const dragRef = useRef({ dragging: false, startX: 0, startY: 0, startLeft: 80, startTop: 80 });
   const [position, setPosition] = useState({ left: 80, top: 80 });
@@ -275,6 +299,9 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
       // ~15 km radius for brunnar
       const brunnarDelta = 0.13;
       const brunnarBbox = `${lon - brunnarDelta},${lat - brunnarDelta},${lon + brunnarDelta},${lat + brunnarDelta}`;
+      // ~3 km radius for jorddjup observations (local geological context)
+      const djupDelta = 0.03;
+      const djupBbox = `${lon - djupDelta},${lat - djupDelta},${lon + djupDelta},${lat + djupDelta}`;
 
       // GV Tillgång via proxy (api.sgu.se WMS may lack CORS headers)
       const gvTillgangUrl =
@@ -367,9 +394,10 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
         fetch(jordartBboxUrl, { signal }),
         fetch(`https://api.sgu.se/oppnadata/grundvattenmagasin/ogc/features/v1/collections/grundvattenmagasin/items?f=json&bbox=${bbox}&limit=3`, { signal }),
         fetch(`https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar/items?f=json&bbox=${brunnarBbox}&limit=25`, { signal }),
+        fetch(`https://api.sgu.se/oppnadata/jorddjupsmodell/ogc/features/v1/collections/underlag-jorddjup/items?f=json&bbox=${djupBbox}&limit=100`, { signal }),
         obsStationerChain, // side-effects: fills stJordart, sets nivaerPromise
       ]);
-      const [omradenRes, gvTillgangRes, jordartCql2Res, jordartBboxRes, forekomstRes, brunnarRes] = allResults;
+      const [omradenRes, gvTillgangRes, jordartCql2Res, jordartBboxRes, forekomstRes, brunnarRes, jorddjupRes] = allResults;
 
       if (signal.aborted) return;
 
@@ -487,6 +515,26 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
                   isBergborrad: totaldjup != null && (totaldjup - jorddjup) > 15,
                 };
               });
+          }
+        } catch { /* ignore */ }
+      }
+
+      // Jorddjup from jorddjupsmodell (observation points within ~3 km)
+      // djup = total soil thickness to bedrock in metres, avslut = "Berg" means bedrock hit
+      if (jorddjupRes.status === 'fulfilled' && jorddjupRes.value.ok) {
+        try {
+          const d = await jorddjupRes.value.json();
+          const depths: number[] = (d.features ?? [])
+            .map((f: any) => f.properties?.djup)
+            .filter((v: any): v is number => typeof v === 'number' && v > 0)
+            .sort((a: number, b: number) => a - b);
+          if (depths.length >= 2) {
+            result.jorddjup = {
+              median: depths[Math.floor(depths.length / 2)],
+              p25:    depths[Math.floor(depths.length * 0.25)],
+              p75:    depths[Math.floor(depths.length * 0.75)],
+              antal:  depths.length,
+            };
           }
         } catch { /* ignore */ }
       }
@@ -791,6 +839,18 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
                     </span>
                   </div>
                 )}
+                {/* Jorddjup – thickness of soil above bedrock from nearby observations */}
+                {data.jorddjup && aquifer?.type !== 'rock' && (
+                  <div className="text-xs mb-1.5">
+                    <span className="font-medium">Jordlager (jorddjupsmodell):</span>
+                    <span className="ml-1 text-blue-700 dark:text-blue-400 font-semibold">
+                      {data.jorddjup.median.toFixed(1)} m
+                    </span>
+                    <span className="text-muted-foreground ml-1">
+                      (P25–P75: {data.jorddjup.p25.toFixed(1)}–{data.jorddjup.p75.toFixed(1)} m · {data.jorddjup.antal} obs, ~3 km)
+                    </span>
+                  </div>
+                )}
                 {/* Sedimentjord: show small-aquifer raster (l/dygn/ha) — not relevant for morän/berg */}
                 {aquifer?.type !== 'rock' && aquifer?.type !== 'till' && data.gvTillgangLdha != null && (
                   <div className="text-xs mb-1.5">
@@ -871,6 +931,19 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
                 <div className="flex justify-between items-baseline text-xs mb-1.5">
                   <span className="text-muted-foreground">Jordart (1:25k–100k)</span>
                   <span className="font-medium ml-2 text-right">{data.jordartNamn}</span>
+                </div>
+              )}
+
+              {/* Jorddjup */}
+              {data.jorddjup && (
+                <div className="flex justify-between items-baseline text-xs mb-1.5">
+                  <span className="text-muted-foreground">Jorddjup (~3 km, {data.jorddjup.antal} obs)</span>
+                  <span className="font-medium ml-2 text-right">
+                    {data.jorddjup.median.toFixed(1)} m
+                    <span className="text-muted-foreground font-normal ml-1">
+                      ({data.jorddjup.p25.toFixed(1)}–{data.jorddjup.p75.toFixed(1)} m)
+                    </span>
+                  </span>
                 </div>
               )}
 
@@ -957,8 +1030,86 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
               );
             })()}
 
-            <div className="text-xs text-muted-foreground pt-1 border-t border-border">
-              Källa: SGU OGC API · Tolkningar är uppskattningar och ersätter inte platsspecifik undersökning.
+            {/* ── DATAKÄLLOR ── */}
+            <div className="pt-1 border-t border-border">
+              <button
+                onClick={() => setSourcesOpen(v => !v)}
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground w-full py-0.5 transition-colors"
+              >
+                <Info className="w-3 h-3 shrink-0" />
+                <span>Datakällor</span>
+                <ChevronDown className={`w-3 h-3 ml-auto transition-transform duration-150 ${sourcesOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {sourcesOpen && (
+                <div className="mt-2 space-y-2 text-xs">
+                  {/* Group: Tolkning */}
+                  <div className="font-semibold text-muted-foreground uppercase tracking-wide text-[10px] mb-0.5">Tolkning</div>
+
+                  <SourceRow
+                    label="Akvifer / jordart"
+                    source="SGU Jordarter 1:25 000–100 000"
+                    note="OGC API Features – CQL2-punkt­selektion, bbox-fallback. Klassificering intern (classifyAquifer)."
+                    url="https://api.sgu.se/oppnadata/jordarter25k-100k/ogc/features/v1"
+                  />
+                  <SourceRow
+                    label="Grundvattenmagasin"
+                    source="SGU Grundvattenmagasin"
+                    note="OGC API Features – bbox mot klickad punkt. Fält: magasinsnamn, akvifertyp, genes, tillrinning_fran_tillrinningsomraden_l_per_s, medelmaktighet_mattad_zon."
+                    url="https://api.sgu.se/oppnadata/grundvattenmagasin/ogc/features/v1"
+                  />
+                  <SourceRow
+                    label="Grundvattennivå – djupkalibrering"
+                    source="SGU Grundvattennivåer observerade"
+                    note="OGC API Features – stationer inom 50 km (bbox), nivaer via CQL2 IN-filter. Fält: grundvattenniva_m_u_markyta, akvifer (B*=berg, J*=jord), jordart_tx. Medianen skalas med HYPE-situationsfaktor."
+                    url="https://api.sgu.se/oppnadata/grundvattennivaer-observerade/ogc/features/v1"
+                  />
+                  <SourceRow
+                    label="Grundvattennivå – situation / fyllnadsgrad"
+                    source="SGU-HYPE Grundvattennivåer"
+                    note="OGC API Features – omrade_id via bbox, sedan fyllnadsgrad_sma/stora och grundvattensituation via CQL2-filter på datum. Månadsmodell; senaste tillgänglig visas om valt datum saknar data."
+                    url="https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1"
+                  />
+
+                  {/* Group: Kapacitet */}
+                  <div className="font-semibold text-muted-foreground uppercase tracking-wide text-[10px] mb-0.5 mt-1">Kapacitet</div>
+
+                  <SourceRow
+                    label="Brunnskapacitet (l/h)"
+                    source="SGU Brunnar"
+                    note="OGC API Features – brunnar inom ~15 km. Fält: kapacitet (l/h), totaldjup, jorddjup. isBergborrad = totaldjup − jorddjup > 15 m."
+                    url="https://api.sgu.se/oppnadata/brunnar/ogc/features/v1"
+                  />
+                  <SourceRow
+                    label="Tillrinning till magasin (l/s)"
+                    source="SGU Grundvattenmagasin"
+                    note="Fält: tillrinning_fran_tillrinningsomraden_l_per_s – karterad tillrinning till det namngivna magasinet."
+                    url="https://api.sgu.se/oppnadata/grundvattenmagasin/ogc/features/v1"
+                  />
+                  <SourceRow
+                    label="Jordlager / jorddjup (m)"
+                    source="SGU Jorddjupsmodell – underlag-jorddjup"
+                    note="OGC API Features – observationspunkter inom ~3 km. Fält: djup (m till berg). P25/median/P75 av lokala borrhål."
+                    url="https://api.sgu.se/oppnadata/jorddjupsmodell/ogc/features/v1"
+                  />
+                  <SourceRow
+                    label="Grundvattentillgång små magasin (l/dygn/ha)"
+                    source="SGU GV-tillgång små magasin (WMS)"
+                    note="WMS GetFeatureInfo – rastervärde via proxy. Lager: grundvattentillgang-sma-magasin. Fält: Grundvattentillgang_i_sma_magasin_l_dygn_ha."
+                    url="https://api.sgu.se/oppnadata/grundvattentillgang-sma-magasin/wms"
+                  />
+
+                  <p className="text-muted-foreground pt-1 leading-relaxed">
+                    Tolkningar är uppskattningar baserade på modeller och regionala observationer. De ersätter inte platsspecifik hydrogeologisk undersökning.
+                  </p>
+                </div>
+              )}
+
+              {!sourcesOpen && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Tolkningar är uppskattningar – ersätter inte platsspecifik undersökning.
+                </p>
+              )}
             </div>
           </div>
         ) : null}
