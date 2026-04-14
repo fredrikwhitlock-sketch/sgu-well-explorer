@@ -23,6 +23,7 @@ interface ReportData {
   sweref: [number, number];
   omradeId?: number;
   hypoDate?: string;
+  hypoDateIsFallback?: boolean; // true when selected date had no data → latest available used
   fyllnadsgradSma?: number | null;
   fyllnadsgradStora?: number | null;
   sitSma?: number | null;
@@ -342,7 +343,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
            const idList = ids.slice(0, 150).map(id => `'${id.replace(/'/g, "''")}'`).join(',');
            const filter = `platsbeteckning IN (${idList}) AND obsdatum > '2020-01-01'`;
            nivaerPromise = fetch(
-             `${obsBase}/nivaer/items?f=json&filter=${encodeURIComponent(filter)}&filter-lang=cql2-text&sortby=-obsdatum&limit=500`,
+             `${obsBase}/nivaer/items?f=json&filter=${encodeURIComponent(filter)}&filter-lang=cql2-text&sortby=-obsdatum&limit=1500`,
              { signal }
            ).then(r => r.ok ? r.json().catch(() => null) : null).catch(() => null);
          }
@@ -380,11 +381,12 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
       }
 
       // Prefer specific-date result; fall back to latest available
-      const levelFeature =
-        (dateResult?.features?.length > 0 ? dateResult : latestResult)?.features?.[0];
+      const usedLatest = !(dateResult?.features?.length > 0);
+      const levelFeature = (usedLatest ? latestResult : dateResult)?.features?.[0];
       if (levelFeature) {
         const p = levelFeature.properties;
         result.hypoDate = p.datum;
+        result.hypoDateIsFallback = usedLatest;
         result.fyllnadsgradSma = p.fyllnadsgrad_sma;
         result.fyllnadsgradStora = p.fyllnadsgrad_stora;
         result.sitSma = p.grundvattensituation_sma;
@@ -665,7 +667,12 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
                     <>
                       <div className="text-xs text-muted-foreground mb-1">
                         Grundvattennivå under markyta – kalibrerad
-                        {data.hypoDate && <span className="ml-1">· {data.hypoDate.replace(/Z$/, '')}</span>}
+                        {data.hypoDate && (
+                          <span className="ml-1">
+                            · {data.hypoDate.replace(/Z$/, '')}
+                            {data.hypoDateIsFallback && <span className="italic"> (senaste tillgängliga)</span>}
+                          </span>
+                        )}
                       </div>
                       <div className="flex items-baseline gap-1.5">
                         <span className={`text-2xl font-bold leading-none ${fyllnadColor(relevantFyllnad)}`}>
@@ -689,7 +696,12 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
                     <>
                       <div className="text-xs text-muted-foreground mb-1">
                         Uppskattad grundvattennivå under markyta
-                        {data.hypoDate && <span className="ml-1">· {data.hypoDate.replace(/Z$/, '')}</span>}
+                        {data.hypoDate && (
+                          <span className="ml-1">
+                            · {data.hypoDate.replace(/Z$/, '')}
+                            {data.hypoDateIsFallback && <span className="italic"> (senaste tillgängliga)</span>}
+                          </span>
+                        )}
                       </div>
                       <div className="flex items-baseline gap-1.5">
                         <span className={`text-2xl font-bold leading-none ${fyllnadColor(relevantFyllnad)}`}>
@@ -772,7 +784,13 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
               {data.omradeId !== undefined ? (
                 <>
                   <div className="text-xs text-muted-foreground mb-2">
-                    SGU-HYPE område {data.omradeId}{data.hypoDate ? ` · ${data.hypoDate.replace(/Z$/, '')}` : ''}
+                    SGU-HYPE område {data.omradeId}
+                    {data.hypoDate && (
+                      <span>
+                        {' · '}{data.hypoDate.replace(/Z$/, '')}
+                        {data.hypoDateIsFallback && <span className="italic"> (senaste tillgängliga)</span>}
+                      </span>
+                    )}
                   </div>
                   <div className="grid grid-cols-2 gap-2 mb-3">
                     {[
