@@ -3,6 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search, X } from "lucide-react";
 import { toast } from "sonner";
+import proj4 from "proj4";
 
 interface SearchControlProps {
   onSearchResult: (coordinates: [number, number], zoom?: number) => void;
@@ -14,8 +15,18 @@ export const SearchControl = ({ onSearchResult, isOpen, onClose }: SearchControl
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
 
+  // Ensure EPSG:3006 is registered (may already be done by other components via the
+  // shared proj4 singleton, but registering twice is harmless).
+  proj4.defs("EPSG:3006", "+proj=utm +zone=33 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs");
+
+  const toMercator = (lon: number, lat: number): [number, number] => [
+    lon * 20037508.34 / 180,
+    Math.log(Math.tan((90 + lat) * Math.PI / 360)) / (Math.PI / 180) * 20037508.34 / 180,
+  ];
+
   const handleSearch = async () => {
-    if (!searchQuery.trim()) {
+    const q = searchQuery.trim();
+    if (!q) {
       toast.error("Ange en söksträng");
       return;
     }
@@ -23,70 +34,74 @@ export const SearchControl = ({ onSearchResult, isOpen, onClose }: SearchControl
     setIsSearching(true);
 
     try {
-      const coordMatch = searchQuery.match(/^(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)$/);
-      
-      if (coordMatch) {
-        const [, coord1, coord2] = coordMatch;
-        const num1 = parseFloat(coord1);
-        const num2 = parseFloat(coord2);
-        
-        let x: number, y: number;
-        
-        if (num1 > 1000000) {
-          const N = num1;
-          const E = num2;
-          const proj4 = (await import('proj4')).default;
-          proj4.defs("EPSG:3006", "+proj=utm +zone=33 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs");
+      // ── Coordinate detection ─────────────────────────────────────────────
+      // Accepts several common formats:
+      //   "6638870 657890"          plain pair (N E)
+      //   "6638870, 657890"         comma-separated
+      //   "N 6638870 E 657890"      labelled SWEREF (from GrundvattenRapport)
+      //   "6638870 N 657890 E"      labelled SWEREF alternate order
+      //   "59.8586, 17.6389"        WGS84 lat,lon
+
+      // Strip optional N/E/lat/lon labels and extract up to two numbers
+      const numTokens = q.replace(/[NEne°,]/g, ' ').trim().match(/-?\d+\.?\d*/g);
+
+      if (numTokens && numTokens.length === 2) {
+        const num1 = parseFloat(numTokens[0]);
+        const num2 = parseFloat(numTokens[1]);
+
+        if (num1 > 1_000_000) {
+          // SWEREF 99 TM – first number is northing, second is easting
+          const N = num1, E = num2;
           const [lon, lat] = proj4("EPSG:3006", "EPSG:4326", [E, N]);
-          x = lon * 20037508.34 / 180;
-          y = Math.log(Math.tan((90 + lat) * Math.PI / 360)) / (Math.PI / 180) * 20037508.34 / 180;
-          toast.success(`SWEREF 99 TM: N ${N.toFixed(0)}, E ${E.toFixed(0)}`);
-        } else {
-          const lat = num1;
-          const lon = num2;
-          x = lon * 20037508.34 / 180;
-          y = Math.log(Math.tan((90 + lat) * Math.PI / 360)) / (Math.PI / 180) * 20037508.34 / 180;
-          toast.success(`WGS84: ${lat.toFixed(4)}, ${lon.toFixed(4)}`);
-        }
-        
-        onSearchResult([x, y], 14);
-        onClose();
-      } else {
-        const response = await fetch(
-          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery)}&format=json&countrycodes=se&limit=1`
-        );
-        
-        if (!response.ok) throw new Error("Sökning misslyckades");
-        
-        const data = await response.json();
-        
-        if (data.length === 0) {
-          toast.error("Platsen hittades inte");
+          onSearchResult(toMercator(lon, lat), 14);
+          toast.success(`SWEREF 99 TM: N ${Math.round(N)}, E ${Math.round(E)}`);
+          onClose();
           return;
         }
-        
-        const result = data[0];
-        const lat = parseFloat(result.lat);
-        const lon = parseFloat(result.lon);
-        const x = lon * 20037508.34 / 180;
-        const y = Math.log(Math.tan((90 + lat) * Math.PI / 360)) / (Math.PI / 180) * 20037508.34 / 180;
-        
-        onSearchResult([x, y], 14);
-        toast.success(`Hittade: ${result.display_name}`);
-        onClose();
+
+        if (num1 >= -90 && num1 <= 90 && num2 >= -180 && num2 <= 180) {
+          // WGS84 decimal degrees – lat, lon
+          onSearchResult(toMercator(num2, num1), 14);
+          toast.success(`WGS84: ${num1.toFixed(5)}°N, ${num2.toFixed(5)}°E`);
+          onClose();
+          return;
+        }
       }
+
+      // ── Place name geocoding (Nominatim) ─────────────────────────────────
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&countrycodes=se&limit=1&accept-language=sv`,
+        { headers: { 'Accept': 'application/json' } }
+      );
+
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+      const data = await response.json();
+
+      if (!data.length) {
+        toast.error("Platsen hittades inte – prova ett annat stavningssätt");
+        return;
+      }
+
+      const result = data[0];
+      const lat = parseFloat(result.lat);
+      const lon = parseFloat(result.lon);
+      onSearchResult(toMercator(lon, lat), 14);
+      // Show only the first meaningful part of the display name
+      const shortName = result.display_name.split(',').slice(0, 2).join(', ');
+      toast.success(`Hittade: ${shortName}`);
+      onClose();
+
     } catch (error) {
       console.error("Search error:", error);
-      toast.error("Sökningen misslyckades");
+      toast.error("Sökningen misslyckades – kontrollera nätverksanslutningen");
     } finally {
       setIsSearching(false);
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      handleSearch();
-    }
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") handleSearch();
   };
 
   return (
@@ -122,7 +137,7 @@ export const SearchControl = ({ onSearchResult, isOpen, onClose }: SearchControl
               placeholder="Adress, plats eller koordinat..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyPress={handleKeyPress}
+              onKeyDown={handleKeyDown}
               className="pl-8 pr-8 h-10 text-sm"
               autoFocus={isOpen}
             />
@@ -145,8 +160,9 @@ export const SearchControl = ({ onSearchResult, isOpen, onClose }: SearchControl
           <div className="text-xs text-muted-foreground space-y-1 pt-2 border-t border-border">
             <p className="font-medium text-foreground">Exempel:</p>
             <p>Uppsala</p>
-            <p>59.8586, 17.6389</p>
-            <p>6638870, 657890 (SWEREF)</p>
+            <p>59.8586, 17.6389 <span className="text-muted-foreground">(WGS84)</span></p>
+            <p>6638870 657890 <span className="text-muted-foreground">(SWEREF)</span></p>
+            <p>N 6638870 E 657890 <span className="text-muted-foreground">(SWEREF)</span></p>
           </div>
         </div>
       </div>
