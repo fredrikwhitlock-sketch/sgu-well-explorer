@@ -11,8 +11,10 @@ interface Props {
 
 interface BrunnInfo {
   id: string;
-  kapacitet_lh?: number;
-  djup?: number;
+  kapacitet?: number;    // l/h
+  djup?: number;         // totaldjup m
+  jorddjup?: number;     // soil cover m
+  isBergborrad: boolean; // totaldjup - jorddjup > 15 m
 }
 
 interface ReportData {
@@ -260,8 +262,8 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
       // Tight bbox for WMS GFI (~100 m) – faster than 200 m
       const delta = 0.001;
       const bbox = `${lon - delta},${lat - delta},${lon + delta},${lat + delta}`;
-      // Smaller brunnar radius (8 km) to keep response fast
-      const brunnarDelta = 0.07;
+      // ~15 km radius for brunnar
+      const brunnarDelta = 0.13;
       const brunnarBbox = `${lon - brunnarDelta},${lat - brunnarDelta},${lon + brunnarDelta},${lat + brunnarDelta}`;
 
       // GV Tillgång via proxy (api.sgu.se WMS may lack CORS headers)
@@ -383,11 +385,16 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
         result.sitStora = p.grundvattensituation_stora;
       }
 
-      // GV Tillgång
+      // GV Tillgång små magasin (raster, l/dygn/ha)
       if (gvTillgangRes.status === 'fulfilled' && gvTillgangRes.value.ok) {
         try {
           const d = await gvTillgangRes.value.json();
-          if (d.features?.length > 0) result.gvTillgangLdha = d.features[0].properties?.GRAY_INDEX ?? null;
+          if (d.features?.length > 0) {
+            const p = d.features[0].properties ?? {};
+            result.gvTillgangLdha =
+              p.Grundvattentillgang_i_sma_magasin_l_dygn_ha ??
+              p.GRAY_INDEX ?? null;
+          }
         } catch { /* ignore */ }
       }
 
@@ -425,19 +432,29 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
         } catch { /* ignore */ }
       }
 
-      // Brunnar
+      // Brunnar – actual property is 'kapacitet' (l/h), not 'kapacitet_lh'
       if (brunnarRes.status === 'fulfilled' && brunnarRes.value.ok) {
         try {
           const d = await brunnarRes.value.json();
           if (d.features?.length > 0) {
             result.brunnar = d.features
-              .filter((f: any) => f.properties?.kapacitet_lh != null && f.properties.kapacitet_lh > 0)
-              .slice(0, 8)
-              .map((f: any) => ({
-                id: f.properties?.brunnsid || f.properties?.id || f.id || '?',
-                kapacitet_lh: f.properties?.kapacitet_lh,
-                djup: f.properties?.borrhalsdjup ?? f.properties?.djup,
-              }));
+              .filter((f: any) => {
+                const kap = f.properties?.kapacitet;
+                return kap != null && kap > 0;
+              })
+              .slice(0, 20)
+              .map((f: any) => {
+                const p = f.properties ?? {};
+                const totaldjup = p.totaldjup ?? p.borrhalsdjup ?? null;
+                const jorddjup  = p.jorddjup ?? 0;
+                return {
+                  id: p.brunnsid || p.id || f.id || '?',
+                  kapacitet: p.kapacitet,
+                  djup: totaldjup,
+                  jorddjup,
+                  isBergborrad: totaldjup != null && (totaldjup - jorddjup) > 15,
+                };
+              });
           }
         } catch { /* ignore */ }
       }
@@ -512,12 +529,15 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
     };
   })();
 
-  // Median capacity from nearby brunnar
-  const medianKapacitet = (() => {
-    const vals = (data?.brunnar ?? []).map(b => b.kapacitet_lh!).filter(Boolean).sort((a, b) => a - b);
-    if (!vals.length) return null;
-    return vals[Math.floor(vals.length / 2)];
-  })();
+  // Separate median capacity for bedrock vs soil wells
+  const medianOf = (brunnar: BrunnInfo[]) => {
+    const vals = brunnar.map(b => b.kapacitet!).filter(v => v > 0).sort((a, b) => a - b);
+    return vals.length ? vals[Math.floor(vals.length / 2)] : null;
+  };
+  const bergBrunnar = (data?.brunnar ?? []).filter(b => b.isBergborrad);
+  const jordBrunnar = (data?.brunnar ?? []).filter(b => !b.isBergborrad);
+  const medianBergKapacitet = medianOf(bergBrunnar);
+  const medianJordKapacitet = medianOf(jordBrunnar);
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -666,26 +686,41 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
                 <div className="text-xs text-muted-foreground mb-1">Kapacitet – uppskattning</div>
                 {aquifer && aquifer.type !== 'unknown' && (
                   <div className="text-xs mb-1.5">
-                    <span className="font-medium">Typisk kapacitet ({aquifer.label.split('–')[0].trim()}):</span>
-                    <span className="ml-1">{aquifer.capacityLabel}</span>
+                    <span className="font-medium">Typisk ({aquifer.label.split('–')[0].trim()}):</span>
+                    <span className="ml-1 text-muted-foreground">{aquifer.capacityLabel}</span>
                   </div>
                 )}
-                {data.gvTillgangLdha != null && (
+                {/* Berg: show bedrock well median */}
+                {aquifer?.type === 'rock' && medianBergKapacitet != null && (
                   <div className="text-xs mb-1.5">
-                    <span className="font-medium">Bergborrad brunn (SGU-raster):</span>
-                    <span className="ml-1 text-blue-700 dark:text-blue-400 font-semibold">
-                      {Math.round(data.gvTillgangLdha / 24)} l/h/ha
-                    </span>
-                    <span className="text-muted-foreground ml-1">({Math.round(data.gvTillgangLdha)} l/dygn/ha)</span>
+                    <span className="font-medium">Bergborrade brunnar i närheten:</span>
+                    <span className="ml-1 text-blue-700 dark:text-blue-400 font-semibold">{medianBergKapacitet} l/h</span>
+                    <span className="text-muted-foreground ml-1">(median, {bergBrunnar.length} brunnar, ca 15 km)</span>
                   </div>
                 )}
-                {medianKapacitet != null && (
-                  <div className="text-xs">
-                    <span className="font-medium">Mediankapacitet, brunnar i närheten:</span>
+                {/* Jord: show small-aquifer raster (l/dygn/ha) */}
+                {aquifer?.type !== 'rock' && data.gvTillgangLdha != null && (
+                  <div className="text-xs mb-1.5">
+                    <span className="font-medium">Grundvattentillgång, små magasin:</span>
                     <span className="ml-1 text-blue-700 dark:text-blue-400 font-semibold">
-                      {medianKapacitet} l/h
+                      {Math.round(data.gvTillgangLdha)} l/dygn/ha
                     </span>
-                    <span className="text-muted-foreground ml-1">({data.brunnar?.length} brunnar, ca 15 km)</span>
+                  </div>
+                )}
+                {/* Soil well median for soil aquifer, or all wells for unknown */}
+                {aquifer?.type !== 'rock' && medianJordKapacitet != null && (
+                  <div className="text-xs mb-1.5">
+                    <span className="font-medium">Grävda/rörbrunnars kapacitet nära:</span>
+                    <span className="ml-1 text-blue-700 dark:text-blue-400 font-semibold">{medianJordKapacitet} l/h</span>
+                    <span className="text-muted-foreground ml-1">(median, {jordBrunnar.length} brunnar)</span>
+                  </div>
+                )}
+                {/* Bedrock wells always useful as reference for any aquifer */}
+                {aquifer?.type !== 'rock' && medianBergKapacitet != null && (
+                  <div className="text-xs">
+                    <span className="font-medium text-muted-foreground">Bergborrade brunnar nära:</span>
+                    <span className="ml-1 text-muted-foreground">{medianBergKapacitet} l/h</span>
+                    <span className="text-muted-foreground ml-1">(median, {bergBrunnar.length} st)</span>
                   </div>
                 )}
               </div>
@@ -761,9 +796,10 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
                       <div key={i} className="flex items-center justify-between bg-secondary/30 rounded px-2.5 py-1.5 text-xs">
                         <div>
                           <span className="font-medium">{b.id}</span>
-                          {b.djup != null && <span className="text-muted-foreground ml-2">{b.djup} m djup</span>}
+                          <span className="text-muted-foreground ml-1.5">{b.isBergborrad ? 'berg' : 'jord'}</span>
+                          {b.djup != null && <span className="text-muted-foreground ml-1.5">{b.djup} m</span>}
                         </div>
-                        <div className="font-semibold text-blue-700 dark:text-blue-400 ml-2 shrink-0">{b.kapacitet_lh} l/h</div>
+                        <div className="font-semibold text-blue-700 dark:text-blue-400 ml-2 shrink-0">{b.kapacitet} l/h</div>
                       </div>
                     ))}
                   </div>
