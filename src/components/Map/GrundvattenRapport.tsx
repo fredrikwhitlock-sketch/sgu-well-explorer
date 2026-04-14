@@ -31,6 +31,8 @@ interface ReportData {
   gvTillgangLdha?: number | null;
   jordartNamn?: string;
   jordartKod?: string;
+  // Jorddjup från jorddjupsmodell (observationspunkter inom ~3 km)
+  jorddjup?: { median: number; p25: number; p75: number; antal: number };
   // Grundvattenmagasin (SGU karteringsdata – mer detaljerat än EU-förekomster)
   magasin?: {
     namn: string;
@@ -275,6 +277,9 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
       // ~15 km radius for brunnar
       const brunnarDelta = 0.13;
       const brunnarBbox = `${lon - brunnarDelta},${lat - brunnarDelta},${lon + brunnarDelta},${lat + brunnarDelta}`;
+      // ~3 km radius for jorddjup observations (local geological context)
+      const djupDelta = 0.03;
+      const djupBbox = `${lon - djupDelta},${lat - djupDelta},${lon + djupDelta},${lat + djupDelta}`;
 
       // GV Tillgång via proxy (api.sgu.se WMS may lack CORS headers)
       const gvTillgangUrl =
@@ -367,9 +372,10 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
         fetch(jordartBboxUrl, { signal }),
         fetch(`https://api.sgu.se/oppnadata/grundvattenmagasin/ogc/features/v1/collections/grundvattenmagasin/items?f=json&bbox=${bbox}&limit=3`, { signal }),
         fetch(`https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar/items?f=json&bbox=${brunnarBbox}&limit=25`, { signal }),
+        fetch(`https://api.sgu.se/oppnadata/jorddjupsmodell/ogc/features/v1/collections/underlag-jorddjup/items?f=json&bbox=${djupBbox}&limit=100`, { signal }),
         obsStationerChain, // side-effects: fills stJordart, sets nivaerPromise
       ]);
-      const [omradenRes, gvTillgangRes, jordartCql2Res, jordartBboxRes, forekomstRes, brunnarRes] = allResults;
+      const [omradenRes, gvTillgangRes, jordartCql2Res, jordartBboxRes, forekomstRes, brunnarRes, jorddjupRes] = allResults;
 
       if (signal.aborted) return;
 
@@ -487,6 +493,26 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
                   isBergborrad: totaldjup != null && (totaldjup - jorddjup) > 15,
                 };
               });
+          }
+        } catch { /* ignore */ }
+      }
+
+      // Jorddjup from jorddjupsmodell (observation points within ~3 km)
+      // djup = total soil thickness to bedrock in metres, avslut = "Berg" means bedrock hit
+      if (jorddjupRes.status === 'fulfilled' && jorddjupRes.value.ok) {
+        try {
+          const d = await jorddjupRes.value.json();
+          const depths: number[] = (d.features ?? [])
+            .map((f: any) => f.properties?.djup)
+            .filter((v: any): v is number => typeof v === 'number' && v > 0)
+            .sort((a: number, b: number) => a - b);
+          if (depths.length >= 2) {
+            result.jorddjup = {
+              median: depths[Math.floor(depths.length / 2)],
+              p25:    depths[Math.floor(depths.length * 0.25)],
+              p75:    depths[Math.floor(depths.length * 0.75)],
+              antal:  depths.length,
+            };
           }
         } catch { /* ignore */ }
       }
@@ -791,6 +817,18 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
                     </span>
                   </div>
                 )}
+                {/* Jorddjup – thickness of soil above bedrock from nearby observations */}
+                {data.jorddjup && aquifer?.type !== 'rock' && (
+                  <div className="text-xs mb-1.5">
+                    <span className="font-medium">Jordlager (jorddjupsmodell):</span>
+                    <span className="ml-1 text-blue-700 dark:text-blue-400 font-semibold">
+                      {data.jorddjup.median.toFixed(1)} m
+                    </span>
+                    <span className="text-muted-foreground ml-1">
+                      (P25–P75: {data.jorddjup.p25.toFixed(1)}–{data.jorddjup.p75.toFixed(1)} m · {data.jorddjup.antal} obs, ~3 km)
+                    </span>
+                  </div>
+                )}
                 {/* Sedimentjord: show small-aquifer raster (l/dygn/ha) — not relevant for morän/berg */}
                 {aquifer?.type !== 'rock' && aquifer?.type !== 'till' && data.gvTillgangLdha != null && (
                   <div className="text-xs mb-1.5">
@@ -871,6 +909,19 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
                 <div className="flex justify-between items-baseline text-xs mb-1.5">
                   <span className="text-muted-foreground">Jordart (1:25k–100k)</span>
                   <span className="font-medium ml-2 text-right">{data.jordartNamn}</span>
+                </div>
+              )}
+
+              {/* Jorddjup */}
+              {data.jorddjup && (
+                <div className="flex justify-between items-baseline text-xs mb-1.5">
+                  <span className="text-muted-foreground">Jorddjup (~3 km, {data.jorddjup.antal} obs)</span>
+                  <span className="font-medium ml-2 text-right">
+                    {data.jorddjup.median.toFixed(1)} m
+                    <span className="text-muted-foreground font-normal ml-1">
+                      ({data.jorddjup.p25.toFixed(1)}–{data.jorddjup.p75.toFixed(1)} m)
+                    </span>
+                  </span>
                 </div>
               )}
 
