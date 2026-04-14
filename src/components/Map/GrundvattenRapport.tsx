@@ -507,19 +507,23 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
   const depth = aquifer && data ? estimatedDepth(aquifer, relevantFyllnad) : null;
 
   // Observation calibration – two-level filter:
-  //   1. Primary: rock vs jord from 'akvifer' code (B*/J*) – never mix them
-  //   2. Secondary: within jord, prefer matching classifyAquifer sub-type
+  //   1. Primary: bergborrade (B*) vs jordbrunnar (J*) split
+  //      Morän ('till') is grouped with rock: in morän terrain people typically
+  //      drill through to bedrock, so nearby rock observations are the right anchor.
+  //   2. Secondary: within group, prefer matching classifyAquifer sub-type
   const obsKalibr = (() => {
     if (!data?.obsFeatures?.length || !aquifer || aquifer.type === 'unknown') return null;
 
-    const isRock = aquifer.type === 'rock';
+    // Morän → bergborrad is the dominant well type → use rock observations
+    const useRockPool = aquifer.type === 'rock' || aquifer.type === 'till';
 
-    // Level 1: hard rock/jord split (never use rock obs for soil or vice versa)
+    // Level 1: hard berg/jord split
     const groupMatch = data.obsFeatures.filter(o =>
-      o.aquiferGroup ? o.aquiferGroup === (isRock ? 'rock' : 'jord') : true
+      o.aquiferGroup ? o.aquiferGroup === (useRockPool ? 'rock' : 'jord') : true
     );
 
     // Level 2: within same group, prefer matching sub-type (morän/sand/lera etc.)
+    // For 'till' this finds rock obs whose station jordart is also morän (overburden).
     const subMatch = groupMatch.filter(o =>
       o.jordart ? classifyAquifer(o.jordart).type === aquifer.type : false
     );
@@ -531,14 +535,15 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
     if (!pool) return null;
 
     const sorted = pool.map(o => o.djup).sort((a, b) => a - b);
+
+    const groupLabel = useRockPool ? 'bergbrunnar' : 'jordbrunnar';
     return {
       antal:        pool.length,
       medianDjup:   sorted[Math.floor(sorted.length / 2)],
       p25:          sorted[Math.floor(sorted.length * 0.25)],
       p75:          sorted[Math.floor(sorted.length * 0.75)],
-      // Label explains which level of matching was used
       matchLabel:   subMatch.length >= 3  ? 'matchande jordart' :
-                    groupMatch.length >= 3 ? (isRock ? 'bergbrunnar' : 'jordbrunnar') :
+                    groupMatch.length >= 3 ? groupLabel :
                                              'blandad (få stationer)',
       aquiferMatch: subMatch.length >= 3 || groupMatch.length >= 3,
     };
@@ -701,7 +706,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
                     <Info className="w-3 h-3 shrink-0 mt-0.5" />
                     <span>
                       {calibratedDepth
-                        ? 'Kalibrerad mot verkliga observationsstationer (SGU) inom 50 km, justerad med SGU-HYPE-situationen. Lokala förhållanden kan avvika.'
+                        ? `Kalibrerad mot ${obsKalibr!.matchLabel} (SGU) inom 50 km, justerad med SGU-HYPE-situationen. Lokala förhållanden kan avvika.`
                         : 'Uppskattning baserad på jordart och SGU-HYPE-modellen. Osäkerheten är betydande – lokala förhållanden kan avvika.'}
                     </span>
                   </div>
@@ -817,9 +822,11 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
             {/* Brunnar i närheten */}
             {data.brunnar && data.brunnar.length > 0 && (() => {
               // Sort: matching aquifer type first, then by capacity descending. Cap display at 8.
+              // Berg/morän: bergborrade first; sediment: jord first
+              const preferBerg = aquifer?.type === 'rock' || aquifer?.type === 'till';
               const sorted = [...data.brunnar].sort((a, b) => {
-                const aMatch = aquifer?.type === 'rock' ? a.isBergborrad : !a.isBergborrad;
-                const bMatch = aquifer?.type === 'rock' ? b.isBergborrad : !b.isBergborrad;
+                const aMatch = preferBerg ? a.isBergborrad : !a.isBergborrad;
+                const bMatch = preferBerg ? b.isBergborrad : !b.isBergborrad;
                 if (aMatch !== bMatch) return aMatch ? -1 : 1;
                 return (b.kapacitet ?? 0) - (a.kapacitet ?? 0);
               }).slice(0, 8);
