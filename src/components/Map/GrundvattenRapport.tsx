@@ -343,18 +343,18 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
          return d;
        }).catch(() => null);
 
-      // All other fetches kick off at t=0 alongside the omraden chain
-      const [omradenRes, gvTillgangRes, jordartCql2Res, jordartBboxRes, forekomstRes, brunnarRes] =
-        await Promise.allSettled([
-          omradenChain,
-          fetch(gvTillgangUrl, { signal }),
-          fetch(jordartCql2Url, { signal }),
-          fetch(jordartBboxUrl, { signal }),
-          fetch(`https://api.sgu.se/oppnadata/grundvattenforekomster-eu/ogc/features/v1/collections/grundvattenforekomster/items?f=json&bbox=${bbox}&limit=3`, { signal }),
-          fetch(`https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar/items?f=json&bbox=${brunnarBbox}&limit=25`, { signal }),
-        ]);
-      // Ensure stationer chain has completed (triggers nivaerPromise) before we await it
-      await obsStationerChain.catch(() => null);
+      // All fetches at t=0 — obsStationerChain included so nivaer fires as soon
+      // as stationer resolves (overlaps with the other 6 parallel fetches).
+      const allResults = await Promise.allSettled([
+        omradenChain,
+        fetch(gvTillgangUrl, { signal }),
+        fetch(jordartCql2Url, { signal }),
+        fetch(jordartBboxUrl, { signal }),
+        fetch(`https://api.sgu.se/oppnadata/grundvattenforekomster-eu/ogc/features/v1/collections/grundvattenforekomster/items?f=json&bbox=${bbox}&limit=3`, { signal }),
+        fetch(`https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar/items?f=json&bbox=${brunnarBbox}&limit=25`, { signal }),
+        obsStationerChain, // side-effects: fills stJordart, sets nivaerPromise
+      ]);
+      const [omradenRes, gvTillgangRes, jordartCql2Res, jordartBboxRes, forekomstRes, brunnarRes] = allResults;
 
       if (signal.aborted) return;
 
@@ -784,28 +784,38 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
             </div>
 
             {/* Brunnar i närheten */}
-            {data.brunnar && data.brunnar.length > 0 && (
-              <>
-                <hr className="border-border" />
-                <div>
-                  <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
-                    Brunnar med kapacitetsdata i närheten
-                  </h3>
-                  <div className="space-y-1.5">
-                    {data.brunnar.map((b, i) => (
-                      <div key={i} className="flex items-center justify-between bg-secondary/30 rounded px-2.5 py-1.5 text-xs">
-                        <div>
-                          <span className="font-medium">{b.id}</span>
-                          <span className="text-muted-foreground ml-1.5">{b.isBergborrad ? 'berg' : 'jord'}</span>
-                          {b.djup != null && <span className="text-muted-foreground ml-1.5">{b.djup} m</span>}
+            {data.brunnar && data.brunnar.length > 0 && (() => {
+              // Sort: matching aquifer type first, then by capacity descending. Cap display at 8.
+              const sorted = [...data.brunnar].sort((a, b) => {
+                const aMatch = aquifer?.type === 'rock' ? a.isBergborrad : !a.isBergborrad;
+                const bMatch = aquifer?.type === 'rock' ? b.isBergborrad : !b.isBergborrad;
+                if (aMatch !== bMatch) return aMatch ? -1 : 1;
+                return (b.kapacitet ?? 0) - (a.kapacitet ?? 0);
+              }).slice(0, 8);
+              return (
+                <>
+                  <hr className="border-border" />
+                  <div>
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                      Brunnar med kapacitetsdata i närheten
+                      {data.brunnar.length > 8 && <span className="ml-1 font-normal">({data.brunnar.length} totalt, visar 8)</span>}
+                    </h3>
+                    <div className="space-y-1.5">
+                      {sorted.map((b, i) => (
+                        <div key={i} className="flex items-center justify-between bg-secondary/30 rounded px-2.5 py-1.5 text-xs">
+                          <div>
+                            <span className="font-medium">{b.id}</span>
+                            <span className="text-muted-foreground ml-1.5">{b.isBergborrad ? 'berg' : 'jord'}</span>
+                            {b.djup != null && <span className="text-muted-foreground ml-1.5">{b.djup} m</span>}
+                          </div>
+                          <div className="font-semibold text-blue-700 dark:text-blue-400 ml-2 shrink-0">{b.kapacitet} l/h</div>
                         </div>
-                        <div className="font-semibold text-blue-700 dark:text-blue-400 ml-2 shrink-0">{b.kapacitet} l/h</div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              </>
-            )}
+                </>
+              );
+            })()}
 
             <div className="text-xs text-muted-foreground pt-1 border-t border-border">
               Källa: SGU OGC API · Tolkningar är uppskattningar och ersätter inte platsspecifik undersökning.
