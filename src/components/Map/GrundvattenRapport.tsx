@@ -31,6 +31,8 @@ interface ReportData {
   gvForekomstNamn?: string;
   gvForekomstEuKod?: string;
   brunnar?: BrunnInfo[];
+  // Nearby observed groundwater levels for calibration
+  obsFeatures?: Array<{ djup: number; jordart?: string }>;
 }
 
 // ── Aquifer classification ────────────────────────────────────────────────────
@@ -302,14 +304,25 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
         })
         .catch(() => null);
 
+      // 50 km bbox for observed groundwater level stations
+      const latD50 = 0.45; // ≈ 50 km
+      const lonD50 = latD50 / Math.cos((lat * Math.PI) / 180);
+      const obs50Bbox = `${lon - lonD50},${lat - latD50},${lon + lonD50},${lat + latD50}`;
+      const obsBase = 'https://api.sgu.se/oppnadata/grundvattennivaer-observerade/ogc/features/v1/collections';
+
       // All other fetches kick off at t=0 alongside the omraden chain
-      const [omradenRes, gvTillgangRes, jordartCql2Res, jordartBboxRes, forekomstRes, brunnarRes] = await Promise.allSettled([
+      const [omradenRes, gvTillgangRes, jordartCql2Res, jordartBboxRes, forekomstRes, brunnarRes,
+             obsStationerRes, obsNivaerRes] = await Promise.allSettled([
         omradenChain,
         fetch(gvTillgangUrl, { signal }),
         fetch(jordartCql2Url, { signal }),
         fetch(jordartBboxUrl, { signal }),
         fetch(`https://api.sgu.se/oppnadata/grundvattenforekomster-eu/ogc/features/v1/collections/grundvattenforekomster/items?f=json&bbox=${bbox}&limit=3`, { signal }),
         fetch(`https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar/items?f=json&bbox=${brunnarBbox}&limit=25`, { signal }),
+        // Observation stations within 50 km – for soil type per station
+        fetch(`${obsBase}/stationer/items?f=json&bbox=${obs50Bbox}&limit=300`, { signal }),
+        // Most recent observed levels within 50 km (sorted newest first)
+        fetch(`${obsBase}/nivaer/items?f=json&bbox=${obs50Bbox}&sortby=-datum&limit=500`, { signal }),
       ]);
 
       if (signal.aborted) return;
@@ -397,6 +410,46 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
         } catch { /* ignore */ }
       }
 
+      // Observed groundwater levels – build station soil-type map then collect
+      // one depth reading per station (sorted desc → first = most recent).
+      // Property name variants tried in priority order (SGU API is inconsistent).
+      const stJordart = new Map<string, string>();
+      if (obsStationerRes.status === 'fulfilled' && obsStationerRes.value.ok) {
+        try {
+          const d = await obsStationerRes.value.json();
+          for (const f of d?.features ?? []) {
+            const p = f.properties ?? {};
+            const id = String(p.stationsid ?? p.stationid ?? p.omrade_id ?? f.id ?? '');
+            const jord = p.jordart ?? p.jordartsbeteckning ?? p.jordart_text ??
+                         p.bergarts_beteckning ?? p.bergart ?? '';
+            if (id) stJordart.set(id, jord);
+          }
+        } catch { /* ignore */ }
+      }
+
+      const seenSt = new Set<string>();
+      const obsArr: Array<{ djup: number; jordart?: string }> = [];
+      if (obsNivaerRes.status === 'fulfilled' && obsNivaerRes.value.ok) {
+        try {
+          const d = await obsNivaerRes.value.json();
+          for (const f of d?.features ?? []) {
+            const p = f.properties ?? {};
+            const sid = String(p.stationsid ?? p.stationid ?? p.omrade_id ?? f.id ?? '');
+            if (seenSt.has(sid)) continue; // keep only most recent per station
+            seenSt.add(sid);
+            // Depth to water table in metres below ground surface (positive = deeper)
+            const djup =
+              p.nivaer_m_u_markyta ?? p.nivaer_under_markyta ??
+              p.grundvattenniva_m_u_markyta ?? p.niva_m_u_markyta ??
+              p.djup_till_grundvatten_m ?? p.djup_m ?? p.niva_m ?? p.niva;
+            if (typeof djup !== 'number' || djup <= 0 || djup > 100) continue;
+            const jordart = stJordart.get(sid) || p.jordart || p.jordartsbeteckning;
+            obsArr.push({ djup, jordart: jordart || undefined });
+          }
+        } catch { /* ignore */ }
+      }
+      if (obsArr.length) result.obsFeatures = obsArr;
+
       setData(result);
     } catch (e: any) {
       if (signal.aborted) return;
@@ -416,6 +469,39 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
     ? data?.fyllnadsgradStora
     : data?.fyllnadsgradSma;
   const depth = aquifer && data ? estimatedDepth(aquifer, relevantFyllnad) : null;
+
+  // Observation calibration – filter by matching aquifer type, then median
+  const obsKalibr = (() => {
+    if (!data?.obsFeatures?.length || !aquifer || aquifer.type === 'unknown') return null;
+    // Stations whose soil type matches the clicked point's aquifer type
+    const matching = data.obsFeatures.filter(o =>
+      o.jordart ? classifyAquifer(o.jordart).type === aquifer.type : false
+    );
+    // Need ≥3 matching; fall back to all stations if not enough (flag it)
+    const pool = matching.length >= 3 ? matching :
+                 data.obsFeatures.length >= 3 ? data.obsFeatures : null;
+    if (!pool) return null;
+    const sorted = pool.map(o => o.djup).sort((a, b) => a - b);
+    return {
+      antal: pool.length,
+      matchingAntal: matching.length,
+      medianDjup: sorted[Math.floor(sorted.length / 2)],
+      p25: sorted[Math.floor(sorted.length * 0.25)],
+      p75: sorted[Math.floor(sorted.length * 0.75)],
+      aquiferMatch: matching.length >= 3,
+    };
+  })();
+
+  // HYPE-adjusted calibrated estimate: anchor on observed median, scale by HYPE factor
+  const calibratedDepth = (() => {
+    if (!obsKalibr || !depth) return null;
+    const f = depth.adj.factor;
+    return {
+      median: Math.round(obsKalibr.medianDjup * f * 10) / 10,
+      lo:     Math.round(obsKalibr.p25 * f * 10) / 10,
+      hi:     Math.round(obsKalibr.p75 * f * 10) / 10,
+    };
+  })();
 
   // Median capacity from nearby brunnar
   const medianKapacitet = (() => {
@@ -512,25 +598,56 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
                 </div>
               ) : null}
 
-              {/* Estimated depth – only meaningful when we have a real aquifer class */}
+              {/* Depth estimate – calibrated if we have enough nearby observations */}
               {depth && aquifer?.type !== 'unknown' && (
                 <div className={`rounded-lg p-3 mb-2 ${fyllnadBg(relevantFyllnad)}`}>
-                  <div className="text-xs text-muted-foreground mb-1">
-                    Uppskattad grundvattennivå under markyta
-                    {data.hypoDate && <span className="ml-1">· {data.hypoDate.replace(/Z$/, '')}</span>}
-                  </div>
-                  <div className="flex items-baseline gap-1.5">
-                    <span className={`text-2xl font-bold leading-none ${fyllnadColor(relevantFyllnad)}`}>
-                      {depth.lo}–{depth.hi}
-                    </span>
-                    <span className="text-sm font-medium text-muted-foreground">m</span>
-                  </div>
-                  <div className={`text-xs mt-1 ${depth.adj.color}`}>
-                    Aktuell situation: {depth.adj.label}
-                  </div>
+                  {calibratedDepth ? (
+                    <>
+                      <div className="text-xs text-muted-foreground mb-1">
+                        Grundvattennivå under markyta – kalibrerad
+                        {data.hypoDate && <span className="ml-1">· {data.hypoDate.replace(/Z$/, '')}</span>}
+                      </div>
+                      <div className="flex items-baseline gap-1.5">
+                        <span className={`text-2xl font-bold leading-none ${fyllnadColor(relevantFyllnad)}`}>
+                          {calibratedDepth.lo}–{calibratedDepth.hi}
+                        </span>
+                        <span className="text-sm font-medium text-muted-foreground">m</span>
+                      </div>
+                      <div className={`text-xs mt-1 ${depth.adj.color}`}>
+                        {depth.adj.label}
+                      </div>
+                      <div className="text-xs mt-1.5 text-muted-foreground">
+                        Median observerat (P25–P75): {obsKalibr!.medianDjup.toFixed(1)} m
+                        ({obsKalibr!.p25.toFixed(1)}–{obsKalibr!.p75.toFixed(1)} m)
+                        · {obsKalibr!.antal} stationer
+                        {!obsKalibr!.aquiferMatch && <span className="text-yellow-600 dark:text-yellow-400"> · blandad jordart</span>}
+                        {obsKalibr!.aquiferMatch && <span className="text-green-700 dark:text-green-400"> · matchande jordart</span>}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-xs text-muted-foreground mb-1">
+                        Uppskattad grundvattennivå under markyta
+                        {data.hypoDate && <span className="ml-1">· {data.hypoDate.replace(/Z$/, '')}</span>}
+                      </div>
+                      <div className="flex items-baseline gap-1.5">
+                        <span className={`text-2xl font-bold leading-none ${fyllnadColor(relevantFyllnad)}`}>
+                          {depth.lo}–{depth.hi}
+                        </span>
+                        <span className="text-sm font-medium text-muted-foreground">m</span>
+                      </div>
+                      <div className={`text-xs mt-1 ${depth.adj.color}`}>
+                        Aktuell situation: {depth.adj.label}
+                      </div>
+                    </>
+                  )}
                   <div className="flex items-start gap-1 mt-2 text-xs text-muted-foreground">
                     <Info className="w-3 h-3 shrink-0 mt-0.5" />
-                    <span>Uppskattning baserad på jordart och SGU-HYPE-modellen. Osäkerheten är betydande – lokala förhållanden kan avvika.</span>
+                    <span>
+                      {calibratedDepth
+                        ? 'Kalibrerad mot verkliga observationsstationer (SGU) inom 50 km, justerad med SGU-HYPE-situationen. Lokala förhållanden kan avvika.'
+                        : 'Uppskattning baserad på jordart och SGU-HYPE-modellen. Osäkerheten är betydande – lokala förhållanden kan avvika.'}
+                    </span>
                   </div>
                 </div>
               )}
