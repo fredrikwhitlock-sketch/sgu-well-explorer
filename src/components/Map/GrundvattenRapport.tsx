@@ -849,7 +849,13 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
 
               {/* Capacity interpretation */}
               <div className="rounded-lg border border-border p-3">
-                <div className="text-xs text-muted-foreground mb-1">Kapacitet – uppskattning</div>
+                <div className="text-xs text-muted-foreground mb-0.5">Kapacitet – uppskattning</div>
+                {/* For rock/morän terrain the relevant well type is always bergborrad */}
+                {(aquifer?.type === 'rock' || aquifer?.type === 'till') && (
+                  <div className="text-xs text-muted-foreground italic mb-1.5">
+                    Kapacitetssiffror avser bergborrade brunnar
+                  </div>
+                )}
                 {aquifer && aquifer.type !== 'unknown' && (
                   <div className="text-xs mb-1.5">
                     <span className="font-medium">Typisk ({aquifer.label.split('–')[0].trim()}):</span>
@@ -911,9 +917,9 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
                 {/* Bedrock wells as reference for pure sediment aquifers only */}
                 {aquifer?.type !== 'rock' && aquifer?.type !== 'till' && medianBergKapacitet != null && (
                   <div className="text-xs">
-                    <span className="font-medium text-muted-foreground">Bergborrade brunnar nära:</span>
+                    <span className="font-medium text-muted-foreground">Bergborrade brunnar nära (referens):</span>
                     <span className="ml-1 text-muted-foreground">{medianBergKapacitet} l/h</span>
-                    <span className="text-muted-foreground ml-1">(median, {bergBrunnar.length} st)</span>
+                    <span className="text-muted-foreground ml-1">(median, {bergBrunnar.length} st) – alternativ om jordmagasinet otillräckligt</span>
                   </div>
                 )}
               </div>
