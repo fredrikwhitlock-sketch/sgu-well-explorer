@@ -468,7 +468,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
       // Parse observed nivaer: take most recent reading per station (sorted -obsdatum),
       // join with stJordart map for soil type. Both property names verified against API.
       const seenSt = new Set<string>();
-      const obsArr: Array<{ djup: number; jordart?: string }> = [];
+      const obsArr: Array<{ djup: number; jordart?: string; aquiferGroup?: 'rock' | 'jord' }> = [];
       try {
         for (const f of nivaerData?.features ?? []) {
           const p = f.properties ?? {};
@@ -717,16 +717,16 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
                     <span className="ml-1 text-muted-foreground">{aquifer.capacityLabel}</span>
                   </div>
                 )}
-                {/* Berg: show bedrock well median */}
-                {aquifer?.type === 'rock' && medianBergKapacitet != null && (
+                {/* Berg + Morän: bedrock wells are the primary reference */}
+                {(aquifer?.type === 'rock' || aquifer?.type === 'till') && medianBergKapacitet != null && (
                   <div className="text-xs mb-1.5">
                     <span className="font-medium">Bergborrade brunnar i närheten:</span>
                     <span className="ml-1 text-blue-700 dark:text-blue-400 font-semibold">{medianBergKapacitet} l/h</span>
                     <span className="text-muted-foreground ml-1">(median, {bergBrunnar.length} brunnar, ca 15 km)</span>
                   </div>
                 )}
-                {/* Jord: show small-aquifer raster (l/dygn/ha) */}
-                {aquifer?.type !== 'rock' && data.gvTillgangLdha != null && (
+                {/* Sedimentjord: show small-aquifer raster (l/dygn/ha) — not relevant for morän/berg */}
+                {aquifer?.type !== 'rock' && aquifer?.type !== 'till' && data.gvTillgangLdha != null && (
                   <div className="text-xs mb-1.5">
                     <span className="font-medium">Grundvattentillgång, små magasin:</span>
                     <span className="ml-1 text-blue-700 dark:text-blue-400 font-semibold">
@@ -734,16 +734,20 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
                     </span>
                   </div>
                 )}
-                {/* Soil well median for soil aquifer, or all wells for unknown */}
+                {/* Jord well median – primary for sediment aquifers, reference for morän/rock */}
                 {aquifer?.type !== 'rock' && medianJordKapacitet != null && (
-                  <div className="text-xs mb-1.5">
-                    <span className="font-medium">Grävda/rörbrunnars kapacitet nära:</span>
-                    <span className="ml-1 text-blue-700 dark:text-blue-400 font-semibold">{medianJordKapacitet} l/h</span>
+                  <div className={`text-xs mb-1.5 ${aquifer?.type === 'till' ? '' : ''}`}>
+                    <span className={`font-medium ${aquifer?.type === 'till' ? 'text-muted-foreground' : ''}`}>
+                      {aquifer?.type === 'till' ? 'Grävda/rörbrunnars kapacitet nära (referens):' : 'Grävda/rörbrunnars kapacitet nära:'}
+                    </span>
+                    <span className={`ml-1 font-semibold ${aquifer?.type === 'till' ? 'text-muted-foreground' : 'text-blue-700 dark:text-blue-400'}`}>
+                      {medianJordKapacitet} l/h
+                    </span>
                     <span className="text-muted-foreground ml-1">(median, {jordBrunnar.length} brunnar)</span>
                   </div>
                 )}
-                {/* Bedrock wells always useful as reference for any aquifer */}
-                {aquifer?.type !== 'rock' && medianBergKapacitet != null && (
+                {/* Bedrock wells as reference for pure sediment aquifers only */}
+                {aquifer?.type !== 'rock' && aquifer?.type !== 'till' && medianBergKapacitet != null && (
                   <div className="text-xs">
                     <span className="font-medium text-muted-foreground">Bergborrade brunnar nära:</span>
                     <span className="ml-1 text-muted-foreground">{medianBergKapacitet} l/h</span>
