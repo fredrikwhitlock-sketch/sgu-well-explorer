@@ -31,8 +31,16 @@ interface ReportData {
   gvTillgangLdha?: number | null;
   jordartNamn?: string;
   jordartKod?: string;
-  gvForekomstNamn?: string;
-  gvForekomstEuKod?: string;
+  // Grundvattenmagasin (SGU karteringsdata – mer detaljerat än EU-förekomster)
+  magasin?: {
+    namn: string;
+    akvifertyp?: string;           // "porakvifer" | "sprickakvifer" | …
+    genes?: string;                // "isälvssediment" | "morän" | …
+    tillrinningLs?: number;        // l/s recharge from mapped recharge areas
+    medelmaktighetMattad?: string; // "medelmäktighet 10–20 meter" etc.
+    lankBeskrivning?: string;      // URL to detailed SGU report
+    magasinsposition?: string;     // "J1" | "J2" | "B1" | "B2"
+  };
   brunnar?: BrunnInfo[];
   // Nearby observed groundwater levels for calibration
   // aquiferGroup: derived from 'akvifer' code (B*=rock, J*=jord, XX/null=unknown)
@@ -357,7 +365,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
         fetch(gvTillgangUrl, { signal }),
         fetch(jordartCql2Url, { signal }),
         fetch(jordartBboxUrl, { signal }),
-        fetch(`https://api.sgu.se/oppnadata/grundvattenforekomster-eu/ogc/features/v1/collections/grundvattenforekomster/items?f=json&bbox=${bbox}&limit=3`, { signal }),
+        fetch(`https://api.sgu.se/oppnadata/grundvattenmagasin/ogc/features/v1/collections/grundvattenmagasin/items?f=json&bbox=${bbox}&limit=3`, { signal }),
         fetch(`https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar/items?f=json&bbox=${brunnarBbox}&limit=25`, { signal }),
         obsStationerChain, // side-effects: fills stJordart, sets nivaerPromise
       ]);
@@ -428,14 +436,30 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
         if (jordart) { result.jordartNamn = jordart.name; result.jordartKod = jordart.kod; }
       } catch { /* ignore */ }
 
-      // GV Förekomst
+      // Grundvattenmagasin
+      // Properties verified against live API: magasinsnamn, akvifertyp, genes,
+      // tillrinning_fran_tillrinningsomraden_l_per_s, medelmaktighet_mattad_zon,
+      // lank_magasinsbeskrivning, magasinsposition
       if (forekomstRes.status === 'fulfilled' && forekomstRes.value.ok) {
         try {
           const d = await forekomstRes.value.json();
           if (d.features?.length > 0) {
             const p = d.features[0].properties ?? {};
-            result.gvForekomstNamn = p.namn || p.name || p.forekomstnamn || p.NAMN;
-            result.gvForekomstEuKod = p.eu_kod || p.eu_code || p.eukod || p.EU_KOD;
+            const namn = p.magasinsnamn;
+            if (namn) {
+              result.magasin = {
+                namn,
+                akvifertyp:           p.akvifertyp          || undefined,
+                genes:                p.genes               || undefined,
+                tillrinningLs:        typeof p.tillrinning_fran_tillrinningsomraden_l_per_s === 'number'
+                                        ? p.tillrinning_fran_tillrinningsomraden_l_per_s : undefined,
+                medelmaktighetMattad: p.medelmaktighet_mattad_zon_kod > 0
+                                        ? p.medelmaktighet_mattad_zon : undefined,
+                lankBeskrivning:      p.lank_magasinsbeskrivning     || undefined,
+                magasinsposition:     p.magasinsposition_kod > 0
+                                        ? p.magasinsposition : undefined,
+              };
+            }
           }
         } catch { /* ignore */ }
       }
@@ -502,7 +526,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
 
   // ── Derived interpretation ─────────────────────────────────────────────────
   const aquifer = data ? classifyAquifer(data.jordartNamn) : null;
-  const hasStoraMagasin = !!data?.gvForekomstNamn;
+  const hasStoraMagasin = !!data?.magasin;
   const relevantFyllnad = aquifer?.useStoraMagasin || hasStoraMagasin
     ? data?.fyllnadsgradStora
     : data?.fyllnadsgradSma;
@@ -515,14 +539,24 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
   //   2. Secondary: within group, prefer matching classifyAquifer sub-type
   const obsKalibr = (() => {
     if (!data?.obsFeatures?.length || !aquifer || aquifer.type === 'unknown') return null;
-    // Confining layers (lera, silt, moränlera): nearby jord observations are from
-    // permeable sand/grus lenses at 1–3 m and would give a misleadingly shallow
-    // calibrated depth. In clay terrain the relevant question is how deep you need
-    // to drill THROUGH the confining layer – skip calibration entirely.
-    if (aquifer.type === 'confining') return null;
+    // Confining layers: nearby jord observations (sand/grus at 1–3 m) would give
+    // a misleadingly shallow depth for drilling through clay.  Exception: when there
+    // IS a known EU groundwater body beneath (wb_type known), we can calibrate
+    // against the pool that matches that underlying aquifer type.
+    if (aquifer.type === 'confining' && !data?.magasin) return null;
 
-    // Morän → bergborrad is the dominant well type → use rock observations
-    const useRockPool = aquifer.type === 'rock' || aquifer.type === 'till';
+    // Determine which observation pool to use:
+    //  - rock / till / bergakvifer → B* stations (bergborrade)
+    //  - porous sediment aquifers  → J* stations (jordbrunnar)
+    let useRockPool: boolean;
+    if (aquifer.type === 'confining' && data?.magasin) {
+      // Use the underlying magasin genesis/type to pick the pool
+      const g = (data.magasin.genes ?? data.magasin.akvifertyp ?? '').toUpperCase();
+      useRockPool = g.includes('BERG') || g.includes('SPRICK') || g.includes('SEDIMENTÄR');
+    } else {
+      // Morän → bergborrad is the dominant well type → use rock observations
+      useRockPool = aquifer.type === 'rock' || aquifer.type === 'till';
+    }
 
     // Level 1: hard berg/jord split
     const groupMatch = data.obsFeatures.filter(o =>
@@ -653,9 +687,10 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
                 <div className="bg-secondary/40 rounded-lg p-3 mb-2">
                   <div className="text-xs text-muted-foreground mb-0.5">Akvifer (utifrån jordart)</div>
                   <div className="font-semibold">{aquifer.label}</div>
-                  {hasStoraMagasin && data.gvForekomstNamn && (
+                  {data.magasin && (
                     <div className="text-xs text-blue-700 dark:text-blue-400 mt-1">
-                      Ingår i grundvattenförekomst: {data.gvForekomstNamn}
+                      Grundvattenmagasin: {data.magasin.namn}
+                      {data.magasin.genes && <span className="ml-1 text-muted-foreground">({data.magasin.genes})</span>}
                     </div>
                   )}
                 </div>
@@ -747,6 +782,15 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
                     <span className="text-muted-foreground ml-1">(median, {bergBrunnar.length} brunnar, ca 15 km)</span>
                   </div>
                 )}
+                {/* Magasin tillrinning – actual mapped recharge capacity */}
+                {data.magasin?.tillrinningLs != null && (
+                  <div className="text-xs mb-1.5">
+                    <span className="font-medium">Tillrinning till magasin ({data.magasin.namn.split(' ')[0]}):</span>
+                    <span className="ml-1 text-blue-700 dark:text-blue-400 font-semibold">
+                      {data.magasin.tillrinningLs} l/s
+                    </span>
+                  </div>
+                )}
                 {/* Sedimentjord: show small-aquifer raster (l/dygn/ha) — not relevant for morän/berg */}
                 {aquifer?.type !== 'rock' && aquifer?.type !== 'till' && data.gvTillgangLdha != null && (
                   <div className="text-xs mb-1.5">
@@ -830,14 +874,49 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
                 </div>
               )}
 
-              {/* GV Förekomst */}
-              {(data.gvForekomstNamn || data.gvForekomstEuKod) && (
-                <div className="flex justify-between items-baseline text-xs mb-1.5">
-                  <span className="text-muted-foreground">Grundvattenförekomst (EU)</span>
-                  <span className="font-medium ml-2 text-right">
-                    {data.gvForekomstNamn}
-                    {data.gvForekomstEuKod && <span className="text-muted-foreground ml-1">({data.gvForekomstEuKod})</span>}
-                  </span>
+              {/* Grundvattenmagasin */}
+              {data.magasin && (
+                <div className="mt-1 space-y-1">
+                  <div className="flex justify-between items-baseline text-xs">
+                    <span className="text-muted-foreground shrink-0">Grundvattenmagasin</span>
+                    <span className="font-medium ml-2 text-right">{data.magasin.namn}</span>
+                  </div>
+                  {data.magasin.akvifertyp && (
+                    <div className="flex justify-between items-baseline text-xs">
+                      <span className="text-muted-foreground shrink-0">Akvifertyp</span>
+                      <span className="ml-2 text-right capitalize">{data.magasin.akvifertyp}</span>
+                    </div>
+                  )}
+                  {data.magasin.genes && (
+                    <div className="flex justify-between items-baseline text-xs">
+                      <span className="text-muted-foreground shrink-0">Genesis</span>
+                      <span className="ml-2 text-right capitalize">{data.magasin.genes}</span>
+                    </div>
+                  )}
+                  {data.magasin.medelmaktighetMattad && (
+                    <div className="flex justify-between items-baseline text-xs">
+                      <span className="text-muted-foreground shrink-0">Mättad zon</span>
+                      <span className="ml-2 text-right">{data.magasin.medelmaktighetMattad}</span>
+                    </div>
+                  )}
+                  {data.magasin.tillrinningLs != null && (
+                    <div className="flex justify-between items-baseline text-xs">
+                      <span className="text-muted-foreground shrink-0">Tillrinning</span>
+                      <span className="font-medium ml-2">{data.magasin.tillrinningLs} l/s</span>
+                    </div>
+                  )}
+                  {data.magasin.lankBeskrivning && (
+                    <div className="text-xs mt-0.5">
+                      <a
+                        href={data.magasin.lankBeskrivning}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-700 dark:text-blue-400 underline underline-offset-2"
+                      >
+                        Magasinsbeskrivning (SGU) →
+                      </a>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
