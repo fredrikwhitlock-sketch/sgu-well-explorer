@@ -1554,14 +1554,14 @@ export const MapView = () => {
   // Update Aquifers visibility and load data when enabled
   useEffect(() => {
     if (aquifersLayerRef.current) {
-      if (aquifersVisible && aquifersLayerRef.current.getSource()?.getFeatures().length === 0) {
-        aquifersLayerRef.current.getSource()?.loadFeatures(
-          aquifersLayerRef.current.getSource()!.getExtent(),
-          1,
-          aquifersLayerRef.current.getSource()!.getProjection()
-        );
-      }
       aquifersLayerRef.current.setVisible(aquifersVisible);
+      if (aquifersVisible && mapInstanceRef.current) {
+        const zoom = mapInstanceRef.current.getView().getZoom() || 0;
+        if (zoom >= 9 && loadAquifersForExtentRef.current) {
+          const extent = mapInstanceRef.current.getView().calculateExtent();
+          loadAquifersForExtentRef.current(extent);
+        }
+      }
     }
   }, [aquifersVisible]);
 
