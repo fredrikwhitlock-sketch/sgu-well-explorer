@@ -14,7 +14,10 @@ import { get as getProjection } from "ol/proj";
 import { defaults as defaultControls } from "ol/control";
 import { Style, Circle, Fill, Stroke } from "ol/style";
 import Point from "ol/geom/Point";
+import Polygon from "ol/geom/Polygon";
 import Feature from "ol/Feature";
+import Draw from "ol/interaction/Draw";
+import { getArea } from "ol/sphere";
 import "ol/ol.css";
 import { LayerPanel } from "./LayerPanel";
 import { CoordinateDisplay } from "./CoordinateDisplay";
@@ -23,9 +26,10 @@ import { SearchControl } from "./SearchControl";
 import { GrundvattenRapport } from "./GrundvattenRapport";
 
 import { ChartViewer } from "./ChartViewer";
+import { PolygonFetcher } from "./PolygonFetcher";
 import WmsLegend from "./WmsLegend";
 import { AIChatPanel } from "./AIChatPanel";
-import { Search, Bot, Locate, Layers, Droplets } from "lucide-react";
+import { Search, Bot, Locate, Layers, Droplets, PenLine } from "lucide-react";
 import { toast } from "sonner";
 import { getSoilTypeColor } from "@/lib/soilTypeColors";
 import { exportWellsToCSV, exportFeaturesToCSV } from "@/lib/exportWells";
@@ -128,6 +132,7 @@ export const MapView = () => {
   const loadWellsForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
   const loadSoilTypesForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
   const loadAquifersForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
+  const loadSourcesForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
   const loadJorddjupObsForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
   const loadJorddjupKartorForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
   const loadJorddjupSprickForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
@@ -152,6 +157,9 @@ export const MapView = () => {
   const geolocationWatchRef = useRef<number | null>(null);
   const [isTracking, setIsTracking] = useState(false);
   const rapportModeRef = useRef(false);
+  const drawModeActiveRef = useRef(false);
+  const drawInteractionRef = useRef<Draw | null>(null);
+  const drawSourceRef = useRef<VectorSource | null>(null);
 
   useEffect(() => {
     if (!mapRef.current) return;
@@ -290,81 +298,94 @@ export const MapView = () => {
     });
     sguGvTillgangLayerRef.current = sguGvTillgangLayer;
 
-    // OGC API Features layer for Källor (sources)
-    const sourcesSource = new VectorSource({
-      format: new GeoJSON(),
-      loader: async () => {
-        try {
-          setLoadingSources(true);
-          setSourcesLoaded(0);
-          console.log("Loading sources from OGC API...");
-          
-          const allFeatures: any[] = [];
-          let nextUrl: string | null = `https://api.sgu.se/oppnadata/kallor/ogc/features/v1/collections/kallor/items?f=json&limit=1000`;
-          
-          while (nextUrl) {
-            const response = await fetch(nextUrl);
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-            const data = await response.json();
-            
-            if (data.features) {
-              allFeatures.push(...data.features);
-              setSourcesLoaded(allFeatures.length);
-            }
-            
-            // Check for next page link
-            nextUrl = null;
-            if (data.links) {
-              const nextLink = data.links.find((l: any) => l.rel === 'next');
-              if (nextLink) nextUrl = nextLink.href;
-            }
-          }
-          
-          console.log(`Received ${allFeatures.length} total sources`);
-          
-          if (allFeatures.length > 0) {
-            const features = new GeoJSON().readFeatures(
-              { type: "FeatureCollection", features: allFeatures },
-              {
-                dataProjection: "EPSG:4326",
-                featureProjection: "EPSG:3857",
-              }
-            );
-            
-            sourcesSource.addFeatures(features);
-            setSourcesLoaded(features.length);
-            
-            if (sourcesLayerRef.current) {
-              sourcesLayerRef.current.setVisible(true);
-              sourcesLayerRef.current.changed();
-            }
-            
-            toast.success(`Laddade ${features.length} källor från hela Sverige`);
-          } else {
-            toast.info("Inga källor returnerades från API:et");
-          }
-        } catch (error) {
-          console.error("Error loading sources:", error);
-          toast.error("Kunde inte ladda källor från OGC API");
-        } finally {
-          setLoadingSources(false);
-        }
-      },
+    // OGC API Features layer for Källor (sources) - bbox-based loading
+    const sourcesSource = new VectorSource({ format: new GeoJSON() });
+
+    const MIN_ZOOM_FOR_SOURCES = 10;
+    const loadedSourceExtentsRef: string[] = [];
+
+    // Color-coded styles per källtyp
+    const sourceStylePunkt = new Style({
+      image: new Circle({
+        radius: 6,
+        fill: new Fill({ color: "rgba(6, 182, 212, 0.85)" }),  // teal – punktkälla
+        stroke: new Stroke({ color: "rgba(255,255,255,0.85)", width: 2 }),
+      }),
     });
+    const sourceStyleHorisont = new Style({
+      image: new Circle({
+        radius: 6,
+        fill: new Fill({ color: "rgba(245, 158, 11, 0.85)" }), // amber – horisontkälla
+        stroke: new Stroke({ color: "rgba(255,255,255,0.85)", width: 2 }),
+      }),
+    });
+    const sourceStyleDefault = new Style({
+      image: new Circle({
+        radius: 6,
+        fill: new Fill({ color: "rgba(92, 45, 81, 0.85)" }),   // maroon – övriga
+        stroke: new Stroke({ color: "rgba(255,255,255,0.85)", width: 2 }),
+      }),
+    });
+
+    const getSourceStyle = (feature: any) => {
+      const kt = (feature.get('kalltyp') || '').toLowerCase();
+      if (kt.includes('punkt')) return sourceStylePunkt;
+      if (kt.includes('horisont')) return sourceStyleHorisont;
+      return sourceStyleDefault;
+    };
+
+    const loadSourcesForExtent = async (extent: number[]) => {
+      try {
+        const currentZoom = mapInstanceRef.current?.getView().getZoom() || 0;
+        if (currentZoom < MIN_ZOOM_FOR_SOURCES) return;
+
+        const gridKey = extentToGridKey(extent);
+        if (loadedSourceExtentsRef.includes(gridKey)) return;
+        loadedSourceExtentsRef.push(gridKey);
+
+        setLoadingSources(true);
+
+        const minLon = (extent[0] / 20037508.34) * 180;
+        const maxLon = (extent[2] / 20037508.34) * 180;
+        const minLat = (Math.atan(Math.exp((extent[1] / 20037508.34) * Math.PI)) * 360 / Math.PI) - 90;
+        const maxLat = (Math.atan(Math.exp((extent[3] / 20037508.34) * Math.PI)) * 360 / Math.PI) - 90;
+
+        const bbox = `${minLon},${minLat},${maxLon},${maxLat}`;
+        const allFeatures = await fetchAllPages(
+          `https://api.sgu.se/oppnadata/kallor/ogc/features/v1/collections/kallor/items?f=json&bbox=${bbox}`,
+          (count) => setSourcesLoaded(sourcesSource.getFeatures().length + count)
+        );
+
+        if (allFeatures.length > 0) {
+          const existingIds = new Set(sourcesSource.getFeatures().map(f => String(f.get('id'))));
+          const newFeatures = allFeatures.filter(f => {
+            const id = String(f.properties?.id ?? '');
+            return id && !existingIds.has(id);
+          });
+
+          if (newFeatures.length > 0) {
+            const features = new GeoJSON().readFeatures(
+              { type: "FeatureCollection", features: newFeatures },
+              { dataProjection: "EPSG:4326", featureProjection: "EPSG:3857" }
+            );
+            sourcesSource.addFeatures(features);
+          }
+
+          setSourcesLoaded(sourcesSource.getFeatures().length);
+        }
+      } catch (error) {
+        console.error("Error loading sources:", error);
+        toast.error("Kunde inte ladda källor");
+      } finally {
+        setLoadingSources(false);
+      }
+    };
+    loadSourcesForExtentRef.current = loadSourcesForExtent;
 
     const sourcesLayer = new VectorLayer({
       source: sourcesSource,
       visible: sourcesVisible,
-      style: new Style({
-        image: new Circle({
-          radius: 6,
-          fill: new Fill({ color: "rgba(92, 45, 81, 0.8)" }), // SGU maroon
-          stroke: new Stroke({
-            color: "rgba(255, 255, 255, 0.8)",
-            width: 2,
-          }),
-        }),
-      }),
+      style: getSourceStyle,
     });
     sourcesLayerRef.current = sourcesLayer;
 
@@ -1309,6 +1330,18 @@ export const MapView = () => {
     });
     geolocationLayerRef.current = geolocationLayer;
 
+    // Draw layer – polygon selection for data export
+    const drawSource = new VectorSource();
+    drawSourceRef.current = drawSource;
+    const drawLayer = new VectorLayer({
+      source: drawSource,
+      style: new Style({
+        stroke: new Stroke({ color: 'rgba(225, 29, 72, 0.9)', width: 2, lineDash: [6, 4] }),
+        fill: new Fill({ color: 'rgba(225, 29, 72, 0.08)' }),
+      }),
+      zIndex: 9998,
+    });
+
     // Create map
     const map = new OLMap({
       target: mapRef.current,
@@ -1338,8 +1371,9 @@ export const MapView = () => {
         gwQualityLayer, 
         gwLevelsObservedLayer, 
         observationsLayer,
-        wellsLayer, 
+        wellsLayer,
         sourcesLayer,
+        drawLayer,
         geolocationLayer,
       ],
       view: new View({
@@ -1354,6 +1388,25 @@ export const MapView = () => {
     });
 
     mapInstanceRef.current = map;
+
+    // Draw interaction for polygon data export
+    const drawInteraction = new Draw({ source: drawSource, type: 'Polygon' });
+    drawInteraction.setActive(false);
+    drawInteraction.on('drawend', (event) => {
+      const geom = event.feature.getGeometry() as Polygon;
+      // Geodesic area from Web Mercator geometry
+      const areaM2 = getArea(geom);
+      // Transform to WGS84 to get bbox in lon/lat
+      const geomWGS84 = geom.clone().transform('EPSG:3857', 'EPSG:4326') as Polygon;
+      const ext = geomWGS84.getExtent(); // [minLon, minLat, maxLon, maxLat]
+      setDrawnBbox([ext[0], ext[1], ext[2], ext[3]]);
+      setDrawnAreaKm2(areaM2 / 1_000_000);
+      drawInteraction.setActive(false);
+      drawModeActiveRef.current = false;
+      setDrawModeActive(false);
+    });
+    map.addInteraction(drawInteraction);
+    drawInteractionRef.current = drawInteraction;
 
     // Track pointer coordinates
     map.on("pointermove", (evt) => {
@@ -1370,6 +1423,9 @@ export const MapView = () => {
 
     // Handle feature clicks - collect all features at the same location
     map.on("click", async (evt) => {
+      // Suppress popup clicks while drawing a polygon
+      if (drawModeActiveRef.current) return;
+
       // In rapport mode, set coordinate and show the analysis panel instead of feature popup
       if (rapportModeRef.current) {
         setRapportCoordinate([evt.coordinate[0], evt.coordinate[1]]);
@@ -1451,7 +1507,12 @@ export const MapView = () => {
       if (zoom >= 9 && aquifersLayerRef.current?.getVisible() && loadAquifersForExtentRef.current) {
         loadAquifersForExtentRef.current(extent);
       }
-      
+
+      // Sources load at zoom >= 10
+      if (zoom >= 10 && sourcesLayerRef.current?.getVisible() && loadSourcesForExtentRef.current) {
+        loadSourcesForExtentRef.current(extent);
+      }
+
       // Other vector layers load at zoom >= 12
       if (zoom >= 12) {
         if (wellsLayerRef.current?.getVisible() && loadWellsForExtentRef.current) {
@@ -1545,14 +1606,16 @@ export const MapView = () => {
   // Update Sources visibility and load data when enabled
   useEffect(() => {
     if (sourcesLayerRef.current) {
-      if (sourcesVisible && sourcesLayerRef.current.getSource()?.getFeatures().length === 0) {
-        sourcesLayerRef.current.getSource()?.loadFeatures(
-          sourcesLayerRef.current.getSource()!.getExtent(),
-          1,
-          sourcesLayerRef.current.getSource()!.getProjection()
-        );
-      }
       sourcesLayerRef.current.setVisible(sourcesVisible);
+      if (sourcesVisible && mapInstanceRef.current && loadSourcesForExtentRef.current) {
+        const zoom = mapInstanceRef.current.getView().getZoom() || 0;
+        if (zoom < 10) {
+          toast.info("Zooma in för att ladda källor (minst zoomnivå 10)");
+        } else {
+          const extent = mapInstanceRef.current.getView().calculateExtent();
+          loadSourcesForExtentRef.current(extent);
+        }
+      }
     }
   }, [sourcesVisible]);
 
@@ -1860,12 +1923,41 @@ export const MapView = () => {
   const [grundvattenAnalysData, setGrundvattenAnalysData] = useState<string | null>(null);
   const [rapportMode, setRapportMode] = useState(false);
   const [rapportCoordinate, setRapportCoordinate] = useState<[number, number] | null>(null);
+  const [drawModeActive, setDrawModeActive] = useState(false);
+  const [drawnBbox, setDrawnBbox] = useState<[number, number, number, number] | null>(null);
+  const [drawnAreaKm2, setDrawnAreaKm2] = useState(0);
   const wmsProxyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wms-proxy`;
 
   // Keep rapportModeRef in sync so the map click handler closure can read current value
   useEffect(() => {
     rapportModeRef.current = rapportMode;
   }, [rapportMode]);
+
+  // Activate / deactivate the Draw interaction
+  useEffect(() => {
+    if (!drawInteractionRef.current) return;
+    drawModeActiveRef.current = drawModeActive;
+    drawInteractionRef.current.setActive(drawModeActive);
+    if (drawModeActive && drawSourceRef.current) {
+      // Clear any previous polygon when entering draw mode
+      drawSourceRef.current.clear();
+      setDrawnBbox(null);
+    }
+  }, [drawModeActive]);
+
+  // Escape key cancels drawing
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && drawModeActive) {
+        drawInteractionRef.current?.abortDrawing();
+        drawInteractionRef.current?.setActive(false);
+        drawModeActiveRef.current = false;
+        setDrawModeActive(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [drawModeActive]);
 
   const openPanel = (panel: 'search' | 'locate' | 'layers') => {
     setActivePanel(prev => prev === panel ? null : panel);
@@ -1923,6 +2015,15 @@ export const MapView = () => {
             title={rapportMode ? 'Avsluta grundvattenanalys' : 'Grundvattenanalys – klicka på kartan'}
           >
             <Droplets className="w-5 h-5" />
+          </button>
+          <div className="h-px bg-border mx-2" />
+          {/* Rita polygon */}
+          <button
+            onClick={() => setDrawModeActive(prev => !prev)}
+            className={`w-12 h-12 flex items-center justify-center transition-colors ${drawModeActive ? 'bg-sgu-maroon text-white' : 'hover:bg-secondary text-muted-foreground'}`}
+            title={drawModeActive ? 'Avbryt ritning (Esc)' : 'Rita polygon – hämta data i område'}
+          >
+            <PenLine className="w-5 h-5" />
           </button>
           <div className="h-px bg-border mx-2" />
           {/* AI-analys */}
@@ -2261,6 +2362,25 @@ export const MapView = () => {
         </div>
       )}
       
+      {/* Polygon data fetcher – shown after a polygon is drawn */}
+      {drawnBbox && (
+        <PolygonFetcher
+          bbox={drawnBbox}
+          areaKm2={drawnAreaKm2}
+          onClose={() => {
+            setDrawnBbox(null);
+            drawSourceRef.current?.clear();
+          }}
+        />
+      )}
+
+      {/* Draw mode overlay hint */}
+      {drawModeActive && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 bg-sgu-maroon/90 text-white text-sm px-4 py-2 rounded-full shadow pointer-events-none">
+          Klicka på kartan för att rita polygon • Dubbelklicka för att avsluta • Esc för att avbryta
+        </div>
+      )}
+
       {selectedFeatures.length > 0 && (
         <WellPopup
           properties={selectedFeatures[selectedFeatureIndex].properties}

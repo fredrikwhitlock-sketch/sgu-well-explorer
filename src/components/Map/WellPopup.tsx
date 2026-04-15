@@ -378,15 +378,29 @@ export const WellPopup = ({
                 <dd className="text-sm text-foreground mt-1">{formatValue(properties.utf_txt)}</dd>
               </div>
             )}
-            
+
+            {properties.vne_txt && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Grundvattenmagasin</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.vne_txt)}</dd>
+              </div>
+            )}
+
+            {properties.mne_txt && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Positionsmätning</dt>
+                <dd className="text-sm text-foreground mt-1">{formatValue(properties.mne_txt)}</dd>
+              </div>
+            )}
+
             {properties.notering && (
               <div>
                 <dt className="text-xs font-medium text-muted-foreground">Notering</dt>
                 <dd className="text-sm text-foreground mt-1">
                   {isUrl(properties.notering) ? (
-                    <a 
-                      href={properties.notering} 
-                      target="_blank" 
+                    <a
+                      href={properties.notering}
+                      target="_blank"
                       rel="noopener noreferrer"
                       className="text-sgu-link hover:underline inline-flex items-center gap-1"
                     >
@@ -399,21 +413,43 @@ export const WellPopup = ({
               </div>
             )}
 
-            {properties.url && (
-              <div>
-                <dt className="text-xs font-medium text-muted-foreground">Mer information</dt>
-                <dd className="text-sm mt-1">
-                  <a 
-                    href={properties.url} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-sgu-link hover:underline inline-flex items-center gap-1"
-                  >
-                    Öppna länk <ExternalLink className="w-3 h-3" />
-                  </a>
-                </dd>
-              </div>
+            {(properties.n || properties.e) && (
+              <>
+                <Separator className="my-2" />
+                <div>
+                  <dt className="text-xs font-medium text-muted-foreground">Koordinater (SWEREF99)</dt>
+                  <dd className="text-sm text-foreground mt-1 font-mono">
+                    {properties.n && <span>N {properties.n}</span>}
+                    {properties.n && properties.e && <span className="mx-1">/</span>}
+                    {properties.e && <span>E {properties.e}</span>}
+                  </dd>
+                </div>
+              </>
             )}
+
+            <Separator className="my-2" />
+
+            <div className="space-y-2">
+              <div className="text-xs font-semibold text-foreground">Hämta data</div>
+              <div className="flex flex-wrap gap-3">
+                <a
+                  href={`https://api.sgu.se/oppnadata/kallor/ogc/features/v1/collections/kallor/items/${properties.id}?f=json`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-sgu-link hover:underline inline-flex items-center gap-1"
+                >
+                  <Download className="w-3 h-3" /> JSON
+                </a>
+                <a
+                  href="https://www.sgu.se/grundvatten/kallor/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-sgu-link hover:underline inline-flex items-center gap-1"
+                >
+                  Om SGU:s källdata <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+            </div>
           </>
         ) : type === 'well' ? (
           <>
