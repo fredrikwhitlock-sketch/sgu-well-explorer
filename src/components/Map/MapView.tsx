@@ -368,13 +368,15 @@ export const MapView = () => {
     });
     sourcesLayerRef.current = sourcesLayer;
 
-    // Minimum zoom level for loading wells and soil types (to avoid loading too much data)
+    // Minimum zoom level for loading wells, soil types, and aquifers
     const MIN_ZOOM_FOR_WELLS = 12;
     const MIN_ZOOM_FOR_SOIL_TYPES = 12;
+    const MIN_ZOOM_FOR_AQUIFERS = 9;
 
     // Track loaded extents to avoid duplicate loading
     const loadedWellExtentsRef: string[] = [];
     const loadedSoilExtentsRef: string[] = [];
+    const loadedAquiferExtentsRef: string[] = [];
     
     const extentToGridKey = (extent: number[]) => {
       // Create a grid key based on ~5km grid cells
