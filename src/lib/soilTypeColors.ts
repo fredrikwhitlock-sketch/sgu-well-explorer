@@ -17,26 +17,26 @@ const hexToRgbaStroke = (hex: string): string => {
   return `rgba(${Math.max(0, r - 40)}, ${Math.max(0, g - 40)}, ${Math.max(0, b - 40)}, 1)`;
 };
 
-// Färgschema med god visuell distinktion
+// Färgschema baserat på SGU:s officiella WMS-legend (GetLegendGraphic)
 const SGU_COLORS = {
-  moran: '#4A7EB5',           // Morän - blå (stålblå)
-  moranLera: '#9ABBD8',       // Moränlera - ljusblå
-  isalvs: '#5FAD60',          // Isälvssediment - grön
-  postglacialSand: '#F0D050', // Postglacial sand-grus - gul
-  lera: '#CC8560',            // Lera/Silt - terrakotta
-  svamsediment: '#C8A882',    // Svämsediment - beige
-  alvsediment: '#B880C0',     // Älvsediment - lila
-  berg: '#C8C4DC',            // Berg - ljuslila/grå
-  sedimentartBerg: '#CC2828', // Sedimentärt berg - röd
-  diabas: '#1A5A9A',          // Fanerozoisk diabas - mörkblå
-  fyllning: '#B84E94',        // Fyllning - magenta
-  vatten: '#1E90FF',          // Vatten - klar blå
-  torv: '#7A5030',            // Torv/Mosse - mörkbrun
-  karrtorv: '#9A6848',        // Kärrtorv - mellanbrun
-  gyttja: '#A08060',          // Gyttja - gråbrun
-  kalktuff: '#BE874D',        // Kalktuff - orange-brun
-  blockmark: '#A0A0A0',       // Blockmark - grå
-  oklassat: '#FFFFFF',        // Oklassat - vit
+  moran: '#e7e2f1',           // Morän - ljuslila/grå (officiell SGU-färg)
+  moranLera: '#cfe4f3',       // Moränlera - ljusblå
+  isalvs: '#96c147',          // Isälvssediment - grön (officiell SGU-färg)
+  postglacialSand: '#ffd500', // Postglacial sand-grus - gul (officiell SGU-färg)
+  lera: '#e68060',            // Lera/Silt - laxrosa (officiell SGU-färg)
+  svamsediment: '#d8b78f',    // Svämsediment - sandbrun
+  alvsediment: '#f9b760',     // Älvsediment - ljus orange-gul
+  berg: '#de3534',            // Berg/Urberg - röd (officiell SGU-färg)
+  sedimentartBerg: '#de3534', // Sedimentärt berg - röd (officiell SGU-färg)
+  diabas: '#3092d0',          // Fanerozoisk diabas - mellanblå
+  fyllning: '#b84e94',        // Fyllning - magenta (officiell SGU-färg, exakt match)
+  vatten: '#0b88c5',          // Vatten - mellanblå (officiell SGU-färg)
+  torv: '#dfc3a2',            // Torv/Mosse - ljusbrun (officiell SGU-färg)
+  karrtorv: '#e99cba',        // Kärrtorv - rosa (officiell SGU-färg)
+  gyttja: '#f9c39c',          // Gyttja - persika (officiell SGU-färg)
+  kalktuff: '#ca9661',        // Kalktuff - orange-brun
+  blockmark: '#808080',       // Blockmark - grå (officiell SGU-färg)
+  oklassat: '#dfedf7',        // Oklassat - mycket ljusblå
 };
 
 export const SOIL_TYPE_COLORS: Record<number, { fill: string; stroke: string; name: string }> = {
