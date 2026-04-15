@@ -343,11 +343,25 @@ export const LayerPanel = ({
                   className="w-full"
                 />
               </div>
-              <div className="text-xs">
+              <div className="text-xs space-y-1">
+                <div className="font-medium text-muted-foreground mb-2">Akvifertyp:</div>
                 <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full border-2 border-[rgb(34,197,94)] bg-[rgba(34,197,94,0.2)]" />
-                  <span className="text-muted-foreground">Klickbara magasin</span>
+                  <div className="w-3 h-3 rounded-sm border-2 border-[rgba(34,197,94,0.9)] bg-[rgba(34,197,94,0.25)]" />
+                  <span className="text-muted-foreground">Porakvifer (jord)</span>
                 </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-sm border-2 border-[rgba(245,158,11,0.9)] bg-[rgba(245,158,11,0.25)]" />
+                  <span className="text-muted-foreground">Porakvifer (berg/komb.)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-sm border-2 border-[rgba(220,38,38,0.9)] bg-[rgba(220,38,38,0.25)]" />
+                  <span className="text-muted-foreground">Sprickakvifer</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-sm border-2 border-[rgba(147,51,234,0.9)] bg-[rgba(147,51,234,0.25)]" />
+                  <span className="text-muted-foreground">Por- och sprickakvifer</span>
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-1">Laddas per vy (zoom ≥ 9)</p>
                 <a 
                   href="https://www.sgu.se/produkter-och-tjanster/geologiska-data/grundvatten--geologiska-data/" 
                   target="_blank" 
