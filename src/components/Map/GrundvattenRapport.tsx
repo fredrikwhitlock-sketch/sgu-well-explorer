@@ -468,13 +468,22 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
               fetch(`${levelBase}&filter=${encodeURIComponent(`omrade_id=${id} AND datum='${selectedDate}'`)}&limit=1`, { signal }).then(safeJson).catch(() => null),
               fetch(`${levelBase}&filter=${encodeURIComponent(`omrade_id=${id}`)}&sortby=-datum&limit=1`, { signal }).then(safeJson).catch(() => null),
             ]);
-            // Fetch the 15 most recent monthly records for this area (same filter
-            // format as the existing level queries – no filter-lang, no date range).
-            // We'll trim to ≤13 months client-side after sorting ascending.
-            seriesPromise = fetch(
-              `${levelBase}&filter=${encodeURIComponent(`omrade_id=${id}`)}&sortby=-datum&limit=15`,
-              { signal }
-            ).then(safeJson).catch(() => null);
+            // Fire 13 individual monthly queries in parallel (same proven filter format
+            // as the existing level queries).  The collection only keeps a short rolling
+            // window so a single limit=15 query only returns 1-2 records; querying each
+            // month explicitly reaches the full archive.
+            // HYPE data is stored on the 1st of each month.
+            const monthUrls: string[] = [];
+            for (let i = 12; i >= 0; i--) {
+              const d = new Date(selectedDate);
+              d.setMonth(d.getMonth() - i);
+              d.setDate(1);
+              const mStr = d.toISOString().split('T')[0];
+              monthUrls.push(`${levelBase}&filter=${encodeURIComponent(`omrade_id=${id} AND datum='${mStr}'`)}&limit=1`);
+            }
+            seriesPromise = Promise.all(
+              monthUrls.map(url => fetch(url, { signal }).then(safeJson).catch(() => null))
+            );
           }
           return d;
         })
@@ -574,21 +583,19 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
         result.sitStora = p.grundvattensituation_stora;
       }
 
-      // HYPE time series for sparkline – sort ascending, clip to ≤13 months before selectedDate
-      if (seriesData?.features?.length > 0) {
-        const cutoff = new Date(selectedDate);
-        cutoff.setMonth(cutoff.getMonth() - 13);
-        const cutoffStr = cutoff.toISOString().split('T')[0];
-        const parsed = seriesData.features
-          .map((f: any) => {
-            const p = f.properties ?? {};
+      // HYPE time series: seriesData is an array of 13 individual month responses
+      if (Array.isArray(seriesData)) {
+        const parsed = (seriesData as any[])
+          .filter(d => d?.features?.length > 0)
+          .map((d: any) => {
+            const p = d.features[0].properties ?? {};
             return {
               datum:        String(p.datum ?? '').slice(0, 10),
               fyllnadSma:   typeof p.fyllnadsgrad_sma   === 'number' ? p.fyllnadsgrad_sma   : null,
               fyllnadStora: typeof p.fyllnadsgrad_stora === 'number' ? p.fyllnadsgrad_stora : null,
             };
           })
-          .filter((s: any) => s.datum && s.datum >= cutoffStr && s.datum <= selectedDate)
+          .filter((s: any) => s.datum)
           .sort((a: any, b: any) => a.datum.localeCompare(b.datum));
         if (parsed.length >= 2) result.hypoSeries = parsed;
       }
