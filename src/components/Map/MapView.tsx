@@ -533,63 +533,104 @@ export const MapView = () => {
       return allFeatures;
     };
 
-    // OGC API Features layer for Grundvattenmagasin (aquifers) - No limit
+    // OGC API Features layer for Grundvattenmagasin (aquifers) - accumulative bbox loading
     const aquifersSource = new VectorSource({
       format: new GeoJSON(),
-      loader: async () => {
-        try {
-          setLoadingAquifers(true);
-          setAquifersLoaded(0);
-          console.log("Loading all aquifers from OGC API...");
-          
-          const allFeatures = await fetchAllPages(
-            `https://api.sgu.se/oppnadata/grundvattenmagasin/ogc/features/v1/collections/grundvattenmagasin/items?f=json`,
-            (count) => setAquifersLoaded(count)
-          );
-          
-          console.log(`Received ${allFeatures.length} aquifers total`);
-          
-          if (allFeatures.length > 0) {
-            const features = new GeoJSON().readFeatures(
-              { type: "FeatureCollection", features: allFeatures },
-              {
-                dataProjection: "EPSG:4326",
-                featureProjection: "EPSG:3857",
-              }
-            );
-            
-            aquifersSource.addFeatures(features);
-            setAquifersLoaded(features.length);
-            
-            if (aquifersLayerRef.current) {
-              aquifersLayerRef.current.setVisible(true);
-              aquifersLayerRef.current.changed();
-            }
-            
-            toast.success(`Laddade ${features.length} grundvattenmagasin`);
-          }
-        } catch (error) {
-          console.error("Error loading aquifers:", error);
-          toast.error("Kunde inte ladda grundvattenmagasin");
-        } finally {
-          setLoadingAquifers(false);
-        }
-      },
     });
+
+    // Aquifer color scheme by akvifertyp
+    const getAquiferStyle = (feature: any) => {
+      const props = feature.getProperties();
+      const akvifertyp = props.akvifertyp || '';
+      const position = (props.magasinsposition || '').substring(0, 2);
+
+      let fillColor: string;
+      let strokeColor: string;
+
+      // Color by akvifertyp
+      if (akvifertyp === 'sprickakvifer') {
+        fillColor = 'rgba(220, 38, 38, 0.25)';  // red
+        strokeColor = 'rgba(220, 38, 38, 0.9)';
+      } else if (akvifertyp === 'por- och sprickakvifer') {
+        fillColor = 'rgba(147, 51, 234, 0.25)';  // purple
+        strokeColor = 'rgba(147, 51, 234, 0.9)';
+      } else {
+        // porakvifer (default) – color by position
+        if (position === 'K1' || position === 'S1' || position === 'S2') {
+          fillColor = 'rgba(245, 158, 11, 0.25)'; // amber for berg-related
+          strokeColor = 'rgba(245, 158, 11, 0.9)';
+        } else {
+          fillColor = 'rgba(34, 197, 94, 0.25)';  // green for J1 (jord)
+          strokeColor = 'rgba(34, 197, 94, 0.9)';
+        }
+      }
+
+      return new Style({
+        stroke: new Stroke({ color: strokeColor, width: 2 }),
+        fill: new Fill({ color: fillColor }),
+      });
+    };
+
+    const loadAquifersForExtent = async (extent: number[]) => {
+      try {
+        const currentZoom = mapInstanceRef.current?.getView().getZoom() || 0;
+        if (currentZoom < MIN_ZOOM_FOR_AQUIFERS) return;
+
+        const gridKey = extentToGridKey(extent);
+        if (loadedAquiferExtentsRef.includes(gridKey)) return;
+        loadedAquiferExtentsRef.push(gridKey);
+
+        setLoadingAquifers(true);
+
+        // Convert extent from EPSG:3857 to EPSG:4326 for OGC API bbox
+        const minLon = (extent[0] / 20037508.34) * 180;
+        const maxLon = (extent[2] / 20037508.34) * 180;
+        const minLat = (Math.atan(Math.exp((extent[1] / 20037508.34) * Math.PI)) * 360 / Math.PI) - 90;
+        const maxLat = (Math.atan(Math.exp((extent[3] / 20037508.34) * Math.PI)) * 360 / Math.PI) - 90;
+
+        const bbox = `${minLon},${minLat},${maxLon},${maxLat}`;
+        const allFeatures = await fetchAllPages(
+          `https://api.sgu.se/oppnadata/grundvattenmagasin/ogc/features/v1/collections/grundvattenmagasin/items?f=json&bbox=${bbox}`,
+          (count) => setAquifersLoaded(prev => aquifersSource.getFeatures().length + count)
+        );
+
+        if (allFeatures.length > 0) {
+          // Deduplicate by unik_magasinsidentitet
+          const existingIds = new (globalThis.Map as typeof Map)<string, boolean>();
+          for (const f of aquifersSource.getFeatures()) {
+            const id = f.get('unik_magasinsidentitet');
+            if (id) existingIds.set(id, true);
+          }
+
+          const newFeatures = allFeatures.filter(f => {
+            const id = f.properties?.unik_magasinsidentitet;
+            return id && !existingIds.has(id);
+          });
+
+          if (newFeatures.length > 0) {
+            const features = new GeoJSON().readFeatures(
+              { type: "FeatureCollection", features: newFeatures },
+              { dataProjection: "EPSG:4326", featureProjection: "EPSG:3857" }
+            );
+            aquifersSource.addFeatures(features);
+          }
+
+          setAquifersLoaded(aquifersSource.getFeatures().length);
+        }
+      } catch (error) {
+        console.error("Error loading aquifers:", error);
+        toast.error("Kunde inte ladda grundvattenmagasin");
+      } finally {
+        setLoadingAquifers(false);
+      }
+    };
+    loadAquifersForExtentRef.current = loadAquifersForExtent;
 
     const aquifersLayer = new VectorLayer({
       source: aquifersSource,
       visible: aquifersVisible,
       opacity: aquifersOpacity,
-      style: new Style({
-        stroke: new Stroke({
-          color: "rgba(34, 197, 94, 0.8)",
-          width: 2,
-        }),
-        fill: new Fill({
-          color: "rgba(34, 197, 94, 0.2)",
-        }),
-      }),
+      style: getAquiferStyle,
     });
     aquifersLayerRef.current = aquifersLayer;
 
