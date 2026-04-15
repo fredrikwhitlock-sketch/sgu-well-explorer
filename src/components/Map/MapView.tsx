@@ -128,6 +128,7 @@ export const MapView = () => {
   const loadWellsForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
   const loadSoilTypesForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
   const loadAquifersForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
+  const loadSourcesForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
   const loadJorddjupObsForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
   const loadJorddjupKartorForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
   const loadJorddjupSprickForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
@@ -290,81 +291,94 @@ export const MapView = () => {
     });
     sguGvTillgangLayerRef.current = sguGvTillgangLayer;
 
-    // OGC API Features layer for Källor (sources)
-    const sourcesSource = new VectorSource({
-      format: new GeoJSON(),
-      loader: async () => {
-        try {
-          setLoadingSources(true);
-          setSourcesLoaded(0);
-          console.log("Loading sources from OGC API...");
-          
-          const allFeatures: any[] = [];
-          let nextUrl: string | null = `https://api.sgu.se/oppnadata/kallor/ogc/features/v1/collections/kallor/items?f=json&limit=1000`;
-          
-          while (nextUrl) {
-            const response = await fetch(nextUrl);
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-            const data = await response.json();
-            
-            if (data.features) {
-              allFeatures.push(...data.features);
-              setSourcesLoaded(allFeatures.length);
-            }
-            
-            // Check for next page link
-            nextUrl = null;
-            if (data.links) {
-              const nextLink = data.links.find((l: any) => l.rel === 'next');
-              if (nextLink) nextUrl = nextLink.href;
-            }
-          }
-          
-          console.log(`Received ${allFeatures.length} total sources`);
-          
-          if (allFeatures.length > 0) {
-            const features = new GeoJSON().readFeatures(
-              { type: "FeatureCollection", features: allFeatures },
-              {
-                dataProjection: "EPSG:4326",
-                featureProjection: "EPSG:3857",
-              }
-            );
-            
-            sourcesSource.addFeatures(features);
-            setSourcesLoaded(features.length);
-            
-            if (sourcesLayerRef.current) {
-              sourcesLayerRef.current.setVisible(true);
-              sourcesLayerRef.current.changed();
-            }
-            
-            toast.success(`Laddade ${features.length} källor från hela Sverige`);
-          } else {
-            toast.info("Inga källor returnerades från API:et");
-          }
-        } catch (error) {
-          console.error("Error loading sources:", error);
-          toast.error("Kunde inte ladda källor från OGC API");
-        } finally {
-          setLoadingSources(false);
-        }
-      },
+    // OGC API Features layer for Källor (sources) - bbox-based loading
+    const sourcesSource = new VectorSource({ format: new GeoJSON() });
+
+    const MIN_ZOOM_FOR_SOURCES = 10;
+    const loadedSourceExtentsRef: string[] = [];
+
+    // Color-coded styles per källtyp
+    const sourceStylePunkt = new Style({
+      image: new Circle({
+        radius: 6,
+        fill: new Fill({ color: "rgba(6, 182, 212, 0.85)" }),  // teal – punktkälla
+        stroke: new Stroke({ color: "rgba(255,255,255,0.85)", width: 2 }),
+      }),
     });
+    const sourceStyleHorisont = new Style({
+      image: new Circle({
+        radius: 6,
+        fill: new Fill({ color: "rgba(245, 158, 11, 0.85)" }), // amber – horisontkälla
+        stroke: new Stroke({ color: "rgba(255,255,255,0.85)", width: 2 }),
+      }),
+    });
+    const sourceStyleDefault = new Style({
+      image: new Circle({
+        radius: 6,
+        fill: new Fill({ color: "rgba(92, 45, 81, 0.85)" }),   // maroon – övriga
+        stroke: new Stroke({ color: "rgba(255,255,255,0.85)", width: 2 }),
+      }),
+    });
+
+    const getSourceStyle = (feature: any) => {
+      const kt = (feature.get('kalltyp') || '').toLowerCase();
+      if (kt.includes('punkt')) return sourceStylePunkt;
+      if (kt.includes('horisont')) return sourceStyleHorisont;
+      return sourceStyleDefault;
+    };
+
+    const loadSourcesForExtent = async (extent: number[]) => {
+      try {
+        const currentZoom = mapInstanceRef.current?.getView().getZoom() || 0;
+        if (currentZoom < MIN_ZOOM_FOR_SOURCES) return;
+
+        const gridKey = extentToGridKey(extent);
+        if (loadedSourceExtentsRef.includes(gridKey)) return;
+        loadedSourceExtentsRef.push(gridKey);
+
+        setLoadingSources(true);
+
+        const minLon = (extent[0] / 20037508.34) * 180;
+        const maxLon = (extent[2] / 20037508.34) * 180;
+        const minLat = (Math.atan(Math.exp((extent[1] / 20037508.34) * Math.PI)) * 360 / Math.PI) - 90;
+        const maxLat = (Math.atan(Math.exp((extent[3] / 20037508.34) * Math.PI)) * 360 / Math.PI) - 90;
+
+        const bbox = `${minLon},${minLat},${maxLon},${maxLat}`;
+        const allFeatures = await fetchAllPages(
+          `https://api.sgu.se/oppnadata/kallor/ogc/features/v1/collections/kallor/items?f=json&bbox=${bbox}`,
+          (count) => setSourcesLoaded(sourcesSource.getFeatures().length + count)
+        );
+
+        if (allFeatures.length > 0) {
+          const existingIds = new Set(sourcesSource.getFeatures().map(f => String(f.get('id'))));
+          const newFeatures = allFeatures.filter(f => {
+            const id = String(f.properties?.id ?? '');
+            return id && !existingIds.has(id);
+          });
+
+          if (newFeatures.length > 0) {
+            const features = new GeoJSON().readFeatures(
+              { type: "FeatureCollection", features: newFeatures },
+              { dataProjection: "EPSG:4326", featureProjection: "EPSG:3857" }
+            );
+            sourcesSource.addFeatures(features);
+          }
+
+          setSourcesLoaded(sourcesSource.getFeatures().length);
+        }
+      } catch (error) {
+        console.error("Error loading sources:", error);
+        toast.error("Kunde inte ladda källor");
+      } finally {
+        setLoadingSources(false);
+      }
+    };
+    loadSourcesForExtentRef.current = loadSourcesForExtent;
 
     const sourcesLayer = new VectorLayer({
       source: sourcesSource,
       visible: sourcesVisible,
-      style: new Style({
-        image: new Circle({
-          radius: 6,
-          fill: new Fill({ color: "rgba(92, 45, 81, 0.8)" }), // SGU maroon
-          stroke: new Stroke({
-            color: "rgba(255, 255, 255, 0.8)",
-            width: 2,
-          }),
-        }),
-      }),
+      style: getSourceStyle,
     });
     sourcesLayerRef.current = sourcesLayer;
 
@@ -1451,7 +1465,12 @@ export const MapView = () => {
       if (zoom >= 9 && aquifersLayerRef.current?.getVisible() && loadAquifersForExtentRef.current) {
         loadAquifersForExtentRef.current(extent);
       }
-      
+
+      // Sources load at zoom >= 10
+      if (zoom >= 10 && sourcesLayerRef.current?.getVisible() && loadSourcesForExtentRef.current) {
+        loadSourcesForExtentRef.current(extent);
+      }
+
       // Other vector layers load at zoom >= 12
       if (zoom >= 12) {
         if (wellsLayerRef.current?.getVisible() && loadWellsForExtentRef.current) {
@@ -1545,14 +1564,16 @@ export const MapView = () => {
   // Update Sources visibility and load data when enabled
   useEffect(() => {
     if (sourcesLayerRef.current) {
-      if (sourcesVisible && sourcesLayerRef.current.getSource()?.getFeatures().length === 0) {
-        sourcesLayerRef.current.getSource()?.loadFeatures(
-          sourcesLayerRef.current.getSource()!.getExtent(),
-          1,
-          sourcesLayerRef.current.getSource()!.getProjection()
-        );
-      }
       sourcesLayerRef.current.setVisible(sourcesVisible);
+      if (sourcesVisible && mapInstanceRef.current && loadSourcesForExtentRef.current) {
+        const zoom = mapInstanceRef.current.getView().getZoom() || 0;
+        if (zoom < 10) {
+          toast.info("Zooma in för att ladda källor (minst zoomnivå 10)");
+        } else {
+          const extent = mapInstanceRef.current.getView().calculateExtent();
+          loadSourcesForExtentRef.current(extent);
+        }
+      }
     }
   }, [sourcesVisible]);
 
