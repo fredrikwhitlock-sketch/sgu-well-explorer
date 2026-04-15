@@ -17,26 +17,33 @@ const hexToRgbaStroke = (hex: string): string => {
   return `rgba(${Math.max(0, r - 40)}, ${Math.max(0, g - 40)}, ${Math.max(0, b - 40)}, 1)`;
 };
 
-// Färgschema baserat på SGU:s officiella WMS-legend (GetLegendGraphic)
+// Färgschema anpassat för tydlig visuell differentiering:
+//   Isälvssediment = klargrönt  (akvifertyp, viktig att urskilja)
+//   Lera/Silt      = gul        (täckande lager, varnande färg)
+//   Morän          = varm beige (dominerande i norra Sverige)
+//   Sand/Grus      = ljuskräm   (sorterat material, ljusare än lera)
+//   Berg           = korall/rosa (fast mark)
+//   Torv           = mörkbrun   (organiskt)
+//   Vatten         = blå
 const SGU_COLORS = {
-  moran: '#e7e2f1',           // Morän - ljuslila/grå (officiell SGU-färg)
-  moranLera: '#cfe4f3',       // Moränlera - ljusblå
-  isalvs: '#96c147',          // Isälvssediment - grön (officiell SGU-färg)
-  postglacialSand: '#ffd500', // Postglacial sand-grus - gul (officiell SGU-färg)
-  lera: '#e68060',            // Lera/Silt - laxrosa (officiell SGU-färg)
-  svamsediment: '#d8b78f',    // Svämsediment - sandbrun
-  alvsediment: '#f9b760',     // Älvsediment - ljus orange-gul
-  berg: '#de3534',            // Berg/Urberg - röd (officiell SGU-färg)
-  sedimentartBerg: '#de3534', // Sedimentärt berg - röd (officiell SGU-färg)
-  diabas: '#3092d0',          // Fanerozoisk diabas - mellanblå
-  fyllning: '#b84e94',        // Fyllning - magenta (officiell SGU-färg, exakt match)
-  vatten: '#0b88c5',          // Vatten - mellanblå (officiell SGU-färg)
-  torv: '#dfc3a2',            // Torv/Mosse - ljusbrun (officiell SGU-färg)
-  karrtorv: '#e99cba',        // Kärrtorv - rosa (officiell SGU-färg)
-  gyttja: '#f9c39c',          // Gyttja - persika (officiell SGU-färg)
-  kalktuff: '#ca9661',        // Kalktuff - orange-brun
-  blockmark: '#808080',       // Blockmark - grå (officiell SGU-färg)
-  oklassat: '#dfedf7',        // Oklassat - mycket ljusblå
+  moran: '#b8a880',           // Morän - varm beige/sandgrå
+  moranLera: '#a8c0d0',       // Moränlera - blågrå (finkornigare än morän)
+  isalvs: '#5cb82e',          // Isälvssediment - klargrönt (bra akvifer)
+  postglacialSand: '#e8d080', // Postglacial sand-grus - ljus kräm/sandgul
+  lera: '#f5d400',            // Lera/Silt - gul (täckande lager)
+  svamsediment: '#c89860',    // Svämsediment - tan/brun
+  alvsediment: '#d8a840',     // Älvsediment - amberfärgad
+  berg: '#e07878',            // Berg/Urberg - korall/laxrosa (fast mark)
+  sedimentartBerg: '#d08888', // Sedimentärt berg - lite mörkare korall
+  diabas: '#5090c8',          // Fanerozoisk diabas - blå
+  fyllning: '#c060b0',        // Fyllning - lila/magenta (artificiellt)
+  vatten: '#3090c8',          // Vatten - klar blå
+  torv: '#8a6040',            // Torv/Mosse - mörkbrun (organiskt)
+  karrtorv: '#a07060',        // Kärrtorv - rödbrun
+  gyttja: '#b09060',          // Gyttja - olivbrun
+  kalktuff: '#c09858',        // Kalktuff - orange-brun
+  blockmark: '#909090',       // Blockmark - grå
+  oklassat: '#d8e8f0',        // Oklassat - mycket ljusblå
 };
 
 export const SOIL_TYPE_COLORS: Record<number, { fill: string; stroke: string; name: string }> = {
