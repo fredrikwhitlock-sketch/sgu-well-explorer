@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { X, Droplets, Loader2, MapPin, AlertCircle, RefreshCw, Info, ChevronDown, Bot } from "lucide-react";
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import proj4 from "proj4";
 import { getSoilTypeColor } from "../../lib/soilTypeColors";
 
@@ -46,6 +47,8 @@ interface ReportData {
     magasinsposition?: string;     // "J1" | "J2" | "B1" | "B2"
   };
   brunnar?: BrunnInfo[];
+  // 13-month HYPE time series for sparkline
+  hypoSeries?: Array<{ datum: string; fyllnadSma: number | null; fyllnadStora: number | null }>;
   // Nearby observed groundwater levels for calibration
   // aquiferGroup: derived from 'akvifer' code (B*=rock, J*=jord, XX/null=unknown)
   // aquiferSize:  derived from station jordart – 'large' = isälv/sand/grus magasin,
@@ -445,6 +448,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
       // simultaneously so we always have a fallback if today's date has no data
       // (HYPE is a monthly model and may lag behind by weeks/months).
       let levelsPromise: Promise<[any, any]> | null = null;
+      let seriesPromise: Promise<any> | null = null;
       let omradeIdCapture: number | undefined;
 
       const levelBase = `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/grundvattennivaer-tidigare/items?f=json`;
@@ -464,6 +468,14 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
               fetch(`${levelBase}&filter=${encodeURIComponent(`omrade_id=${id} AND datum='${selectedDate}'`)}&limit=1`, { signal }).then(safeJson).catch(() => null),
               fetch(`${levelBase}&filter=${encodeURIComponent(`omrade_id=${id}`)}&sortby=-datum&limit=1`, { signal }).then(safeJson).catch(() => null),
             ]);
+            // Fetch ~13 months ending at selectedDate for the sparkline
+            const d13 = new Date(selectedDate);
+            d13.setMonth(d13.getMonth() - 13);
+            const d13Str = d13.toISOString().split('T')[0];
+            seriesPromise = fetch(
+              `${levelBase}&filter=${encodeURIComponent(`omrade_id=${id} AND datum >= '${d13Str}' AND datum <= '${selectedDate}'`)}&filter-lang=cql2-text&sortby=datum&limit=15`,
+              { signal }
+            ).then(safeJson).catch(() => null);
           }
           return d;
         })
@@ -534,9 +546,10 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
 
       if (signal.aborted) return;
 
-      // Await HYPE levels + observed nivaer in parallel (both already in-flight)
-      const [[dateResult, latestResult], nivaerData] = await Promise.all([
+      // Await HYPE levels + time series + observed nivaer in parallel (all in-flight)
+      const [[dateResult, latestResult], seriesData, nivaerData] = await Promise.all([
         levelsPromise ?? Promise.resolve([null, null]),
+        seriesPromise ?? Promise.resolve(null),
         nivaerPromise ?? Promise.resolve(null),
       ]);
 
@@ -560,6 +573,18 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
         result.fyllnadsgradStora = p.fyllnadsgrad_stora;
         result.sitSma = p.grundvattensituation_sma;
         result.sitStora = p.grundvattensituation_stora;
+      }
+
+      // HYPE time series for sparkline
+      if (seriesData?.features?.length > 0) {
+        result.hypoSeries = seriesData.features.map((f: any) => {
+          const p = f.properties ?? {};
+          return {
+            datum: String(p.datum ?? '').slice(0, 10),
+            fyllnadSma:   typeof p.fyllnadsgrad_sma   === 'number' ? p.fyllnadsgrad_sma   : null,
+            fyllnadStora: typeof p.fyllnadsgrad_stora === 'number' ? p.fyllnadsgrad_stora : null,
+          };
+        }).filter((s: any) => s.datum);
       }
 
       // GV Tillgång små magasin (raster, l/dygn/ha)
@@ -1115,6 +1140,89 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                       </div>
                     ))}
                   </div>
+                  {/* Sparkline – 13-month trend */}
+                  {data.hypoSeries && data.hypoSeries.length >= 2 && (
+                    <div className="mt-3">
+                      <div className="text-[10px] text-muted-foreground mb-1 uppercase tracking-wide">Trend – senaste året</div>
+                      <ResponsiveContainer width="100%" height={90}>
+                        <AreaChart data={data.hypoSeries} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
+                          <defs>
+                            <linearGradient id="gfSma" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%"  stopColor="#3b82f6" stopOpacity={0.35} />
+                              <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                            </linearGradient>
+                            <linearGradient id="gfStora" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%"  stopColor="#22c55e" stopOpacity={0.35} />
+                              <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <XAxis
+                            dataKey="datum"
+                            tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }}
+                            tickLine={false}
+                            axisLine={false}
+                            tickFormatter={v => new Date(v).toLocaleDateString('sv', { month: 'short' }).replace('.', '')}
+                            interval="preserveStartEnd"
+                          />
+                          <YAxis domain={[0, 100]} hide />
+                          <Tooltip
+                            content={({ active, payload, label }) => {
+                              if (!active || !payload?.length) return null;
+                              return (
+                                <div style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 6, padding: '4px 8px', fontSize: 11 }}>
+                                  <div style={{ fontWeight: 600, marginBottom: 2 }}>{String(label).slice(0, 7)}</div>
+                                  {payload.map(p => (
+                                    <div key={String(p.name)} style={{ color: p.color as string }}>
+                                      {p.name}: {p.value != null ? `${Math.round(Number(p.value))}:e perc.` : '–'}
+                                    </div>
+                                  ))}
+                                </div>
+                              );
+                            }}
+                          />
+                          {data.hypoDate && (
+                            <ReferenceLine
+                              x={data.hypoDate.slice(0, 10)}
+                              stroke="hsl(var(--foreground))"
+                              strokeDasharray="3 3"
+                              strokeWidth={1}
+                            />
+                          )}
+                          <Area
+                            type="monotone"
+                            dataKey="fyllnadStora"
+                            name="Stort magasin"
+                            stroke="#22c55e"
+                            fill="url(#gfStora)"
+                            strokeWidth={1.5}
+                            dot={false}
+                            connectNulls
+                          />
+                          <Area
+                            type="monotone"
+                            dataKey="fyllnadSma"
+                            name="Litet magasin"
+                            stroke="#3b82f6"
+                            fill="url(#gfSma)"
+                            strokeWidth={1.5}
+                            dot={false}
+                            connectNulls
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                      <div className="flex gap-3 justify-center mt-1">
+                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                          <span className="inline-block w-3 h-0.5 rounded bg-blue-500" />Litet magasin
+                        </span>
+                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                          <span className="inline-block w-3 h-0.5 rounded bg-green-500" />Stort magasin
+                        </span>
+                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                          <span className="inline-block w-3 h-0.5 rounded" style={{ borderTop: '1px dashed currentColor', background: 'none' }} />Valt datum
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </>
               ) : (
                 <div className="text-xs text-muted-foreground mb-3">Ingen HYPE-data för denna punkt</div>
