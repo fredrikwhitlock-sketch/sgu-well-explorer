@@ -1788,6 +1788,7 @@ export const MapView = () => {
 
   const [activePanel, setActivePanel] = useState<'search' | 'locate' | 'layers' | null>(null);
   const [aiChatOpen, setAiChatOpen] = useState(false);
+  const [grundvattenAnalysData, setGrundvattenAnalysData] = useState<string | null>(null);
   const [rapportMode, setRapportMode] = useState(false);
   const [rapportCoordinate, setRapportCoordinate] = useState<[number, number] | null>(null);
   const wmsProxyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wms-proxy`;
@@ -2232,6 +2233,8 @@ export const MapView = () => {
             setRapportCoordinate(null);
             setRapportMode(false);
           }}
+          onAnalysisData={setGrundvattenAnalysData}
+          onOpenAI={() => setAiChatOpen(true)}
         />
       )}
 
@@ -2259,6 +2262,7 @@ export const MapView = () => {
       <AIChatPanel
         open={aiChatOpen}
         setOpen={setAiChatOpen}
+        grundvattenData={grundvattenAnalysData}
         getLayerData={() => {
           const layers = [
             { name: "Brunnar", ref: wellsLayerRef, count: wellsLoaded },

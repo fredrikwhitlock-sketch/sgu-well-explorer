@@ -16,6 +16,7 @@ interface AIChatPanelProps {
   getLayerData: () => LayerData[];
   open: boolean;
   setOpen: (v: boolean) => void;
+  grundvattenData?: string | null;
 }
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/geo-chat`;
@@ -46,7 +47,7 @@ function summarizeData(records: Record<string, any>[], maxRows = 50): string {
   return summary;
 }
 
-export function AIChatPanel({ getLayerData, open, setOpen }: AIChatPanelProps) {
+export function AIChatPanel({ getLayerData, open, setOpen, grundvattenData }: AIChatPanelProps) {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -126,6 +127,11 @@ export function AIChatPanel({ getLayerData, open, setOpen }: AIChatPanelProps) {
 
     let content = msgText;
 
+    // Always include groundwater analysis context if available
+    if (grundvattenData) {
+      content += "\n\n--- GRUNDVATTENANALYS (aktuell punkt) ---\n" + grundvattenData;
+    }
+
     // Include layer data context if requested
     if (msgText.toLowerCase().includes("kartdata") || msgText.toLowerCase().includes("laddad") || msgText.toLowerCase().includes("analys") || msgText.toLowerCase().includes("sammanfatt")) {
       const layers = getLayerData();
@@ -194,6 +200,11 @@ export function AIChatPanel({ getLayerData, open, setOpen }: AIChatPanelProps) {
         <div className="flex items-center gap-2">
           <Bot className="w-5 h-5" />
           <span className="font-semibold text-sm">GeoAnalys AI</span>
+          {grundvattenData && (
+            <span className="text-[10px] bg-white/20 rounded-full px-2 py-0.5 leading-none">
+              Analys laddad
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-1">
           <button onClick={() => { setMessages([]); setCsvData(null); }} className="p-1 hover:bg-white/20 rounded" title="Rensa chatt">
@@ -216,6 +227,16 @@ export function AIChatPanel({ getLayerData, open, setOpen }: AIChatPanelProps) {
               <p>• Ladda upp en <strong>CSV-fil</strong> för analys</p>
               <p>• Ställ frågor om geologi & hydrogeologi</p>
             </div>
+            {grundvattenData && (
+              <div className="pt-1">
+                <button
+                  onClick={() => send("Tolka grundvattenanalysen för denna punkt och ge en sammanfattande bedömning av grundvattensituationen, lämplighet för brunn och eventuella risker.")}
+                  className="w-full text-xs px-3 py-2 rounded-lg bg-sgu-maroon/10 hover:bg-sgu-maroon/20 text-sgu-maroon font-medium transition-colors border border-sgu-maroon/20"
+                >
+                  Tolka grundvattenanalysen för mig
+                </button>
+              </div>
+            )}
             <div className="flex flex-wrap gap-1 justify-center pt-2">
               {["Analysera kartdata", "Sammanfatta brunnar", "Vad visar datan?"].map(q => (
                 <button

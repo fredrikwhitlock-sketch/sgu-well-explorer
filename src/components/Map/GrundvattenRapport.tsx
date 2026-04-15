@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from "react";
-import { X, Droplets, Loader2, MapPin, AlertCircle, RefreshCw, Info, ChevronDown } from "lucide-react";
+import { X, Droplets, Loader2, MapPin, AlertCircle, RefreshCw, Info, ChevronDown, Bot } from "lucide-react";
 import proj4 from "proj4";
 import { getSoilTypeColor } from "../../lib/soilTypeColors";
 
@@ -7,6 +7,8 @@ interface Props {
   coordinate: [number, number]; // Web Mercator EPSG:3857
   wmsProxyUrl: string;
   onClose: () => void;
+  onAnalysisData?: (summary: string | null) => void;
+  onOpenAI?: () => void;
 }
 
 interface BrunnInfo {
@@ -257,12 +259,111 @@ function SourceRow({ label, source, note, url }: {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) => {
+export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysisData, onOpenAI }: Props) => {
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<ReportData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sourcesOpen, setSourcesOpen] = useState(false);
+
+  // Build a plain-text AI summary whenever analysis data changes
+  useEffect(() => {
+    if (!onAnalysisData) return;
+    if (!data) { onAnalysisData(null); return; }
+
+    const aq = classifyAquifer(data.jordartNamn);
+    const hasStoraMag = !!data.magasin;
+    const relevantF = aq.useStoraMagasin || hasStoraMag ? data.fyllnadsgradStora : data.fyllnadsgradSma;
+    const d = estimatedDepth(aq, relevantF);
+
+    // Reconstruct a simple calibrated depth label from observation pool
+    let obsKalibrStr = 'Saknas (för få observationsstationer)';
+    if (data.obsFeatures && data.obsFeatures.length >= 3 && aq.type !== 'unknown') {
+      const useRockPool = aq.type === 'rock' || aq.type === 'till' ||
+        (aq.type === 'confining' && hasStoraMag &&
+          (data.magasin!.genes ?? data.magasin!.akvifertyp ?? '').toUpperCase().match(/BERG|SPRICK|SEDIMENTÄR/));
+      const groupMatch = data.obsFeatures.filter(o =>
+        o.aquiferGroup ? o.aquiferGroup === (useRockPool ? 'rock' : 'jord') : true
+      );
+      const pool = groupMatch.length >= 3 ? groupMatch : data.obsFeatures.length >= 3 ? data.obsFeatures : null;
+      if (pool) {
+        const sorted = pool.map(o => o.djup).sort((a, b) => a - b);
+        const median = sorted[Math.floor(sorted.length / 2)];
+        const p25   = sorted[Math.floor(sorted.length * 0.25)];
+        const p75   = sorted[Math.floor(sorted.length * 0.75)];
+        const f = d.adj.factor;
+        obsKalibrStr = `median ${Math.round(median * f * 10) / 10} m (kv: ${Math.round(p25 * f * 10) / 10}–${Math.round(p75 * f * 10) / 10} m), ${pool.length} stationer`;
+      }
+    }
+
+    const bergBr = (data.brunnar ?? []).filter(b => b.isBergborrad);
+    const jordBr = (data.brunnar ?? []).filter(b => !b.isBergborrad);
+    const medOf = (arr: BrunnInfo[]) => {
+      const vals = arr.map(b => b.kapacitet!).filter(v => v > 0).sort((a, b) => a - b);
+      return vals.length ? vals[Math.floor(vals.length / 2)] : null;
+    };
+    const sitLabel = (v: number | null | undefined) =>
+      v == null || v === -1 ? 'Ingen data' : `${Math.round(v)}:e percentilen`;
+
+    const lines: string[] = [
+      `## Grundvattenanalys – ${data.lat.toFixed(5)}°N, ${data.lon.toFixed(5)}°E`,
+      `**Datum (HYPE):** ${data.hypoDate ?? 'okänt'}${data.hypoDateIsFallback ? ' (senaste tillgängliga)' : ''}`,
+      `**SWEREF99 TM:** E ${Math.round(data.sweref[0])}, N ${Math.round(data.sweref[1])}`,
+      '',
+      '### Jordart & Akvifer',
+      `- **Jordart:** ${data.jordartNamn ?? 'Okänd'}`,
+      `- **Klassificering:** ${aq.label}`,
+      `- **Kapacitetsuppskattning:** ${aq.capacityLabel}`,
+    ];
+
+    if (data.magasin) {
+      lines.push('', '### Grundvattenmagasin');
+      lines.push(`- **Namn:** ${data.magasin.namn}`);
+      if (data.magasin.akvifertyp) lines.push(`- **Akvifertyp:** ${data.magasin.akvifertyp}`);
+      if (data.magasin.genes) lines.push(`- **Genes:** ${data.magasin.genes}`);
+      if (data.magasin.medelmaktighetMattad) lines.push(`- **Medelmäktighet:** ${data.magasin.medelmaktighetMattad}`);
+      if (data.magasin.magasinsposition) lines.push(`- **Magasinsposition:** ${data.magasin.magasinsposition}`);
+      if (data.magasin.tillrinningLs != null) lines.push(`- **Tillrinning från tillrinningsområden:** ${data.magasin.tillrinningLs} l/s`);
+    }
+
+    lines.push('', '### Grundvattennivå (HYPE-modell)');
+    lines.push(`- **Situation litet magasin:** ${sitLabel(data.sitSma)}`);
+    lines.push(`- **Fyllnadsgrad litet magasin:** ${fyllnadLabel(data.fyllnadsgradSma)} (${data.fyllnadsgradSma != null && data.fyllnadsgradSma !== -1 ? Math.round(data.fyllnadsgradSma) + ':e perc.' : 'ingen data'})`);
+    lines.push(`- **Situation stort magasin:** ${sitLabel(data.sitStora)}`);
+    lines.push(`- **Fyllnadsgrad stort magasin:** ${fyllnadLabel(data.fyllnadsgradStora)} (${data.fyllnadsgradStora != null && data.fyllnadsgradStora !== -1 ? Math.round(data.fyllnadsgradStora) + ':e perc.' : 'ingen data'})`);
+    lines.push(`- **Nivåjustering:** ${d.adj.label}`);
+    lines.push(`- **Estimerat djup till grundvatten:** ${d.lo}–${d.hi} m u. markytan`);
+    lines.push(`- **Kalibrerat djup (observerade stationer):** ${obsKalibrStr}`);
+
+    if (data.jorddjup) {
+      const r = data.jorddjup.radieM;
+      const rStr = r < 1000 ? `${r} m` : `${(r / 1000).toFixed(r % 1000 === 0 ? 0 : 1)} km`;
+      lines.push('', '### Jorddjup (djup till berg)');
+      lines.push(`- **Median:** ${data.jorddjup.median} m  (kv: ${data.jorddjup.p25}–${data.jorddjup.p75} m)`);
+      lines.push(`- **Antal observationer:** ${data.jorddjup.antal} inom ~${rStr}`);
+    }
+
+    if (bergBr.length > 0 || jordBr.length > 0) {
+      lines.push('', '### Brunnskapacitet i närheten (l/h)');
+      if (bergBr.length > 0) {
+        const med = medOf(bergBr);
+        lines.push(`- **Bergborrade brunnar:** ${bergBr.length} st${med != null ? `, mediankapacitet ${med} l/h` : ''}`);
+      }
+      if (jordBr.length > 0) {
+        const med = medOf(jordBr);
+        lines.push(`- **Jordbrunnar:** ${jordBr.length} st${med != null ? `, mediankapacitet ${med} l/h` : ''}`);
+      }
+    }
+
+    if (data.gvTillgangLdha != null) {
+      lines.push('', '### Grundvattentillgång');
+      lines.push(`- **Litet magasin:** ${data.gvTillgangLdha.toLocaleString('sv')} l/dygn/ha`);
+    }
+
+    lines.push('', '*Tolkningar baseras på regionala modeller och observationer och ersätter inte platsspecifik hydrogeologisk undersökning.*');
+
+    onAnalysisData(lines.join('\n'));
+  }, [data, onAnalysisData]);
 
   const dragRef = useRef({ dragging: false, startX: 0, startY: 0, startLeft: 80, startTop: 80 });
   const [position, setPosition] = useState({ left: 80, top: 80 });
@@ -1153,6 +1254,19 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose }: Props) 
                 </p>
               )}
             </div>
+
+            {/* Ask AI button */}
+            {onOpenAI && (
+              <div className="pt-1">
+                <button
+                  onClick={onOpenAI}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-sgu-maroon/10 hover:bg-sgu-maroon/20 text-sgu-maroon text-xs font-medium transition-colors border border-sgu-maroon/20"
+                >
+                  <Bot className="w-3.5 h-3.5 shrink-0" />
+                  Fråga GeoAnalys AI om denna punkt
+                </button>
+              </div>
+            )}
           </div>
         ) : null}
       </div>
