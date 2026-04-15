@@ -468,12 +468,11 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
               fetch(`${levelBase}&filter=${encodeURIComponent(`omrade_id=${id} AND datum='${selectedDate}'`)}&limit=1`, { signal }).then(safeJson).catch(() => null),
               fetch(`${levelBase}&filter=${encodeURIComponent(`omrade_id=${id}`)}&sortby=-datum&limit=1`, { signal }).then(safeJson).catch(() => null),
             ]);
-            // Fetch ~13 months ending at selectedDate for the sparkline
-            const d13 = new Date(selectedDate);
-            d13.setMonth(d13.getMonth() - 13);
-            const d13Str = d13.toISOString().split('T')[0];
+            // Fetch the 15 most recent monthly records for this area (same filter
+            // format as the existing level queries – no filter-lang, no date range).
+            // We'll trim to ≤13 months client-side after sorting ascending.
             seriesPromise = fetch(
-              `${levelBase}&filter=${encodeURIComponent(`omrade_id=${id} AND datum >= '${d13Str}' AND datum <= '${selectedDate}'`)}&filter-lang=cql2-text&sortby=datum&limit=15`,
+              `${levelBase}&filter=${encodeURIComponent(`omrade_id=${id}`)}&sortby=-datum&limit=15`,
               { signal }
             ).then(safeJson).catch(() => null);
           }
@@ -575,16 +574,23 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
         result.sitStora = p.grundvattensituation_stora;
       }
 
-      // HYPE time series for sparkline
+      // HYPE time series for sparkline – sort ascending, clip to ≤13 months before selectedDate
       if (seriesData?.features?.length > 0) {
-        result.hypoSeries = seriesData.features.map((f: any) => {
-          const p = f.properties ?? {};
-          return {
-            datum: String(p.datum ?? '').slice(0, 10),
-            fyllnadSma:   typeof p.fyllnadsgrad_sma   === 'number' ? p.fyllnadsgrad_sma   : null,
-            fyllnadStora: typeof p.fyllnadsgrad_stora === 'number' ? p.fyllnadsgrad_stora : null,
-          };
-        }).filter((s: any) => s.datum);
+        const cutoff = new Date(selectedDate);
+        cutoff.setMonth(cutoff.getMonth() - 13);
+        const cutoffStr = cutoff.toISOString().split('T')[0];
+        const parsed = seriesData.features
+          .map((f: any) => {
+            const p = f.properties ?? {};
+            return {
+              datum:        String(p.datum ?? '').slice(0, 10),
+              fyllnadSma:   typeof p.fyllnadsgrad_sma   === 'number' ? p.fyllnadsgrad_sma   : null,
+              fyllnadStora: typeof p.fyllnadsgrad_stora === 'number' ? p.fyllnadsgrad_stora : null,
+            };
+          })
+          .filter((s: any) => s.datum && s.datum >= cutoffStr && s.datum <= selectedDate)
+          .sort((a: any, b: any) => a.datum.localeCompare(b.datum));
+        if (parsed.length >= 2) result.hypoSeries = parsed;
       }
 
       // GV Tillgång små magasin (raster, l/dygn/ha)
