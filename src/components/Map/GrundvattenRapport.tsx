@@ -39,12 +39,16 @@ interface ReportData {
   // Grundvattenmagasin (SGU karteringsdata – mer detaljerat än EU-förekomster)
   magasin?: {
     namn: string;
-    akvifertyp?: string;           // "porakvifer" | "sprickakvifer" | …
-    genes?: string;                // "isälvssediment" | "morän" | …
-    tillrinningLs?: number;        // l/s recharge from mapped recharge areas
-    medelmaktighetMattad?: string; // "medelmäktighet 10–20 meter" etc.
-    lankBeskrivning?: string;      // URL to detailed SGU report
-    magasinsposition?: string;     // "J1" | "J2" | "B1" | "B2"
+    akvifertyp?: string;             // "porakvifer" | "sprickakvifer" | …
+    genes?: string;                  // "isälvssediment" | "morän" | …
+    positionKod?: string;            // "J1" | "J2" | "B1" | "B2" (extracted from magasinsposition)
+    geomAreaKm2?: number;            // karterad yta i km²
+    grvbildningstyp?: string;        // "nederbörd" | "ytvatten" | …
+    tillrinningLs?: number;          // l/s recharge from mapped recharge areas
+    medelmaktighetMattad?: string;   // "medelmäktighet 10–20 meter" etc.
+    medelmaktighetOmattad?: string;  // unsaturated zone thickness
+    lankBeskrivning?: string;        // URL to detailed SGU report
+    magasinsposition?: string;       // full text, kept for AI context
   };
   brunnar?: BrunnInfo[];
   // 13-month HYPE time series for sparkline
@@ -330,13 +334,17 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
     ];
 
     if (data.magasin) {
-      lines.push('', '### Grundvattenmagasin');
-      lines.push(`- **Namn:** ${data.magasin.namn}`);
-      if (data.magasin.akvifertyp) lines.push(`- **Akvifertyp:** ${data.magasin.akvifertyp}`);
-      if (data.magasin.genes) lines.push(`- **Genes:** ${data.magasin.genes}`);
-      if (data.magasin.medelmaktighetMattad) lines.push(`- **Medelmäktighet:** ${data.magasin.medelmaktighetMattad}`);
-      if (data.magasin.magasinsposition) lines.push(`- **Magasinsposition:** ${data.magasin.magasinsposition}`);
-      if (data.magasin.tillrinningLs != null) lines.push(`- **Tillrinning från tillrinningsområden:** ${data.magasin.tillrinningLs} l/s`);
+      const m = data.magasin;
+      lines.push('', '### Grundvattenmagasin (SGU)');
+      lines.push(`- **Namn:** ${m.namn}`);
+      if (m.positionKod) lines.push(`- **Magasinsposition:** ${m.positionKod}${m.magasinsposition ? ` – ${m.magasinsposition.split(',').slice(1).join(',').trim()}` : ''}`);
+      if (m.akvifertyp) lines.push(`- **Akvifertyp:** ${m.akvifertyp}`);
+      if (m.genes) lines.push(`- **Genesis:** ${m.genes}`);
+      if (m.geomAreaKm2 != null) lines.push(`- **Magasinsyta:** ~${m.geomAreaKm2} km²`);
+      if (m.grvbildningstyp) lines.push(`- **Grundvattenbildning:** ${m.grvbildningstyp}`);
+      if (m.medelmaktighetMattad) lines.push(`- **Mättad zon:** ${m.medelmaktighetMattad}`);
+      if (m.medelmaktighetOmattad) lines.push(`- **Omättad zon:** ${m.medelmaktighetOmattad}`);
+      if (m.tillrinningLs != null) lines.push(`- **Tillrinning från tillrinningsområden:** ${m.tillrinningLs} l/s`);
     }
 
     lines.push('', '### Grundvattennivå (HYPE-modell)');
@@ -648,15 +656,23 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
             if (namn) {
               result.magasin = {
                 namn,
-                akvifertyp:           p.akvifertyp          || undefined,
-                genes:                p.genes               || undefined,
-                tillrinningLs:        typeof p.tillrinning_fran_tillrinningsomraden_l_per_s === 'number'
-                                        ? p.tillrinning_fran_tillrinningsomraden_l_per_s : undefined,
-                medelmaktighetMattad: p.medelmaktighet_mattad_zon_kod > 0
-                                        ? p.medelmaktighet_mattad_zon : undefined,
-                lankBeskrivning:      p.lank_magasinsbeskrivning     || undefined,
-                magasinsposition:     p.magasinsposition_kod > 0
-                                        ? p.magasinsposition : undefined,
+                akvifertyp:              p.akvifertyp || undefined,
+                genes:                   p.genes || undefined,
+                positionKod:             typeof p.magasinsposition === 'string'
+                                           ? (p.magasinsposition.match(/^[JB]\d/)?.[0] ?? undefined)
+                                           : undefined,
+                geomAreaKm2:             typeof p.geom_area === 'number' && p.geom_area > 0
+                                           ? Math.round(p.geom_area / 1e5) / 10
+                                           : undefined,
+                grvbildningstyp:         p.grvbildningstyp_kod > 0 ? p.grvbildningstyp : undefined,
+                tillrinningLs:           typeof p.tillrinning_fran_tillrinningsomraden_l_per_s === 'number'
+                                           ? p.tillrinning_fran_tillrinningsomraden_l_per_s : undefined,
+                medelmaktighetMattad:    p.medelmaktighet_mattad_zon_kod > 0
+                                           ? p.medelmaktighet_mattad_zon : undefined,
+                medelmaktighetOmattad:   p.medelmaktighet_omattad_zon_kod > 0
+                                           ? p.medelmaktighet_omattad_zon : undefined,
+                lankBeskrivning:         p.lank_magasinsbeskrivning || undefined,
+                magasinsposition:        p.magasinsposition_kod > 0 ? p.magasinsposition : undefined,
               };
             }
           }
@@ -1262,51 +1278,85 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                 </div>
               )}
 
-              {/* Grundvattenmagasin */}
-              {data.magasin && (
-                <div className="mt-1 space-y-1">
-                  <div className="flex justify-between items-baseline text-xs">
-                    <span className="text-muted-foreground shrink-0">Grundvattenmagasin</span>
-                    <span className="font-medium ml-2 text-right">{data.magasin.namn}</span>
-                  </div>
-                  {data.magasin.akvifertyp && (
-                    <div className="flex justify-between items-baseline text-xs">
-                      <span className="text-muted-foreground shrink-0">Akvifertyp</span>
-                      <span className="ml-2 text-right capitalize">{data.magasin.akvifertyp}</span>
+              {/* Grundvattenmagasin – card */}
+              {data.magasin && (() => {
+                const m = data.magasin!;
+                return (
+                  <div className="mt-1 bg-secondary/30 border border-border rounded-lg p-3 space-y-2.5">
+                    {/* Header: label */}
+                    <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Grundvattenmagasin (SGU)
                     </div>
-                  )}
-                  {data.magasin.genes && (
-                    <div className="flex justify-between items-baseline text-xs">
-                      <span className="text-muted-foreground shrink-0">Genesis</span>
-                      <span className="ml-2 text-right capitalize">{data.magasin.genes}</span>
+
+                    {/* Name */}
+                    <div className="text-xs font-semibold leading-snug">{m.namn}</div>
+
+                    {/* Badges: position code + type + genesis */}
+                    <div className="flex flex-wrap gap-1">
+                      {m.positionKod && (
+                        <span className="text-[10px] font-mono font-bold bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200 px-1.5 py-0.5 rounded">
+                          {m.positionKod}
+                        </span>
+                      )}
+                      {m.akvifertyp && (
+                        <span className="text-[10px] bg-secondary text-muted-foreground px-1.5 py-0.5 rounded capitalize border border-border">
+                          {m.akvifertyp}
+                        </span>
+                      )}
+                      {m.genes && (
+                        <span className="text-[10px] bg-secondary text-muted-foreground px-1.5 py-0.5 rounded capitalize border border-border">
+                          {m.genes}
+                        </span>
+                      )}
                     </div>
-                  )}
-                  {data.magasin.medelmaktighetMattad && (
-                    <div className="flex justify-between items-baseline text-xs">
-                      <span className="text-muted-foreground shrink-0">Mättad zon</span>
-                      <span className="ml-2 text-right">{data.magasin.medelmaktighetMattad}</span>
+
+                    {/* Data rows */}
+                    <div className="space-y-1 text-xs">
+                      {m.geomAreaKm2 != null && (
+                        <div className="flex justify-between items-baseline gap-2">
+                          <span className="text-muted-foreground shrink-0">Yta</span>
+                          <span className="font-medium">~{m.geomAreaKm2} km²</span>
+                        </div>
+                      )}
+                      {m.medelmaktighetMattad && (
+                        <div className="flex justify-between items-baseline gap-2">
+                          <span className="text-muted-foreground shrink-0">Mättad zon</span>
+                          <span className="font-medium text-right">{m.medelmaktighetMattad}</span>
+                        </div>
+                      )}
+                      {m.medelmaktighetOmattad && (
+                        <div className="flex justify-between items-baseline gap-2">
+                          <span className="text-muted-foreground shrink-0">Omättad zon</span>
+                          <span className="font-medium text-right">{m.medelmaktighetOmattad}</span>
+                        </div>
+                      )}
+                      {m.tillrinningLs != null && (
+                        <div className="flex justify-between items-baseline gap-2">
+                          <span className="text-muted-foreground shrink-0">Tillrinning</span>
+                          <span className="font-medium">{m.tillrinningLs.toLocaleString('sv')} l/s</span>
+                        </div>
+                      )}
+                      {m.grvbildningstyp && (
+                        <div className="flex justify-between items-baseline gap-2">
+                          <span className="text-muted-foreground shrink-0">GV-bildning</span>
+                          <span className="capitalize">{m.grvbildningstyp}</span>
+                        </div>
+                      )}
                     </div>
-                  )}
-                  {data.magasin.tillrinningLs != null && (
-                    <div className="flex justify-between items-baseline text-xs">
-                      <span className="text-muted-foreground shrink-0">Tillrinning</span>
-                      <span className="font-medium ml-2">{data.magasin.tillrinningLs} l/s</span>
-                    </div>
-                  )}
-                  {data.magasin.lankBeskrivning && (
-                    <div className="text-xs mt-0.5">
+
+                    {m.lankBeskrivning && (
                       <a
-                        href={data.magasin.lankBeskrivning}
+                        href={m.lankBeskrivning}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-blue-700 dark:text-blue-400 underline underline-offset-2"
+                        className="block text-xs text-blue-700 dark:text-blue-400 hover:underline"
                       >
                         Magasinsbeskrivning (SGU) →
                       </a>
-                    </div>
-                  )}
-                </div>
-              )}
+                    )}
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Brunnar i närheten */}
@@ -1370,7 +1420,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                   <SourceRow
                     label="Grundvattenmagasin"
                     source="SGU Grundvattenmagasin"
-                    note="OGC API Features – bbox mot klickad punkt. Fält: magasinsnamn, akvifertyp, genes, tillrinning_fran_tillrinningsomraden_l_per_s, medelmaktighet_mattad_zon."
+                    note="OGC API Features – bbox mot klickad punkt. Fält: magasinsnamn, akvifertyp, genes, magasinsposition (J1/B1 etc.), geom_area (yta), grvbildningstyp, tillrinning_fran_tillrinningsomraden_l_per_s, medelmaktighet_mattad/omattad_zon."
                     url="https://api.sgu.se/oppnadata/grundvattenmagasin/ogc/features/v1"
                   />
                   <SourceRow
