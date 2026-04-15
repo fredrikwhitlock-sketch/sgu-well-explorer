@@ -268,9 +268,19 @@ export const LayerPanel = ({
           
           {wellsVisible && (
             <div className="mt-2 space-y-2 text-xs">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-[rgb(59,130,246)]" />
-                <span className="text-muted-foreground">Brunnar (laddas per vy)</span>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-[rgb(29,78,216)]" />
+                  <span className="text-muted-foreground">Bergborrad</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-[rgb(14,165,233)]" />
+                  <span className="text-muted-foreground">Jordbrunn</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full bg-[rgb(148,163,184)] ml-px" />
+                  <span className="text-muted-foreground">Okänd typ</span>
+                </div>
               </div>
               <a 
                 href="https://www.sgu.se/produkter-och-tjanster/geologiska-data/brunnar--geologiska-data/" 

@@ -484,19 +484,40 @@ export const MapView = () => {
     
     loadWellsForExtentRef.current = loadWellsForExtent;
 
+    // Pre-build three styles to avoid GC churn (style fn called on every render/pan/zoom)
+    const wellStyleBerg = new Style({
+      image: new Circle({
+        radius: 5,
+        fill: new Fill({ color: "rgba(29, 78, 216, 0.88)" }),   // dark navy – bedrock
+        stroke: new Stroke({ color: "rgba(255,255,255,0.85)", width: 1.5 }),
+      }),
+    });
+    const wellStyleJord = new Style({
+      image: new Circle({
+        radius: 5,
+        fill: new Fill({ color: "rgba(14, 165, 233, 0.85)" }),  // sky blue – soil
+        stroke: new Stroke({ color: "rgba(255,255,255,0.85)", width: 1.5 }),
+      }),
+    });
+    const wellStyleUnkn = new Style({
+      image: new Circle({
+        radius: 4,
+        fill: new Fill({ color: "rgba(148, 163, 184, 0.65)" }), // slate grey – no depth data
+        stroke: new Stroke({ color: "rgba(255,255,255,0.7)", width: 1 }),
+      }),
+    });
+
     const wellsLayer = new VectorLayer({
       source: wellsSource,
       visible: wellsVisible,
-      style: new Style({
-        image: new Circle({
-          radius: 5,
-          fill: new Fill({ color: "rgba(59, 130, 246, 0.7)" }),
-          stroke: new Stroke({
-            color: "rgba(255, 255, 255, 0.8)",
-            width: 1.5,
-          }),
-        }),
-      }),
+      style: (feature) => {
+        const td = feature.get('totaldjup');
+        const jd = feature.get('jorddjup');
+        if (typeof td === 'number' && td > 0 && typeof jd === 'number' && jd >= 0) {
+          return (td - jd) > 15 ? wellStyleBerg : wellStyleJord;
+        }
+        return wellStyleUnkn;
+      },
     });
     wellsLayerRef.current = wellsLayer;
 
