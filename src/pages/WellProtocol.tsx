@@ -119,7 +119,7 @@ const WellProtocol = () => {
 
   const Checkbox = ({ checked }: { checked: boolean }) => (
     <span
-      className="inline-block w-3.5 h-3.5 border border-[#4a1942] rounded-sm mr-1.5 align-middle"
+      className="inline-block w-4 h-4 border border-[#4a1942] rounded-sm mr-1.5 align-middle flex-shrink-0"
       style={{ background: checked ? '#4a1942' : 'transparent' }}
     >
       {checked && (
@@ -163,6 +163,32 @@ const WellProtocol = () => {
         color: '#1a1a1a',
       }}
     >
+      {/* Mobile-responsive font sizes */}
+      <style>{`
+        .protocol-doc { font-size: 14px; line-height: 1.5; }
+        .protocol-label { font-size: 11px; }
+        .protocol-sublabel { font-size: 10px; }
+        .protocol-section-title { font-size: 11px; }
+        .protocol-value-lg { font-size: 14px; }
+        .protocol-value-md { font-size: 13px; }
+        @media (min-width: 640px) {
+          .protocol-doc { font-size: 11px; line-height: 1.4; }
+          .protocol-label { font-size: 9px; }
+          .protocol-sublabel { font-size: 9px; }
+          .protocol-section-title { font-size: 10px; }
+          .protocol-value-lg { font-size: 12px; }
+          .protocol-value-md { font-size: 11px; }
+        }
+        @media print {
+          .protocol-doc { font-size: 11px !important; line-height: 1.4 !important; }
+          .protocol-label { font-size: 9px !important; }
+          .protocol-sublabel { font-size: 9px !important; }
+          .protocol-section-title { font-size: 10px !important; }
+          .protocol-value-lg { font-size: 12px !important; }
+          .protocol-value-md { font-size: 11px !important; }
+        }
+      `}</style>
+
       {/* Print button */}
       <div className="fixed top-4 right-4 z-50 print:hidden">
         <Button
@@ -177,83 +203,82 @@ const WellProtocol = () => {
 
       {/* Protocol page */}
       <div
-        className="max-w-[210mm] mx-auto bg-white shadow-xl print:shadow-none"
-        style={{ fontSize: '11px', lineHeight: '1.4' }}
+        className="w-full max-w-[210mm] mx-auto bg-white shadow-xl print:shadow-none protocol-doc"
       >
         {/* SGU Header bar */}
         <div
-          className="px-8 py-5 flex items-center justify-between"
+          className="px-4 sm:px-8 py-4 sm:py-5 flex flex-wrap items-center justify-between gap-3"
           style={{ background: '#4a1942', color: 'white' }}
         >
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 sm:gap-4">
             {/* SGU Crown symbol */}
-            <div className="flex flex-col items-center" style={{ fontSize: '9px', lineHeight: 1.2 }}>
-              <svg viewBox="0 0 40 36" className="w-10 h-9 mb-0.5" fill="white">
+            <div className="flex flex-col items-center flex-shrink-0" style={{ lineHeight: 1.2 }}>
+              <svg viewBox="0 0 40 36" className="w-9 h-8 sm:w-10 sm:h-9 mb-0.5" fill="white">
                 <path d="M20 0l3 8h8l-6.5 5 2.5 8L20 16l-7 5 2.5-8L9 8h8z" />
                 <rect x="8" y="22" width="24" height="2" rx="1" />
                 <rect x="6" y="26" width="28" height="2" rx="1" />
                 <rect x="4" y="30" width="32" height="2" rx="1" />
                 <rect x="2" y="34" width="36" height="2" rx="1" />
               </svg>
-              <span style={{ letterSpacing: '0.15em', fontWeight: 600 }}>SGU</span>
+              <span className="protocol-section-title" style={{ letterSpacing: '0.15em', fontWeight: 600 }}>SGU</span>
             </div>
             <div style={{ borderLeft: '1px solid rgba(255,255,255,0.3)', paddingLeft: '12px' }}>
-              <div style={{ fontSize: '10px', opacity: 0.8, letterSpacing: '0.05em' }}>
+              <div className="protocol-sublabel" style={{ opacity: 0.8, letterSpacing: '0.05em' }}>
                 Sveriges geologiska undersökning
               </div>
-              <h1 style={{ fontSize: '16px', fontWeight: 700, letterSpacing: '0.02em', marginTop: '2px' }}>
+              <h1 style={{ fontSize: 'clamp(13px, 4vw, 16px)', fontWeight: 700, letterSpacing: '0.02em', marginTop: '2px' }}>
                 BRUNNS- OCH BORRPROTOKOLL
               </h1>
             </div>
           </div>
-          <div className="text-right" style={{ fontSize: '10px' }}>
-            <div style={{ opacity: 0.7 }}>Brunns-ID</div>
-            <div style={{ fontSize: '14px', fontWeight: 700 }}>{well.brunnsid || "—"}</div>
+          <div className="text-right" style={{ minWidth: '60px' }}>
+            <div className="protocol-sublabel" style={{ opacity: 0.7 }}>Brunns-ID</div>
+            <div style={{ fontSize: 'clamp(13px, 3.5vw, 14px)', fontWeight: 700 }}>{well.brunnsid || "—"}</div>
           </div>
         </div>
 
-        <div className="px-8 py-6 space-y-4">
+        <div className="px-4 sm:px-8 py-4 sm:py-6 space-y-4">
           {/* Row 1: Fastighet, Ort, Borrdatum */}
-          <div className="grid grid-cols-3 gap-0" style={{ border: '1px solid #4a1942' }}>
-            <div className="p-2.5" style={{ borderRight: '1px solid #4a1942' }}>
-              <div style={{ fontSize: '9px', color: '#6b5b6e', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '3px' }}>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-0" style={{ border: '1px solid #4a1942' }}>
+            <div className="p-2.5 sm:border-r sm:border-b-0 border-b" style={{ borderColor: '#4a1942' }}>
+              <div className="protocol-label" style={{ color: '#6b5b6e', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '3px' }}>
                 Fastighetsbeteckning
               </div>
-              <div style={{ fontSize: '12px' }}>{well.fastighet || "—"}</div>
+              <div className="protocol-value-md">{well.fastighet || "—"}</div>
             </div>
-            <div className="p-2.5" style={{ borderRight: '1px solid #4a1942' }}>
-              <div style={{ fontSize: '9px', color: '#6b5b6e', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '3px' }}>
+            <div className="p-2.5 sm:border-r sm:border-b-0 border-b" style={{ borderColor: '#4a1942' }}>
+              <div className="protocol-label" style={{ color: '#6b5b6e', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '3px' }}>
                 Ort
               </div>
-              <div style={{ fontSize: '12px' }}>{well.ort || "—"}</div>
+              <div className="protocol-value-md">{well.ort || "—"}</div>
             </div>
             <div className="p-2.5">
-              <div style={{ fontSize: '9px', color: '#6b5b6e', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '3px' }}>
+              <div className="protocol-label" style={{ color: '#6b5b6e', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '3px' }}>
                 Borrdatum
               </div>
-              <div style={{ fontSize: '12px', fontWeight: 600 }}>{formatDate(well.borrdatum) || "—"}</div>
+              <div className="protocol-value-md" style={{ fontWeight: 600 }}>{formatDate(well.borrdatum) || "—"}</div>
             </div>
           </div>
 
           {/* Row 2: Borrplatsens läge */}
           <div style={{ border: '1px solid #4a1942' }}>
             <div
-              className="px-2.5 py-1.5"
-              style={{ background: '#f3eff2', borderBottom: '1px solid #4a1942', fontSize: '10px', fontWeight: 700, color: '#4a1942', textTransform: 'uppercase', letterSpacing: '0.05em' }}
+              className="px-2.5 py-1.5 protocol-section-title"
+              style={{ background: '#f3eff2', borderBottom: '1px solid #4a1942', fontWeight: 700, color: '#4a1942', textTransform: 'uppercase', letterSpacing: '0.05em' }}
             >
               Borrplatsens läge
             </div>
-            <div className="grid grid-cols-3 gap-0">
-              <div className="p-2.5" style={{ borderRight: '1px solid #d4c6d1' }}>
-                <div style={{ fontSize: '9px', color: '#6b5b6e', marginBottom: '2px' }}>Kommun</div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-0">
+              <div className="p-2.5 sm:border-r sm:border-b-0 border-b" style={{ borderColor: '#d4c6d1' }}>
+                <div className="protocol-label" style={{ color: '#6b5b6e', marginBottom: '2px' }}>Kommun</div>
                 <div>{well.kommunnamn || "—"}</div>
               </div>
-              <div className="p-2.5" style={{ borderRight: '1px solid #d4c6d1' }}>
-                <div style={{ fontSize: '9px', color: '#6b5b6e', marginBottom: '2px' }}>Platsspecificering</div>
+              <div className="p-2.5 sm:border-r sm:border-b-0 border-b" style={{ borderColor: '#d4c6d1' }}>
+                <div className="protocol-label" style={{ color: '#6b5b6e', marginBottom: '2px' }}>Platsspecificering</div>
                 <div>{well.lage_specifikt || "—"}</div>
               </div>
               <div className="p-2.5">
-                <div style={{ fontSize: '9px', color: '#6b5b6e', marginBottom: '2px' }}>Koordinater (SWEREF 99 TM)</div>
+                <div className="protocol-label" style={{ color: '#6b5b6e', marginBottom: '2px' }}>Koordinater (SWEREF 99 TM)</div>
                 <div>N: {well.n || "—"}, E: {well.e || "—"}</div>
               </div>
             </div>
@@ -262,83 +287,85 @@ const WellProtocol = () => {
           {/* Lagerföljd */}
           <div style={{ border: '1px solid #4a1942' }}>
             <div
-              className="px-2.5 py-1.5"
-              style={{ background: '#f3eff2', borderBottom: '1px solid #4a1942', fontSize: '10px', fontWeight: 700, color: '#4a1942', textTransform: 'uppercase', letterSpacing: '0.05em' }}
+              className="px-2.5 py-1.5 protocol-section-title"
+              style={{ background: '#f3eff2', borderBottom: '1px solid #4a1942', fontWeight: 700, color: '#4a1942', textTransform: 'uppercase', letterSpacing: '0.05em' }}
             >
               Jordarter / Bergarter — Djup under markytan
             </div>
-            <table className="w-full" style={{ fontSize: '10px' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid #4a1942', background: '#faf8f9' }}>
-                  <th className="text-left p-2 w-20" style={{ borderRight: '1px solid #d4c6d1', fontWeight: 600, color: '#4a1942' }}>Från (m)</th>
-                  <th className="text-left p-2 w-20" style={{ borderRight: '1px solid #d4c6d1', fontWeight: 600, color: '#4a1942' }}>Till (m)</th>
-                  <th className="text-left p-2" style={{ borderRight: '1px solid #d4c6d1', fontWeight: 600, color: '#4a1942' }}>Jordart / bergart</th>
-                  <th className="text-left p-2" style={{ fontWeight: 600, color: '#4a1942' }}>Anmärkningar</th>
-                </tr>
-              </thead>
-              <tbody>
-                {lager.length > 0 ? (
-                  lager.map((l, i) => (
-                    <tr key={i} style={{ borderBottom: '1px solid #e8e0e5' }}>
-                      <td className="p-2" style={{ borderRight: '1px solid #e8e0e5' }}>{l.djup_fran}</td>
-                      <td className="p-2" style={{ borderRight: '1px solid #e8e0e5' }}>{l.djup_till}</td>
-                      <td className="p-2" style={{ borderRight: '1px solid #e8e0e5', fontWeight: 500 }}>{l.jordart_bergart}</td>
-                      <td className="p-2">{l.lageranmarkning || ""}</td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={4} className="p-3 text-center" style={{ color: '#9b8e9e', fontStyle: 'italic' }}>
-                      Inga lagerföljder registrerade för denna brunn
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="w-full" style={{ minWidth: '280px' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid #4a1942', background: '#faf8f9' }}>
+                    <th className="text-left p-2 w-16 sm:w-20 protocol-section-title" style={{ borderRight: '1px solid #d4c6d1', fontWeight: 600, color: '#4a1942' }}>Från (m)</th>
+                    <th className="text-left p-2 w-16 sm:w-20 protocol-section-title" style={{ borderRight: '1px solid #d4c6d1', fontWeight: 600, color: '#4a1942' }}>Till (m)</th>
+                    <th className="text-left p-2 protocol-section-title" style={{ borderRight: '1px solid #d4c6d1', fontWeight: 600, color: '#4a1942' }}>Jordart / bergart</th>
+                    <th className="text-left p-2 protocol-section-title" style={{ fontWeight: 600, color: '#4a1942' }}>Anmärkningar</th>
                   </tr>
-                )}
-                {lager.length < 8 &&
-                  Array.from({ length: Math.max(0, 8 - lager.length) }).map((_, i) => (
-                    <tr key={`empty-${i}`} style={{ borderBottom: '1px solid #f0eaee' }}>
-                      <td className="p-2 h-5" style={{ borderRight: '1px solid #f0eaee' }}>&nbsp;</td>
-                      <td className="p-2" style={{ borderRight: '1px solid #f0eaee' }}>&nbsp;</td>
-                      <td className="p-2" style={{ borderRight: '1px solid #f0eaee' }}>&nbsp;</td>
-                      <td className="p-2">&nbsp;</td>
+                </thead>
+                <tbody>
+                  {lager.length > 0 ? (
+                    lager.map((l, i) => (
+                      <tr key={i} style={{ borderBottom: '1px solid #e8e0e5' }}>
+                        <td className="p-2" style={{ borderRight: '1px solid #e8e0e5' }}>{l.djup_fran}</td>
+                        <td className="p-2" style={{ borderRight: '1px solid #e8e0e5' }}>{l.djup_till}</td>
+                        <td className="p-2" style={{ borderRight: '1px solid #e8e0e5', fontWeight: 500 }}>{l.jordart_bergart}</td>
+                        <td className="p-2">{l.lageranmarkning || ""}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={4} className="p-3 text-center" style={{ color: '#9b8e9e', fontStyle: 'italic' }}>
+                        Inga lagerföljder registrerade för denna brunn
+                      </td>
                     </tr>
-                  ))}
-              </tbody>
-            </table>
+                  )}
+                  {lager.length < 8 &&
+                    Array.from({ length: Math.max(0, 8 - lager.length) }).map((_, i) => (
+                      <tr key={`empty-${i}`} style={{ borderBottom: '1px solid #f0eaee' }}>
+                        <td className="p-2 h-5" style={{ borderRight: '1px solid #f0eaee' }}>&nbsp;</td>
+                        <td className="p-2" style={{ borderRight: '1px solid #f0eaee' }}>&nbsp;</td>
+                        <td className="p-2" style={{ borderRight: '1px solid #f0eaee' }}>&nbsp;</td>
+                        <td className="p-2">&nbsp;</td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {/* Tekniskt utförande + Borrhål fodrat */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div style={{ border: '1px solid #4a1942' }}>
               <div
-                className="px-2.5 py-1.5"
-                style={{ background: '#f3eff2', borderBottom: '1px solid #4a1942', fontSize: '10px', fontWeight: 700, color: '#4a1942', textTransform: 'uppercase', letterSpacing: '0.05em' }}
+                className="px-2.5 py-1.5 protocol-section-title"
+                style={{ background: '#f3eff2', borderBottom: '1px solid #4a1942', fontWeight: 700, color: '#4a1942', textTransform: 'uppercase', letterSpacing: '0.05em' }}
               >
                 Tekniskt utförande
               </div>
               <div className="p-2.5 space-y-3">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <div style={{ fontSize: '9px', color: '#6b5b6e' }}>Totaldjup från markytan</div>
-                    <div style={{ fontWeight: 600, fontSize: '12px' }}>{well.totaldjup ? `${well.totaldjup} m` : "—"}</div>
+                    <div className="protocol-label" style={{ color: '#6b5b6e' }}>Totaldjup från markytan</div>
+                    <div className="protocol-value-lg" style={{ fontWeight: 600 }}>{well.totaldjup ? `${well.totaldjup} m` : "—"}</div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '9px', color: '#6b5b6e' }}>Jorddjup från markytan</div>
-                    <div style={{ fontWeight: 600, fontSize: '12px' }}>{well.jorddjup !== null && well.jorddjup !== undefined ? `${well.jorddjup} m` : "—"}</div>
+                    <div className="protocol-label" style={{ color: '#6b5b6e' }}>Jorddjup från markytan</div>
+                    <div className="protocol-value-lg" style={{ fontWeight: 600 }}>{well.jorddjup !== null && well.jorddjup !== undefined ? `${well.jorddjup} m` : "—"}</div>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <div style={{ fontSize: '9px', color: '#6b5b6e' }}>Borrhålets bottendiameter</div>
+                    <div className="protocol-label" style={{ color: '#6b5b6e' }}>Borrhålets bottendiameter</div>
                     <div>{well.bottendiam ? `${well.bottendiam} mm` : "—"}</div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '9px', color: '#6b5b6e' }}>Gradborrning</div>
+                    <div className="protocol-label" style={{ color: '#6b5b6e' }}>Gradborrning</div>
                     <div>{well.gradborrning ? `${well.gradborrning}°` : "—"}</div>
                   </div>
                 </div>
                 <div>
-                  <div style={{ fontSize: '9px', color: '#6b5b6e', marginBottom: '4px' }}>Tätning</div>
-                  <div className="flex gap-4">
+                  <div className="protocol-label" style={{ color: '#6b5b6e', marginBottom: '4px' }}>Tätning</div>
+                  <div className="flex flex-wrap gap-3">
                     <label className="flex items-center">
                       <Checkbox checked={tatChecks.cementering} />
                       <span>Cementering</span>
@@ -358,24 +385,24 @@ const WellProtocol = () => {
 
             <div style={{ border: '1px solid #4a1942' }}>
               <div
-                className="px-2.5 py-1.5"
-                style={{ background: '#f3eff2', borderBottom: '1px solid #4a1942', fontSize: '10px', fontWeight: 700, color: '#4a1942', textTransform: 'uppercase', letterSpacing: '0.05em' }}
+                className="px-2.5 py-1.5 protocol-section-title"
+                style={{ background: '#f3eff2', borderBottom: '1px solid #4a1942', fontWeight: 700, color: '#4a1942', textTransform: 'uppercase', letterSpacing: '0.05em' }}
               >
                 Borrhål fodrat
               </div>
               <div className="p-2.5 space-y-3">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <div style={{ fontSize: '9px', color: '#6b5b6e' }}>Stålrör till</div>
+                    <div className="protocol-label" style={{ color: '#6b5b6e' }}>Stålrör till</div>
                     <div>{well.stalror_till ? `${well.stalror_till} m` : "—"}</div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '9px', color: '#6b5b6e' }}>Plaströr till</div>
+                    <div className="protocol-label" style={{ color: '#6b5b6e' }}>Plaströr till</div>
                     <div>{well.plastror_till ? `${well.plastror_till} m` : "—"}</div>
                   </div>
                 </div>
                 <div>
-                  <div style={{ fontSize: '9px', color: '#6b5b6e' }}>Rörfodring till</div>
+                  <div className="protocol-label" style={{ color: '#6b5b6e' }}>Rörfodring till</div>
                   <div>{well.rorborrning_till ? `${well.rorborrning_till} m` : "—"}</div>
                 </div>
               </div>
@@ -385,12 +412,12 @@ const WellProtocol = () => {
           {/* Brunnens användning */}
           <div style={{ border: '1px solid #4a1942' }}>
             <div
-              className="px-2.5 py-1.5"
-              style={{ background: '#f3eff2', borderBottom: '1px solid #4a1942', fontSize: '10px', fontWeight: 700, color: '#4a1942', textTransform: 'uppercase', letterSpacing: '0.05em' }}
+              className="px-2.5 py-1.5 protocol-section-title"
+              style={{ background: '#f3eff2', borderBottom: '1px solid #4a1942', fontWeight: 700, color: '#4a1942', textTransform: 'uppercase', letterSpacing: '0.05em' }}
             >
               Brunnens användning
             </div>
-            <div className="p-2.5 flex gap-6">
+            <div className="p-2.5 flex flex-wrap gap-3 sm:gap-6">
               <label className="flex items-center">
                 <Checkbox checked={anvChecks.hushall} />
                 <span>Hushållsvatten</span>
@@ -413,26 +440,26 @@ const WellProtocol = () => {
           {/* Provpumpning */}
           <div style={{ border: '1px solid #4a1942' }}>
             <div
-              className="px-2.5 py-1.5"
-              style={{ background: '#f3eff2', borderBottom: '1px solid #4a1942', fontSize: '10px', fontWeight: 700, color: '#4a1942', textTransform: 'uppercase', letterSpacing: '0.05em' }}
+              className="px-2.5 py-1.5 protocol-section-title"
+              style={{ background: '#f3eff2', borderBottom: '1px solid #4a1942', fontWeight: 700, color: '#4a1942', textTransform: 'uppercase', letterSpacing: '0.05em' }}
             >
               Provpumpning m.m.
             </div>
-            <div className="p-2.5 grid grid-cols-3 gap-4">
+            <div className="p-2.5 grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
-                <div style={{ fontSize: '9px', color: '#6b5b6e' }}>Vattenmängd (kapacitet)</div>
-                <div style={{ fontWeight: 600, fontSize: '12px' }}>
+                <div className="protocol-label" style={{ color: '#6b5b6e' }}>Vattenmängd (kapacitet)</div>
+                <div className="protocol-value-lg" style={{ fontWeight: 600 }}>
                   {well.tecken_vattenmangd || ""}{well.kapacitet !== null && well.kapacitet !== undefined ? `${well.kapacitet} l/h` : "—"}
                 </div>
               </div>
               <div>
-                <div style={{ fontSize: '9px', color: '#6b5b6e' }}>Grundvattennivå under markytan</div>
-                <div style={{ fontWeight: 600, fontSize: '12px' }}>
+                <div className="protocol-label" style={{ color: '#6b5b6e' }}>Grundvattennivå under markytan</div>
+                <div className="protocol-value-lg" style={{ fontWeight: 600 }}>
                   {well.tecken_niva || ""}{well.grundvattenniva !== null && well.grundvattenniva !== undefined ? `${well.grundvattenniva} m` : "—"}
                 </div>
               </div>
               <div>
-                <div style={{ fontSize: '9px', color: '#6b5b6e' }}>Datum vid mätning</div>
+                <div className="protocol-label" style={{ color: '#6b5b6e' }}>Datum vid mätning</div>
                 <div>{formatDate(well.nivadatum) || "—"}</div>
               </div>
             </div>
@@ -441,15 +468,15 @@ const WellProtocol = () => {
           {/* Anmärkningar */}
           <div style={{ border: '1px solid #4a1942' }}>
             <div
-              className="px-2.5 py-1.5"
-              style={{ background: '#f3eff2', borderBottom: '1px solid #4a1942', fontSize: '10px', fontWeight: 700, color: '#4a1942', textTransform: 'uppercase', letterSpacing: '0.05em' }}
+              className="px-2.5 py-1.5 protocol-section-title"
+              style={{ background: '#f3eff2', borderBottom: '1px solid #4a1942', fontWeight: 700, color: '#4a1942', textTransform: 'uppercase', letterSpacing: '0.05em' }}
             >
               Anmärkningar
             </div>
             <div className="p-2.5 min-h-[40px] space-y-1.5">
               {well.allman_anmarkning && <p>{well.allman_anmarkning}</p>}
               {well.grundvattenanmarkning && (
-                <p><span style={{ fontSize: '9px', color: '#6b5b6e' }}>Grundvatten: </span>{well.grundvattenanmarkning}</p>
+                <p><span className="protocol-label" style={{ color: '#6b5b6e' }}>Grundvatten: </span>{well.grundvattenanmarkning}</p>
               )}
               {!well.allman_anmarkning && !well.grundvattenanmarkning && (
                 <p style={{ color: '#9b8e9e', fontStyle: 'italic' }}>Inga anmärkningar</p>
@@ -459,7 +486,7 @@ const WellProtocol = () => {
 
           {/* Footer */}
           <div className="pt-4 mt-2" style={{ borderTop: '2px solid #4a1942' }}>
-            <div className="flex justify-between" style={{ fontSize: '9px', color: '#6b5b6e' }}>
+            <div className="flex flex-col sm:flex-row sm:justify-between gap-1 protocol-label" style={{ color: '#6b5b6e' }}>
               <span>Positionsvärdering: {well.posvardering || "—"}</span>
               <span style={{ fontWeight: 600, color: '#4a1942' }}>Data hämtad från SGU:s Brunnsarkiv</span>
               <span>Genererad: {new Date().toLocaleDateString("sv-SE")}</span>

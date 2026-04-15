@@ -432,6 +432,11 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
       // Tight bbox for WMS GFI (~100 m) – faster than 200 m
       const delta = 0.001;
       const bbox = `${lon - delta},${lat - delta},${lon + delta},${lat + delta}`;
+      // ~1.5 km bbox for grundvattenmagasin – larger than the WMS bbox so that named
+      // aquifer polygons (isälvssediment etc.) are caught even when the click point
+      // falls in the overlying clay polygon rather than inside the aquifer polygon.
+      const deltaGVM = 0.014;
+      const gvmBbox = `${lon - deltaGVM},${lat - deltaGVM},${lon + deltaGVM},${lat + deltaGVM}`;
       // ~15 km radius for brunnar
       const brunnarDelta = 0.13;
       const brunnarBbox = `${lon - brunnarDelta},${lat - brunnarDelta},${lon + brunnarDelta},${lat + brunnarDelta}`;
@@ -553,7 +558,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
         fetch(gvTillgangUrl, { signal }),
         fetch(jordartCql2Url, { signal }),
         fetch(jordartBboxUrl, { signal }),
-        fetch(`https://api.sgu.se/oppnadata/grundvattenmagasin/ogc/features/v1/collections/grundvattenmagasin/items?f=json&bbox=${bbox}&limit=3`, { signal }),
+        fetch(`https://api.sgu.se/oppnadata/grundvattenmagasin/ogc/features/v1/collections/grundvattenmagasin/items?f=json&bbox=${gvmBbox}&limit=3`, { signal }),
         fetch(`https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar/items?f=json&bbox=${brunnarBbox}&limit=25`, { signal }),
         fetch(`https://api.sgu.se/oppnadata/jorddjupsmodell/ogc/features/v1/collections/underlag-jorddjup/items?f=json&bbox=${djupBbox}&limit=100`, { signal }),
         obsStationerChain, // side-effects: fills stJordart, sets nivaerPromise
@@ -790,11 +795,22 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
 
   // ── Derived interpretation ─────────────────────────────────────────────────
   const aquifer = data ? classifyAquifer(data.jordartNamn) : null;
-  const hasStoraMagasin = !!data?.magasin;
-  const relevantFyllnad = aquifer?.useStoraMagasin || hasStoraMagasin
+
+  // When the surface deposit is a confining layer (lera/silt/moränlera), the
+  // actual aquifer lies BELOW it. If the grundvattenmagasin API returned a named
+  // aquifer whose genesis (genes) indicates a coarser material, use that as the
+  // effective aquifer for depth estimation and calibration.
+  const effectiveAquifer = (() => {
+    if (!aquifer || aquifer.type !== 'confining' || !data?.magasin?.genes) return aquifer;
+    const genesAq = classifyAquifer(data.magasin.genes);
+    if (genesAq.type !== 'unknown' && genesAq.type !== 'confining') return genesAq;
+    return aquifer;
+  })();
+
+  const relevantFyllnad = effectiveAquifer?.useStoraMagasin
     ? data?.fyllnadsgradStora
     : data?.fyllnadsgradSma;
-  const depth = aquifer && data ? estimatedDepth(aquifer, relevantFyllnad) : null;
+  const depth = effectiveAquifer && data ? estimatedDepth(effectiveAquifer, relevantFyllnad) : null;
 
   // Observation calibration – three-level filter:
   //   1. Primary:   bergborrade (B*) vs jordbrunnar (J*) split
@@ -804,8 +820,11 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
   //   3. Tertiary:  within the size-matched pool, prefer matching jordart sub-type.
   const obsKalibr = (() => {
     if (!data?.obsFeatures?.length || !aquifer || aquifer.type === 'unknown') return null;
-    // Confining layers: skip unless a magasin is known beneath
-    if (aquifer.type === 'confining' && !data?.magasin) return null;
+    // Confining layers: skip unless we have an effective underlying aquifer
+    if (aquifer.type === 'confining' && effectiveAquifer?.type === 'confining') return null;
+
+    // Use the effective aquifer (underlying material) for pool selection and size filtering.
+    const eff = effectiveAquifer ?? aquifer;
 
     // Determine which observation pool to use:
     //  - rock / till / berg-magasin → B* stations (bergborrade)
@@ -815,7 +834,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
       const g = (data.magasin.genes ?? data.magasin.akvifertyp ?? '').toUpperCase();
       useRockPool = g.includes('BERG') || g.includes('SPRICK') || g.includes('SEDIMENTÄR');
     } else {
-      useRockPool = aquifer.type === 'rock' || aquifer.type === 'till';
+      useRockPool = eff.type === 'rock' || eff.type === 'till';
     }
 
     // Level 1: berg / jord split
@@ -823,11 +842,13 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
       o.aquiferGroup ? o.aquiferGroup === (useRockPool ? 'rock' : 'jord') : true
     );
 
-    // Level 2 (jord only): large vs small aquifer — never allow cross-size fallback
+    // Level 2 (jord only): large vs small aquifer — never allow cross-size fallback.
+    // Use effectiveAquifer's useStoraMagasin so that isälvssediment beneath clay
+    // calibrates against large-aquifer stations rather than small ones.
     let sizeMatch = groupMatch;
     let sizeLabel = useRockPool ? 'bergbrunnar' : 'jordbrunnar';
     if (!useRockPool) {
-      const targetSize: 'large' | 'small' = aquifer.useStoraMagasin ? 'large' : 'small';
+      const targetSize: 'large' | 'small' = eff.useStoraMagasin ? 'large' : 'small';
       // Keep stations whose size is known and matches, OR whose size is unknown
       const sized = groupMatch.filter(o => !o.aquiferSize || o.aquiferSize === targetSize);
       // Only restrict to size-filtered if it actually removes something (i.e. size data exists)
@@ -840,7 +861,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
 
     // Level 3: within size-match, prefer matching jordart sub-type
     const subMatch = sizeMatch.filter(o =>
-      o.jordart ? classifyAquifer(o.jordart).type === aquifer.type : false
+      o.jordart ? classifyAquifer(o.jordart).type === eff.type : false
     );
 
     // Pick most specific pool with ≥3 — do NOT fall back past sizeMatch to all obs
@@ -973,8 +994,22 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
               {/* Aquifer type – only shown when we have actual jordart data */}
               {aquifer && aquifer.type !== 'unknown' ? (
                 <div className="bg-secondary/40 rounded-lg p-3 mb-2">
-                  <div className="text-xs text-muted-foreground mb-0.5">Akvifer (utifrån jordart)</div>
-                  <div className="font-semibold">{aquifer.label}</div>
+                  {effectiveAquifer && effectiveAquifer !== aquifer ? (
+                    // Surface is a confining layer; the effective aquifer comes from
+                    // the underlying named groundwater aquifer (grundvattenmagasin).
+                    <>
+                      <div className="text-xs text-muted-foreground mb-0.5">Akvifer (utifrån magasin)</div>
+                      <div className="font-semibold">{effectiveAquifer.label}</div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        Täcklager (ytgeologi): {aquifer.label}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-xs text-muted-foreground mb-0.5">Akvifer (utifrån jordart)</div>
+                      <div className="font-semibold">{aquifer.label}</div>
+                    </>
+                  )}
                   {data.magasin && (
                     <div className="text-xs text-blue-700 dark:text-blue-400 mt-1">
                       Grundvattenmagasin: {data.magasin.namn}
@@ -989,7 +1024,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
               ) : null}
 
               {/* Depth estimate – calibrated if we have enough nearby observations */}
-              {depth && aquifer?.type !== 'unknown' && (
+              {depth && effectiveAquifer?.type !== 'unknown' && (
                 <div className={`rounded-lg p-3 mb-2 ${fyllnadBg(relevantFyllnad)}`}>
                   {calibratedDepth ? (
                     <>
