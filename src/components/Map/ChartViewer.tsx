@@ -120,28 +120,33 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
 
   const fetchAllData = async () => {
     if (locations.length === 0) return;
-    
+
     setLoading(true);
     setError(null);
-    
+
     try {
+      // Fetch all stations in parallel instead of sequentially
+      const results = await Promise.all(
+        locations.map(location =>
+          (chartType === 'level'
+            ? fetchLevelData(location)
+            : fetchQualityData(location, selectedParameter)
+          ).then(data => ({ location, data }))
+        )
+      );
+
       const allData: Map<string, ChartData> = new Map();
-      
-      for (const location of locations) {
-        const data = chartType === 'level' 
-          ? await fetchLevelData(location)
-          : await fetchQualityData(location, selectedParameter);
-        
+      for (const { location, data } of results) {
         for (const item of data) {
           const existing = allData.get(item.date) || { date: item.date };
           existing[location.name] = item.value;
           allData.set(item.date, existing);
         }
       }
-      
+
       const sortedData = Array.from(allData.values())
         .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-      
+
       setChartData(sortedData);
     } catch (err) {
       setError("Kunde inte hämta data. Försök igen senare.");
@@ -183,17 +188,60 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
   // NOTE: encodeURIComponent does NOT encode apostrophes (') which SGU's OGC API examples use as %27.
   const encodeOgcFilter = (filter: string) => encodeURIComponent(filter).replace(/'/g, "%27");
 
+  /** Minimal RFC 4180 CSV row parser – handles quoted fields with embedded commas/newlines. */
+  const parseCSVRow = (line: string): string[] => {
+    const cols: string[] = [];
+    let cur = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (inQuotes && line[i + 1] === '"') { cur += '"'; i++; }
+        else inQuotes = !inQuotes;
+      } else if (ch === ',' && !inQuotes) {
+        cols.push(cur); cur = '';
+      } else {
+        cur += ch;
+      }
+    }
+    cols.push(cur);
+    return cols;
+  };
+
+  /**
+   * Fetch level data using the CSV endpoint.
+   * One HTTP request returns all measurements, sorted chronologically.
+   * Significantly faster than JSON pagination (5–10 requests → 1).
+   */
   const fetchLevelData = async (location: ChartLocation): Promise<{ date: string; value: number }[]> => {
-    const baseUrl = `https://api.sgu.se/oppnadata/grundvattennivaer-observerade/ogc/features/v1/collections/nivaer/items?filter=platsbeteckning%20%3D%20%27${encodeURIComponent(location.platsbeteckning || '')}%27&f=json`;
-    
-    console.log("Fetching all level data for:", location.platsbeteckning);
-    const allFeatures = await fetchAllPages(baseUrl);
-    console.log("Level data received:", allFeatures.length, "measurements for", location.platsbeteckning);
-    
-    return allFeatures.map((f: any) => ({
-      date: f.properties.obsdatum?.split('T')[0] || '',
-      value: f.properties.grundvattenniva_m_u_markyta ?? f.properties.grundvattenniva_m_urok ?? 0
-    })).filter((d: any) => d.date && d.value !== null && d.value !== 0);
+    const encodedId = encodeURIComponent(location.platsbeteckning || '').replace(/'/g, '%27');
+    const url =
+      `https://api.sgu.se/oppnadata/grundvattennivaer-observerade/ogc/features/v1/collections/nivaer/items` +
+      `?filter=platsbeteckning%20%3D%20%27${encodedId}%27&sortby=obsdatum&f=text/csv`;
+
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const text = await response.text();
+
+    const lines = text.trim().split('\n');
+    if (lines.length < 2) return [];
+
+    const headers = parseCSVRow(lines[0]);
+    const dateCol  = headers.findIndex(h => h === 'obsdatum');
+    const levelCol = headers.findIndex(h => h === 'grundvattenniva_m_u_markyta');
+    const level2Col = headers.findIndex(h => h === 'grundvattenniva_m_urok');
+    if (dateCol < 0) return [];
+    const valCol = levelCol >= 0 ? levelCol : level2Col;
+    if (valCol < 0) return [];
+
+    return lines.slice(1).flatMap(line => {
+      if (!line.trim()) return [];
+      const cols = parseCSVRow(line);
+      const date  = (cols[dateCol] ?? '').split('T')[0];
+      const value = parseFloat((cols[valCol] ?? '').replace(',', '.'));
+      if (!date || isNaN(value) || value === 0) return [];
+      return [{ date, value }];
+    });
   };
 
   const fetchQualityData = async (location: ChartLocation, parameter: string): Promise<{ date: string; value: number }[]> => {
@@ -246,9 +294,7 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
 
     // API v2 uses 'parameternamn' instead of 'parameter'
     const filter = `${siteClause} AND parameternamn = '${parameter}'`;
-    const baseUrl = `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/analysresultat/items?f=json&filter=${encodeOgcFilter(filter)}`;
-
-    console.log("Fetching quality data (v2) from:", baseUrl);
+    const baseUrl = `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/analysresultat/items?f=json&sortby=provtagningsdatum&filter=${encodeOgcFilter(filter)}`;
     const allFeatures = await fetchAllPages(baseUrl);
     console.log("Quality data received:", allFeatures.length, "features for", locationName, "parameter", parameter);
 
@@ -400,9 +446,14 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
         <Separator />
 
         {loading ? (
-          <div className="flex items-center justify-center h-64">
+          <div className="flex flex-col items-center justify-center h-64 gap-2">
             <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-            <span className="ml-2 text-muted-foreground">Hämtar data...</span>
+            <span className="text-sm text-muted-foreground">
+              Hämtar mätdata{locations.length === 1 ? ` för ${locations[0].name}` : ` (${locations.length} stationer)`}…
+            </span>
+            {chartType === 'level' && (
+              <span className="text-xs text-muted-foreground/70">Alla mätningar hämtas i ett anrop (CSV)</span>
+            )}
           </div>
         ) : error ? (
           <div className="flex items-center justify-center h-64 text-destructive">
