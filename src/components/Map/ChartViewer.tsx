@@ -491,11 +491,11 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
                         <span className="block text-[10px]">{s.latestDate}</span>
                       </div>
                       <div>
-                        <span className="block text-[10px] uppercase tracking-wide">{chartType === 'level' ? 'Grundast' : 'Min'}</span>
+                        <span className="block text-[10px] uppercase tracking-wide">{chartType === 'level' ? 'Högst gv-yta' : 'Min'}</span>
                         <span className="font-medium text-foreground">{s.min !== null ? `${s.min} m` : '—'}</span>
                       </div>
                       <div>
-                        <span className="block text-[10px] uppercase tracking-wide">{chartType === 'level' ? 'Högst GV' : 'Max'}</span>
+                        <span className="block text-[10px] uppercase tracking-wide">{chartType === 'level' ? 'Lägst gv-yta' : 'Max'}</span>
                         <span className="font-medium text-foreground">{s.max !== null ? `${s.max} m` : '—'}</span>
                       </div>
                     </div>
