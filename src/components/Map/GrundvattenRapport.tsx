@@ -369,7 +369,16 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
   const [position, setPosition] = useState({ left: 80, top: 80 });
   const abortRef = useRef<AbortController | null>(null);
 
+  // Detect mobile so we can render as a bottom sheet instead of a floating panel
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 640);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
+
   const handleMouseDown = (e: React.MouseEvent) => {
+    if (isMobile) return; // no drag on mobile
     if ((e.target as HTMLElement).closest('button, input')) return;
     dragRef.current = { dragging: true, startX: e.clientX, startY: e.clientY, startLeft: position.left, startTop: position.top };
     e.preventDefault();
@@ -797,12 +806,27 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div
-      className="absolute z-30 bg-card shadow-xl border border-border rounded-xl overflow-hidden flex flex-col"
-      style={{ left: position.left, top: position.top, width: 400, maxHeight: '85vh' }}
+      className={`absolute z-30 bg-card shadow-xl border border-border overflow-hidden flex flex-col ${
+        isMobile
+          ? 'bottom-0 left-0 right-0 rounded-t-2xl rounded-b-none border-b-0'
+          : 'rounded-xl'
+      }`}
+      style={
+        isMobile
+          ? { maxHeight: '85vh' }
+          : { left: position.left, top: position.top, width: 400, maxHeight: '85vh' }
+      }
     >
+      {/* Mobile drag handle */}
+      {isMobile && (
+        <div className="flex justify-center pt-2.5 pb-1 shrink-0">
+          <div className="w-10 h-1 rounded-full bg-border" />
+        </div>
+      )}
+
       {/* Header */}
       <div
-        className="flex items-center justify-between px-4 py-3 bg-sgu-maroon text-white cursor-move select-none shrink-0"
+        className={`flex items-center justify-between px-4 py-3 bg-sgu-maroon text-white select-none shrink-0 ${isMobile ? '' : 'cursor-move'}`}
         onMouseDown={handleMouseDown}
       >
         <div className="flex items-center gap-2">
