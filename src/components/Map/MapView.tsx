@@ -127,6 +127,7 @@ export const MapView = () => {
   const jorddjupSprickLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const loadWellsForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
   const loadSoilTypesForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
+  const loadAquifersForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
   const loadJorddjupObsForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
   const loadJorddjupKartorForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
   const loadJorddjupSprickForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
