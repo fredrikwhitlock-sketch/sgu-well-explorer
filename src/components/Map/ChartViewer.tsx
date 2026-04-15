@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { X, Trash2, Loader2, ExternalLink, GripHorizontal } from "lucide-react";
+import { X, Trash2, Loader2, ExternalLink, GripHorizontal, TrendingDown, TrendingUp, Minus } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Brush, ReferenceArea } from "recharts";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Brush } from "recharts";
 import { Separator } from "@/components/ui/separator";
 
 interface ChartLocation {
@@ -24,6 +24,17 @@ interface ChartViewerProps {
 interface ChartData {
   date: string;
   [key: string]: string | number;
+}
+
+interface StationStat {
+  name: string;
+  color: string;
+  antal: number;
+  latest: number | null;
+  latestDate: string;
+  min: number | null;
+  max: number | null;
+  trend: 'up' | 'down' | 'flat' | null; // for levels: 'up' = rising (lower value), 'down' = falling (higher value)
 }
 
 const CHART_COLORS = [
@@ -55,6 +66,7 @@ const QUALITY_PARAMETERS = [
 
 export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onClose }: ChartViewerProps) => {
   const [chartData, setChartData] = useState<ChartData[]>([]);
+  const [stationStats, setStationStats] = useState<StationStat[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedParameter, setSelectedParameter] = useState("pH");
@@ -62,7 +74,7 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef<{ startX: number; startY: number; initialX: number; initialY: number } | null>(null);
-  
+
   const chartType = initialLocation.type;
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -257,6 +269,37 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
       .filter((d: any) => d.date && d.value !== null && !Number.isNaN(d.value));
   };
 
+  // Compute per-station statistics whenever chartData or locations change
+  useEffect(() => {
+    if (chartData.length === 0) { setStationStats([]); return; }
+    const computed: StationStat[] = locations.map((loc, idx) => {
+      const withValue = chartData.filter(d => d[loc.name] !== undefined && d[loc.name] !== null);
+      if (withValue.length === 0) return null;
+      const vals = withValue.map(d => d[loc.name] as number);
+      const latestEntry = withValue[withValue.length - 1];
+      // Trend: compare median of last 20% vs first 20%
+      const slice = Math.max(1, Math.floor(vals.length * 0.2));
+      const early = vals.slice(0, slice).reduce((a, b) => a + b, 0) / slice;
+      const recent = vals.slice(-slice).reduce((a, b) => a + b, 0) / slice;
+      const diff = recent - early;
+      const trend: StationStat['trend'] = Math.abs(diff) < 0.1 ? 'flat'
+        : chartType === 'level'
+          ? (diff < 0 ? 'up' : 'down')   // level: lower value = higher water table = rising
+          : (diff > 0 ? 'up' : 'down');
+      return {
+        name: loc.name,
+        color: CHART_COLORS[idx % CHART_COLORS.length],
+        antal: vals.length,
+        latest: Math.round(latestEntry[loc.name] as number * 100) / 100,
+        latestDate: latestEntry.date,
+        min: Math.round(Math.min(...vals) * 100) / 100,
+        max: Math.round(Math.max(...vals) * 100) / 100,
+        trend,
+      };
+    }).filter(Boolean) as StationStat[];
+    setStationStats(computed);
+  }, [chartData, locations, chartType]);
+
   const removeLocation = (id: string) => {
     if (locations.length > 1) {
       onLocationsChange(locations.filter(l => l.id !== id));
@@ -273,8 +316,8 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
   };
 
   return (
-    <Card 
-      className="fixed md:w-[700px] max-h-[calc(100vh-120px)] overflow-y-auto bg-card/95 backdrop-blur-sm shadow-lg border-border z-50"
+    <Card
+      className="fixed w-[min(700px,calc(100vw-1rem))] max-h-[calc(100vh-120px)] overflow-y-auto bg-card/95 backdrop-blur-sm shadow-lg border-border z-50"
       style={{ 
         top: `calc(80px + ${position.y}px)`, 
         left: `calc(50% + ${position.x}px)`,
@@ -370,13 +413,53 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
             Ingen data tillgänglig för vald parameter/plats
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-3">
+            {/* Per-station statistics */}
+            {stationStats.length > 0 && (
+              <div className="space-y-2">
+                {stationStats.map(s => (
+                  <div
+                    key={s.name}
+                    className="rounded-lg border px-3 py-2 text-xs"
+                    style={{ borderColor: s.color + '60', background: s.color + '10' }}
+                  >
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: s.color }} />
+                      <span className="font-semibold truncate">{s.name}</span>
+                      <span className="text-muted-foreground ml-auto">{s.antal} mätningar</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-x-3 text-muted-foreground">
+                      <div>
+                        <span className="block text-[10px] uppercase tracking-wide">Senaste</span>
+                        <span className="font-medium text-foreground">
+                          {s.latest !== null ? `${s.latest} m` : '—'}
+                          {s.trend === 'up' && <TrendingUp className="inline w-3 h-3 ml-0.5 text-blue-500" />}
+                          {s.trend === 'down' && <TrendingDown className="inline w-3 h-3 ml-0.5 text-orange-500" />}
+                          {s.trend === 'flat' && <Minus className="inline w-3 h-3 ml-0.5 text-muted-foreground" />}
+                        </span>
+                        <span className="block text-[10px]">{s.latestDate}</span>
+                      </div>
+                      <div>
+                        <span className="block text-[10px] uppercase tracking-wide">{chartType === 'level' ? 'Grundast' : 'Min'}</span>
+                        <span className="font-medium text-foreground">{s.min !== null ? `${s.min} m` : '—'}</span>
+                      </div>
+                      <div>
+                        <span className="block text-[10px] uppercase tracking-wide">{chartType === 'level' ? 'Högst GV' : 'Max'}</span>
+                        <span className="font-medium text-foreground">{s.max !== null ? `${s.max} m` : '—'}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Chart */}
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                <LineChart data={chartData} margin={{ top: 5, right: 15, left: 10, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis 
-                    dataKey="date" 
+                  <XAxis
+                    dataKey="date"
                     tick={{ fontSize: 10 }}
                     tickFormatter={(value) => {
                       const date = new Date(value);
@@ -384,55 +467,60 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
                     }}
                     className="text-muted-foreground"
                   />
-                  <YAxis 
+                  <YAxis
                     tick={{ fontSize: 11 }}
-                    label={{ 
-                      value: getYAxisLabel(), 
-                      angle: -90, 
+                    label={{
+                      value: getYAxisLabel(),
+                      angle: -90,
                       position: 'insideLeft',
-                      dy: 40,
-                      style: { fontSize: 11 }
+                      dy: 50,
+                      style: { fontSize: 10 }
                     }}
+                    width={55}
                     className="text-muted-foreground"
                     reversed={chartType === 'level'}
                     domain={['auto', 'auto']}
                   />
-                  <Tooltip 
-                    contentStyle={{ 
+                  <Tooltip
+                    contentStyle={{
                       backgroundColor: 'hsl(var(--card))',
                       border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px'
+                      borderRadius: '8px',
+                      fontSize: '12px',
                     }}
                     labelFormatter={(value) => `Datum: ${value}`}
+                    formatter={(value: number, name: string) => [
+                      `${value} ${chartType === 'level' ? 'm u. markyta' : ''}`,
+                      name
+                    ]}
                   />
-                  <Legend />
+                  <Legend wrapperStyle={{ fontSize: '11px' }} />
                   {locations.map((location, index) => (
                     <Line
                       key={location.id}
-                      type="monotone"
+                      type="linear"
                       dataKey={location.name}
                       stroke={CHART_COLORS[index % CHART_COLORS.length]}
-                      strokeWidth={2}
-                      dot={chartData.length < 100}
-                      connectNulls
+                      strokeWidth={1.5}
+                      dot={chartData.length < 200 ? { r: 2 } : false}
+                      connectNulls={false}
                     />
                   ))}
-                  <Brush 
-                    dataKey="date" 
-                    height={30} 
-                    stroke="hsl(var(--primary))"
+                  <Brush
+                    dataKey="date"
+                    height={28}
+                    stroke="hsl(var(--border))"
                     fill="hsl(var(--muted))"
-                    tickFormatter={(value) => {
-                      const date = new Date(value);
-                      return `${date.getFullYear()}`;
-                    }}
+                    tickFormatter={(value) => new Date(value).getFullYear().toString()}
                   />
                 </LineChart>
               </ResponsiveContainer>
             </div>
-            <p className="text-xs text-muted-foreground text-center">
-              Dra i urvalsområdet nedan för att zooma in på en tidsperiod
-            </p>
+            {chartType === 'level' && (
+              <p className="text-xs text-muted-foreground text-center">
+                Y-axeln är inverterad: lägre värde = grundvatten närmare markytan. Dra i det nedre fältet för att zooma.
+              </p>
+            )}
           </div>
         )}
 

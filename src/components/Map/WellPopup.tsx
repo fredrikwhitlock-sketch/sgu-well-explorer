@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { X, ExternalLink, Download, BarChart3, PlusCircle, ChevronLeft, ChevronRight, GripHorizontal, Layers } from "lucide-react";
+import { X, ExternalLink, Download, BarChart3, PlusCircle, ChevronLeft, ChevronRight, GripHorizontal, Layers, Loader2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 
 interface LagerItem {
@@ -43,8 +43,34 @@ export const WellPopup = ({
   const [isDragging, setIsDragging] = useState(false);
   const [lagerData, setLagerData] = useState<LagerItem[]>([]);
   const [lagerLoading, setLagerLoading] = useState(false);
+  const [latestLevel, setLatestLevel] = useState<{ value: number; date: string } | null>(null);
+  const [latestLevelLoading, setLatestLevelLoading] = useState(false);
   const dragRef = useRef<{ startX: number; startY: number; initialX: number; initialY: number } | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
+
+  // Fetch latest observed level for gwLevelsObserved stations
+  useEffect(() => {
+    if (type !== 'gwLevelsObserved' || !properties.platsbeteckning) {
+      setLatestLevel(null);
+      return;
+    }
+    setLatestLevelLoading(true);
+    const id = encodeURIComponent(properties.platsbeteckning).replace(/'/g, '%27');
+    fetch(
+      `https://api.sgu.se/oppnadata/grundvattennivaer-observerade/ogc/features/v1/collections/nivaer/items?f=json&filter=platsbeteckning%20%3D%20%27${id}%27&sortby=-obsdatum&limit=1`
+    )
+      .then(res => res.ok ? res.json() : null)
+      .then(json => {
+        const f = json?.features?.[0];
+        if (!f) return;
+        const p = f.properties ?? {};
+        const value = p.grundvattenniva_m_u_markyta ?? p.grundvattenniva_m_urok;
+        const date = p.obsdatum?.split('T')[0] ?? '';
+        if (value != null && date) setLatestLevel({ value, date });
+      })
+      .catch(() => {})
+      .finally(() => setLatestLevelLoading(false));
+  }, [type, properties.platsbeteckning]);
 
   // Fetch lagerföljd for wells
   useEffect(() => {
@@ -649,6 +675,25 @@ export const WellPopup = ({
           </>
         ) : type === 'gwLevelsObserved' ? (
           <>
+            {/* Latest observed level – prominent badge */}
+            {(latestLevelLoading || latestLevel) && (
+              <div className="rounded-lg bg-secondary/50 border border-border px-3 py-2 mb-1">
+                <div className="text-xs text-muted-foreground mb-0.5">Senaste mätvärde</div>
+                {latestLevelLoading ? (
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Loader2 className="w-3 h-3 animate-spin" /> Hämtar…
+                  </div>
+                ) : latestLevel ? (
+                  <>
+                    <div className="text-xl font-bold leading-none text-foreground">
+                      {latestLevel.value} <span className="text-sm font-normal text-muted-foreground">m u. markyta</span>
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-0.5">{latestLevel.date}</div>
+                  </>
+                ) : null}
+              </div>
+            )}
+
             {properties.platsbeteckning && (
               <div>
                 <dt className="text-xs font-medium text-muted-foreground">Platsbeteckning</dt>
