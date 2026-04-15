@@ -741,7 +741,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
       // Parse observed nivaer: take most recent reading per station (sorted -obsdatum),
       // join with stJordart map for soil type. Both property names verified against API.
       const seenSt = new Set<string>();
-      const obsArr: Array<{ djup: number; jordart?: string; aquiferGroup?: 'rock' | 'jord'; aquiferSize?: string }> = [];
+      const obsArr: Array<{ djup: number; jordart?: string; aquiferGroup?: 'rock' | 'jord'; aquiferSize?: 'large' | 'small' }> = [];
       try {
         for (const f of nivaerData?.features ?? []) {
           const p = f.properties ?? {};
