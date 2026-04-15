@@ -1424,11 +1424,15 @@ export const MapView = () => {
     // Load data when map movement ends (panning or zooming)
     map.on('moveend', () => {
       const zoom = map.getView().getZoom() || 0;
-      
-      // Load data when zoom >= 12 and layer is visible
-      if (zoom >= 12) {
-        const extent = map.getView().calculateExtent();
+      const extent = map.getView().calculateExtent();
 
+      // Aquifers load at zoom >= 9
+      if (zoom >= 9 && aquifersLayerRef.current?.getVisible() && loadAquifersForExtentRef.current) {
+        loadAquifersForExtentRef.current(extent);
+      }
+      
+      // Other vector layers load at zoom >= 12
+      if (zoom >= 12) {
         if (wellsLayerRef.current?.getVisible() && loadWellsForExtentRef.current) {
           loadWellsForExtentRef.current(extent);
         }
