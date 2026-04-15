@@ -19,14 +19,14 @@ const hexToRgbaStroke = (hex: string): string => {
 
 // Färgschema baserat på SGU:s officiella WMS-legend (GetLegendGraphic)
 const SGU_COLORS = {
-  moran: '#cfe4f3',           // Morän - ljusblå (officiell SGU-färg)
-  moranLera: '#bad3ef',       // Moränlera - lite mörkare blå
-  isalvs: '#f3943e',          // Isälvssediment - orange (officiell SGU-färg)
+  moran: '#e7e2f1',           // Morän - ljuslila/grå (officiell SGU-färg)
+  moranLera: '#cfe4f3',       // Moränlera - ljusblå
+  isalvs: '#96c147',          // Isälvssediment - grön (officiell SGU-färg)
   postglacialSand: '#ffd500', // Postglacial sand-grus - gul (officiell SGU-färg)
   lera: '#e68060',            // Lera/Silt - laxrosa (officiell SGU-färg)
   svamsediment: '#d8b78f',    // Svämsediment - sandbrun
   alvsediment: '#f9b760',     // Älvsediment - ljus orange-gul
-  berg: '#e7e2f1',            // Berg - ljuslila (officiell SGU-färg)
+  berg: '#de3534',            // Berg/Urberg - röd (officiell SGU-färg)
   sedimentartBerg: '#de3534', // Sedimentärt berg - röd (officiell SGU-färg)
   diabas: '#3092d0',          // Fanerozoisk diabas - mellanblå
   fyllning: '#b84e94',        // Fyllning - magenta (officiell SGU-färg, exakt match)
