@@ -48,7 +48,9 @@ interface ReportData {
   brunnar?: BrunnInfo[];
   // Nearby observed groundwater levels for calibration
   // aquiferGroup: derived from 'akvifer' code (B*=rock, J*=jord, XX/null=unknown)
-  obsFeatures?: Array<{ djup: number; jordart?: string; aquiferGroup?: 'rock' | 'jord' }>;
+  // aquiferSize:  derived from station jordart – 'large' = isälv/sand/grus magasin,
+  //               'small' = morän/finkornigt. Used to avoid mixing small/large jord pools.
+  obsFeatures?: Array<{ djup: number; jordart?: string; aquiferGroup?: 'rock' | 'jord'; aquiferSize?: 'large' | 'small' }>;
 }
 
 // ── Aquifer classification ────────────────────────────────────────────────────
@@ -276,16 +278,24 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
     const relevantF = aq.useStoraMagasin || hasStoraMag ? data.fyllnadsgradStora : data.fyllnadsgradSma;
     const d = estimatedDepth(aq, relevantF);
 
-    // Reconstruct a simple calibrated depth label from observation pool
+    // Reconstruct calibrated depth label (mirrors obsKalibr logic above)
     let obsKalibrStr = 'Saknas (för få observationsstationer)';
-    if (data.obsFeatures && data.obsFeatures.length >= 3 && aq.type !== 'unknown') {
+    if (data.obsFeatures && aq.type !== 'unknown' && !(aq.type === 'confining' && !hasStoraMag)) {
       const useRockPool = aq.type === 'rock' || aq.type === 'till' ||
         (aq.type === 'confining' && hasStoraMag &&
-          (data.magasin!.genes ?? data.magasin!.akvifertyp ?? '').toUpperCase().match(/BERG|SPRICK|SEDIMENTÄR/));
+          (data.magasin!.genes ?? data.magasin!.akvifertyp ?? '').toUpperCase().match(/BERG|SPRICK|SEDIMENTÄR/) != null);
       const groupMatch = data.obsFeatures.filter(o =>
         o.aquiferGroup ? o.aquiferGroup === (useRockPool ? 'rock' : 'jord') : true
       );
-      const pool = groupMatch.length >= 3 ? groupMatch : data.obsFeatures.length >= 3 ? data.obsFeatures : null;
+      let sizeMatch = groupMatch;
+      if (!useRockPool) {
+        const targetSize: 'large' | 'small' = aq.useStoraMagasin ? 'large' : 'small';
+        const sized = groupMatch.filter(o => !o.aquiferSize || o.aquiferSize === targetSize);
+        const hasSizeData = groupMatch.some(o => !!o.aquiferSize);
+        if (hasSizeData && sized.length > 0) sizeMatch = sized;
+      }
+      const subMatch = sizeMatch.filter(o => o.jordart ? classifyAquifer(o.jordart).type === aq.type : false);
+      const pool = subMatch.length >= 3 ? subMatch : sizeMatch.length >= 3 ? sizeMatch : null;
       if (pool) {
         const sorted = pool.map(o => o.djup).sort((a, b) => a - b);
         const median = sorted[Math.floor(sorted.length / 2)];
@@ -468,8 +478,9 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
       // Chain: nivaer has no geometry so bbox filtering fails with 400.
       // Fetch stationer spatially first → extract platsbeteckning IDs → query
       // nivaer via CQL2 IN filter.  Same promise-chain pattern as HYPE omraden→levels.
-      const stJordart   = new Map<string, string>();
-      const stAkvifer   = new Map<string, 'rock' | 'jord'>(); // akvifer B*=rock, J*=jord
+      const stJordart    = new Map<string, string>();
+      const stAkvifer    = new Map<string, 'rock' | 'jord'>(); // akvifer B*=rock, J*=jord
+      const stAkvifSize  = new Map<string, 'large' | 'small'>(); // large=isälv/sand/grus, small=morän/finkornigt
       let nivaerPromise: Promise<any> | null = null;
 
       const obsStationerChain = fetch(
@@ -482,11 +493,17 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
            const p = f.properties ?? {};
            const id = p.platsbeteckning;
            if (!id) continue;
-           stJordart.set(String(id), p.jordart_tx ?? p.jordart ?? '');
+           const jordartTx = p.jordart_tx ?? p.jordart ?? '';
+           stJordart.set(String(id), jordartTx);
            // akvifer code: B* = berg (rock), J* = jord (soil), XX = unknown
            const akv = String(p.akvifer ?? '').toUpperCase();
            if (akv.startsWith('B')) stAkvifer.set(String(id), 'rock');
-           else if (akv.startsWith('J')) stAkvifer.set(String(id), 'jord');
+           else if (akv.startsWith('J')) {
+             stAkvifer.set(String(id), 'jord');
+             // Derive large/small from the station's own jordart classification
+             const stAq = classifyAquifer(jordartTx);
+             stAkvifSize.set(String(id), stAq.useStoraMagasin ? 'large' : 'small');
+           }
            ids.push(String(id));
          }
          if (ids.length > 0) {
@@ -699,6 +716,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
             djup,
             jordart:      stJordart.get(String(sid)) || undefined,
             aquiferGroup: stAkvifer.get(String(sid)),
+            aquiferSize:  stAkvifSize.get(String(sid)),
           });
         }
       } catch { /* ignore */ }
@@ -724,61 +742,70 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
     : data?.fyllnadsgradSma;
   const depth = aquifer && data ? estimatedDepth(aquifer, relevantFyllnad) : null;
 
-  // Observation calibration – two-level filter:
-  //   1. Primary: bergborrade (B*) vs jordbrunnar (J*) split
-  //      Morän ('till') is grouped with rock: in morän terrain people typically
-  //      drill through to bedrock, so nearby rock observations are the right anchor.
-  //   2. Secondary: within group, prefer matching classifyAquifer sub-type
+  // Observation calibration – three-level filter:
+  //   1. Primary:   bergborrade (B*) vs jordbrunnar (J*) split
+  //      Morän ('till') uses rock pool: drilling through to bedrock is standard.
+  //   2. Secondary: for jord pools, separate large (isälv/sand/grus) from small
+  //      (morän/finkornigt) – never mix the two sizes.
+  //   3. Tertiary:  within the size-matched pool, prefer matching jordart sub-type.
   const obsKalibr = (() => {
     if (!data?.obsFeatures?.length || !aquifer || aquifer.type === 'unknown') return null;
-    // Confining layers: nearby jord observations (sand/grus at 1–3 m) would give
-    // a misleadingly shallow depth for drilling through clay.  Exception: when there
-    // IS a known EU groundwater body beneath (wb_type known), we can calibrate
-    // against the pool that matches that underlying aquifer type.
+    // Confining layers: skip unless a magasin is known beneath
     if (aquifer.type === 'confining' && !data?.magasin) return null;
 
     // Determine which observation pool to use:
-    //  - rock / till / bergakvifer → B* stations (bergborrade)
-    //  - porous sediment aquifers  → J* stations (jordbrunnar)
+    //  - rock / till / berg-magasin → B* stations (bergborrade)
+    //  - porous sediment aquifers   → J* stations (jordbrunnar)
     let useRockPool: boolean;
     if (aquifer.type === 'confining' && data?.magasin) {
-      // Use the underlying magasin genesis/type to pick the pool
       const g = (data.magasin.genes ?? data.magasin.akvifertyp ?? '').toUpperCase();
       useRockPool = g.includes('BERG') || g.includes('SPRICK') || g.includes('SEDIMENTÄR');
     } else {
-      // Morän → bergborrad is the dominant well type → use rock observations
       useRockPool = aquifer.type === 'rock' || aquifer.type === 'till';
     }
 
-    // Level 1: hard berg/jord split
+    // Level 1: berg / jord split
     const groupMatch = data.obsFeatures.filter(o =>
       o.aquiferGroup ? o.aquiferGroup === (useRockPool ? 'rock' : 'jord') : true
     );
 
-    // Level 2: within same group, prefer matching sub-type (morän/sand/lera etc.)
-    // For 'till' this finds rock obs whose station jordart is also morän (overburden).
-    const subMatch = groupMatch.filter(o =>
+    // Level 2 (jord only): large vs small aquifer — never allow cross-size fallback
+    let sizeMatch = groupMatch;
+    let sizeLabel = useRockPool ? 'bergbrunnar' : 'jordbrunnar';
+    if (!useRockPool) {
+      const targetSize: 'large' | 'small' = aquifer.useStoraMagasin ? 'large' : 'small';
+      // Keep stations whose size is known and matches, OR whose size is unknown
+      const sized = groupMatch.filter(o => !o.aquiferSize || o.aquiferSize === targetSize);
+      // Only restrict to size-filtered if it actually removes something (i.e. size data exists)
+      const hasSizeData = groupMatch.some(o => !!o.aquiferSize);
+      if (hasSizeData && sized.length > 0) {
+        sizeMatch = sized;
+        sizeLabel = targetSize === 'large' ? 'stora jordmagasin' : 'små jordmagasin';
+      }
+    }
+
+    // Level 3: within size-match, prefer matching jordart sub-type
+    const subMatch = sizeMatch.filter(o =>
       o.jordart ? classifyAquifer(o.jordart).type === aquifer.type : false
     );
 
-    // Use the most specific pool with ≥3; otherwise widen one level at a time
+    // Pick most specific pool with ≥3 — do NOT fall back past sizeMatch to all obs
     const pool = subMatch.length >= 3 ? subMatch :
-                 groupMatch.length >= 3 ? groupMatch :
-                 data.obsFeatures.length >= 3 ? data.obsFeatures : null;
+                 sizeMatch.length >= 3 ? sizeMatch :
+                 null;
     if (!pool) return null;
 
     const sorted = pool.map(o => o.djup).sort((a, b) => a - b);
 
-    const groupLabel = useRockPool ? 'bergbrunnar' : 'jordbrunnar';
     return {
       antal:        pool.length,
       medianDjup:   sorted[Math.floor(sorted.length / 2)],
       p25:          sorted[Math.floor(sorted.length * 0.25)],
       p75:          sorted[Math.floor(sorted.length * 0.75)],
       matchLabel:   subMatch.length >= 3  ? 'matchande jordart' :
-                    groupMatch.length >= 3 ? groupLabel :
-                                             'blandad (få stationer)',
-      aquiferMatch: subMatch.length >= 3 || groupMatch.length >= 3,
+                    sizeMatch.length >= 3 ? sizeLabel :
+                                            'blandad (få stationer)',
+      aquiferMatch: subMatch.length >= 3 || sizeMatch.length >= 3,
     };
   })();
 
