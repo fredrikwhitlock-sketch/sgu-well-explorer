@@ -36,6 +36,8 @@ interface ReportData {
   jordartKod?: string;
   // Jorddjup från jorddjupsmodell – avståndsviktad, expanderande radier
   jorddjup?: { median: number; p25: number; p75: number; antal: number; radieM: number };
+  // Terrängmodell – EU-DEM 25m via OpenTopoData
+  elevation?: number | null;
   // Grundvattenmagasin (SGU karteringsdata – mer detaljerat än EU-förekomster)
   magasin?: {
     namn: string;
@@ -326,6 +328,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
       `## Grundvattenanalys – ${data.lat.toFixed(5)}°N, ${data.lon.toFixed(5)}°E`,
       `**Datum (HYPE):** ${data.hypoDate ?? 'okänt'}${data.hypoDateIsFallback ? ' (senaste tillgängliga)' : ''}`,
       `**SWEREF99 TM:** E ${Math.round(data.sweref[0])}, N ${Math.round(data.sweref[1])}`,
+      ...(data.elevation != null ? [`**Höjd:** ${data.elevation} m ö.h. (EU-DEM 25m)`] : []),
       '',
       '### Jordart & Akvifer',
       `- **Jordart:** ${data.jordartNamn ?? 'Okänd'}`,
@@ -355,6 +358,18 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
     lines.push(`- **Nivåjustering:** ${d.adj.label}`);
     lines.push(`- **Estimerat djup till grundvatten:** ${d.lo}–${d.hi} m u. markytan`);
     lines.push(`- **Kalibrerat djup (observerade stationer):** ${obsKalibrStr}`);
+
+    // Jorddjup cap assessment for AI
+    if (data.jorddjup && aq.type !== 'rock' && aq.type !== 'unknown') {
+      const jd = data.jorddjup.median;
+      if (jd > 0.5) {
+        const refDepth = data.obsFeatures?.length ? undefined : (d.lo + d.hi) / 2;
+        lines.push(`- **Jorddjup (median):** ${jd} m`);
+        if (refDepth !== undefined && refDepth > jd) {
+          lines.push(`- **OBS: Estimerat djup överstiger jorddjupet** → grundvattnet troligen i bergmagasinet (sprickzonsakvifer). Ökad osäkerhet.`);
+        }
+      }
+    }
 
     if (data.jorddjup) {
       const r = data.jorddjup.radieM;
@@ -568,8 +583,9 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
         fetch(`https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar/items?f=json&bbox=${brunnarBbox}&limit=25`, { signal }),
         fetch(`https://api.sgu.se/oppnadata/jorddjupsmodell/ogc/features/v1/collections/underlag-jorddjup/items?f=json&bbox=${djupBbox}&limit=100`, { signal }),
         obsStationerChain, // side-effects: fills stJordart, sets nivaerPromise
+        fetch(`https://api.opentopodata.org/v1/eudem25m?locations=${lat},${lon}`, { signal }),
       ]);
-      const [omradenRes, gvTillgangRes, jordartCql2Res, jordartBboxRes, forekomstRes, brunnarRes, jorddjupRes] = allResults;
+      const [omradenRes, gvTillgangRes, jordartCql2Res, jordartBboxRes, forekomstRes, brunnarRes, jorddjupRes, , elevationRes] = allResults;
 
       if (signal.aborted) return;
 
@@ -765,6 +781,15 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
         } catch { /* ignore */ }
       }
 
+      // Elevation from OpenTopoData EU-DEM 25m (free, ~25 m resolution)
+      if (elevationRes.status === 'fulfilled' && elevationRes.value.ok) {
+        try {
+          const ed = await elevationRes.value.json();
+          const elev = ed.results?.[0]?.elevation;
+          if (typeof elev === 'number') result.elevation = Math.round(elev);
+        } catch { /* ignore */ }
+      }
+
       // Parse observed nivaer: for each station pick the reading closest to selectedDate.
       // This ensures P25–P75 reflects levels at a consistent time, not a mix of
       // summer-drought vs spring-flood readings from different years.
@@ -909,6 +934,21 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
     };
   })();
 
+  // Jorddjup cap: if estimated GW depth exceeds soil thickness, groundwater is in bedrock
+  // (bergmagasinet). Only applies to soil aquifer types – skip for rock or unknown.
+  const jorddjupCapInfo = (() => {
+    if (!data?.jorddjup || !effectiveAquifer || effectiveAquifer.type === 'rock' || effectiveAquifer.type === 'unknown') return null;
+    const jd = data.jorddjup.median;
+    if (!jd || jd <= 0.5) return null;
+    // Best depth estimate: calibrated median > HYPE-range midpoint
+    const refDepth = calibratedDepth?.median ?? (depth ? (depth.lo + depth.hi) / 2 : 0);
+    const hiDepth  = calibratedDepth?.hi   ?? depth?.hi ?? 0;
+    const likelyBedrock   = refDepth > jd;
+    const possiblyBedrock = !likelyBedrock && hiDepth > jd * 0.85;
+    if (!likelyBedrock && !possiblyBedrock) return null;
+    return { soilDepth: jd, likelyBedrock, possiblyBedrock };
+  })();
+
   // Separate median capacity for bedrock vs soil wells
   const medianOf = (brunnar: BrunnInfo[]) => {
     const vals = brunnar.map(b => b.kapacitet!).filter(v => v > 0).sort((a, b) => a - b);
@@ -996,6 +1036,12 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
               <div className="text-xs space-y-0.5">
                 <div>WGS84: {data.lat.toFixed(5)}°N, {data.lon.toFixed(5)}°E</div>
                 <div className="text-muted-foreground">SWEREF99 TM: {Math.round(data.sweref[0])} E, {Math.round(data.sweref[1])} N</div>
+                {data.elevation != null && (
+                  <div className="text-muted-foreground">
+                    Höjd: <span className="font-medium text-foreground">{data.elevation} m ö.h.</span>
+                    <span className="text-[10px] ml-1">(EU-DEM 25m)</span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1102,6 +1148,31 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                         : 'Uppskattning baserad på jordart och SGU-HYPE-modellen. Osäkerheten är betydande – lokala förhållanden kan avvika.'}
                     </span>
                   </div>
+                  {jorddjupCapInfo && (
+                    <div className={`flex items-start gap-1.5 mt-2 rounded-md px-2.5 py-2 text-xs ${
+                      jorddjupCapInfo.likelyBedrock
+                        ? 'bg-orange-50 dark:bg-orange-950/40 text-orange-800 dark:text-orange-300'
+                        : 'bg-yellow-50 dark:bg-yellow-950/30 text-yellow-800 dark:text-yellow-300'
+                    }`}>
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                      <span>
+                        {jorddjupCapInfo.likelyBedrock ? (
+                          <>
+                            <span className="font-semibold">Troligen bergmagasin.</span>
+                            {' '}Estimerat djup ({calibratedDepth?.median ?? Math.round((depth!.lo + depth!.hi) / 2)} m) överstiger jorddjupet i närheten (~{jorddjupCapInfo.soilDepth.toFixed(1)} m).
+                            Grundvattnet finns troligen i sprickor i berggrunden.
+                            Osäkerheten ökar – bergmagasinets djup beror på täcklager, sprickor och topografiskt läge.
+                          </>
+                        ) : (
+                          <>
+                            <span className="font-semibold">Möjligt bergmagasin.</span>
+                            {' '}Övre delen av djupintervallet kan överstiga jorddjupet (~{jorddjupCapInfo.soilDepth.toFixed(1)} m),
+                            vilket antyder att grundvattnet delvis kan finnas i berggrunden.
+                          </>
+                        )}
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1514,6 +1585,13 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                     source="SGU GV-tillgång små magasin (WMS)"
                     note="WMS GetFeatureInfo – rastervärde via proxy. Lager: grundvattentillgang-sma-magasin. Fält: Grundvattentillgang_i_sma_magasin_l_dygn_ha."
                     url="https://api.sgu.se/oppnadata/grundvattentillgang-sma-magasin/wms"
+                  />
+
+                  <SourceRow
+                    label="Terrängmodell / höjd (m ö.h.)"
+                    source="OpenTopoData – EU-DEM 25m"
+                    note="REST API – punkthöjd via EU Digital Elevation Model (25 m upplösning). Används för höjdinformation i koordinatpanelen."
+                    url="https://www.opentopodata.org/datasets/eudem/"
                   />
 
                   <p className="text-muted-foreground pt-1 leading-relaxed">
