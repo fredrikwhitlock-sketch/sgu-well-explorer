@@ -34,8 +34,10 @@ interface ReportData {
   gvTillgangLdha?: number | null;
   jordartNamn?: string;
   jordartKod?: string;
-  // Jorddjup från jorddjupsmodell – avståndsviktad, expanderande radier
-  jorddjup?: { median: number; p25: number; p75: number; antal: number; radieM: number };
+  // Jorddjup från jorddjupsmodell – interpolerat WMS GetFeatureInfo (10×10 m raster)
+  jorddjup?: { djup: number };
+  // Terrängmodell – EU-DEM 25m via OpenTopoData
+  elevation?: number | null;
   // Grundvattenmagasin (SGU karteringsdata – mer detaljerat än EU-förekomster)
   magasin?: {
     namn: string;
@@ -240,11 +242,6 @@ function mercatorToWGS84(x: number, y: number): [number, number] {
   return [lon, lat];
 }
 
-function formatRadie(m: number): string {
-  if (m < 1000) return `~${m} m`;
-  return `~${(m / 1000).toFixed(m % 1000 === 0 ? 0 : 1)} km`;
-}
-
 // ── Source documentation helper ───────────────────────────────────────────────
 
 function SourceRow({ label, source, note, url }: {
@@ -326,6 +323,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
       `## Grundvattenanalys – ${data.lat.toFixed(5)}°N, ${data.lon.toFixed(5)}°E`,
       `**Datum (HYPE):** ${data.hypoDate ?? 'okänt'}${data.hypoDateIsFallback ? ' (senaste tillgängliga)' : ''}`,
       `**SWEREF99 TM:** E ${Math.round(data.sweref[0])}, N ${Math.round(data.sweref[1])}`,
+      ...(data.elevation != null ? [`**Höjd:** ${data.elevation} m ö.h. (EU-DEM 25m)`] : []),
       '',
       '### Jordart & Akvifer',
       `- **Jordart:** ${data.jordartNamn ?? 'Okänd'}`,
@@ -357,11 +355,15 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
     lines.push(`- **Kalibrerat djup (observerade stationer):** ${obsKalibrStr}`);
 
     if (data.jorddjup) {
-      const r = data.jorddjup.radieM;
-      const rStr = r < 1000 ? `${r} m` : `${(r / 1000).toFixed(r % 1000 === 0 ? 0 : 1)} km`;
       lines.push('', '### Jorddjup (djup till berg)');
-      lines.push(`- **Median:** ${data.jorddjup.median} m  (kv: ${data.jorddjup.p25}–${data.jorddjup.p75} m)`);
-      lines.push(`- **Antal observationer:** ${data.jorddjup.antal} inom ~${rStr}`);
+      lines.push(`- **Interpolerat djup (WMS 10×10 m raster):** ${data.jorddjup.djup} m`);
+      if (aq.type !== 'rock' && aq.type !== 'unknown') {
+        const jd = data.jorddjup.djup;
+        const refDepth = (d.lo + d.hi) / 2;
+        if (refDepth > jd) {
+          lines.push(`- **OBS: Estimerat GV-djup (${Math.round(refDepth * 10) / 10} m) överstiger jorddjupet** → grundvattnet troligen i bergmagasinet (sprickzonsakvifer). Ökad osäkerhet p.g.a. täcklager, sprickor och topografi.`);
+        }
+      }
     }
 
     if (bergBr.length > 0 || jordBr.length > 0) {
@@ -440,10 +442,13 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
       // ~15 km radius for brunnar
       const brunnarDelta = 0.13;
       const brunnarBbox = `${lon - brunnarDelta},${lat - brunnarDelta},${lon + brunnarDelta},${lat + brunnarDelta}`;
-      // 5 km radius for jorddjup observations – fetch wide, then filter by actual distance
-      const djupLatD = 5000 / 111111;                                       // ≈ 0.045°
-      const djupLonD = djupLatD / Math.cos((lat * Math.PI) / 180);         // wider near equator
-      const djupBbox = `${lon - djupLonD},${lat - djupLatD},${lon + djupLonD},${lat + djupLatD}`;
+      // Jorddjupsmodell – WMS GetFeatureInfo via proxy (10×10 m interpolated raster).
+      // Use EPSG:3857 bbox (same CRS as map) to avoid WMS 1.3.0 axis-order issues.
+      // 50 m half-width → 100×100 m box; 3×3 image, center pixel I=1,J=1.
+      const [cx, cy] = coordinate; // already in EPSG:3857
+      const djupWmsBbox = `${cx - 50},${cy - 50},${cx + 50},${cy + 50}`;
+      const jorddjupWmsUrl =
+        `${wmsProxyUrl}?url=${encodeURIComponent('https://maps3.sgu.se/geoserver/misc/ows')}&SERVICE=WMS&VERSION=1.3.0&REQUEST=GetFeatureInfo&LAYERS=SE.GOV.SGU.MISC.JORDDJUPSMODELL.RASTER_INTERVALL&QUERY_LAYERS=SE.GOV.SGU.MISC.JORDDJUPSMODELL.RASTER_INTERVALL&INFO_FORMAT=application%2Fjson&BBOX=${djupWmsBbox}&CRS=EPSG:3857&WIDTH=3&HEIGHT=3&I=1&J=1`;
 
       // GV Tillgång via proxy (api.sgu.se WMS may lack CORS headers)
       const gvTillgangUrl =
@@ -566,10 +571,11 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
         fetch(jordartBboxUrl, { signal }),
         fetch(`https://api.sgu.se/oppnadata/grundvattenmagasin/ogc/features/v1/collections/grundvattenmagasin/items?f=json&bbox=${gvmBbox}&limit=3`, { signal }),
         fetch(`https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar/items?f=json&bbox=${brunnarBbox}&limit=25`, { signal }),
-        fetch(`https://api.sgu.se/oppnadata/jorddjupsmodell/ogc/features/v1/collections/underlag-jorddjup/items?f=json&bbox=${djupBbox}&limit=100`, { signal }),
+        fetch(jorddjupWmsUrl, { signal }),
         obsStationerChain, // side-effects: fills stJordart, sets nivaerPromise
+        fetch(`https://api.opentopodata.org/v1/eudem25m?locations=${lat},${lon}`, { signal }),
       ]);
-      const [omradenRes, gvTillgangRes, jordartCql2Res, jordartBboxRes, forekomstRes, brunnarRes, jorddjupRes] = allResults;
+      const [omradenRes, gvTillgangRes, jordartCql2Res, jordartBboxRes, forekomstRes, brunnarRes, jorddjupRes, , elevationRes] = allResults;
 
       if (signal.aborted) return;
 
@@ -717,51 +723,27 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
         } catch { /* ignore */ }
       }
 
-      // Jorddjup from jorddjupsmodell – distance-weighted with expanding radius tiers.
-      // Fetch up to 5 km, compute actual great-circle distance per observation, then
-      // try 100 m → 500 m → 2 000 m → 5 000 m and use the first tier with ≥ 3 points.
+      // Jorddjup from jorddjupsmodell – single interpolated WMS raster value (10×10 m).
+      // GeoServer returns GRAY_INDEX with the raster band value in metres.
       if (jorddjupRes.status === 'fulfilled' && jorddjupRes.value.ok) {
         try {
           const d = await jorddjupRes.value.json();
-          // Attach distance (m) to each valid observation
-          type DjupObs = { djup: number; distM: number };
-          const cosLat = Math.cos((lat * Math.PI) / 180);
-          const withDist: DjupObs[] = (d.features ?? [])
-            .map((f: any): DjupObs | null => {
-              const djup = f.properties?.djup;
-              if (typeof djup !== 'number' || djup <= 0) return null;
-              const [fLon, fLat] = f.geometry?.coordinates ?? [null, null];
-              if (fLon == null || fLat == null) return null;
-              const dLat = (fLat - lat) * (Math.PI / 180) * 6371000;
-              const dLon = (fLon - lon) * (Math.PI / 180) * 6371000 * cosLat;
-              return { djup, distM: Math.sqrt(dLat * dLat + dLon * dLon) };
-            })
-            .filter((v): v is DjupObs => v != null)
-            .sort((a, b) => a.distM - b.distM);  // nearest first
+          const p = d.features?.[0]?.properties ?? {};
+          // GeoServer raster GetFeatureInfo uses GRAY_INDEX for the band value
+          const raw = p.GRAY_INDEX ?? p.gray_index ?? p.djup ?? p.value ?? null;
+          const djup = typeof raw === 'number' ? raw : parseFloat(String(raw));
+          if (!isNaN(djup) && djup > 0 && djup < 500) {
+            result.jorddjup = { djup: Math.round(djup * 10) / 10 };
+          }
+        } catch { /* ignore */ }
+      }
 
-          // Expanding radius: pick smallest tier with ≥ 3 observations
-          const TIERS = [100, 500, 2000, 5000];
-          let pool: DjupObs[] = [];
-          let radieM = 5000;
-          for (const r of TIERS) {
-            const inR = withDist.filter(o => o.distM <= r);
-            if (inR.length >= 3) { pool = inR; radieM = r; break; }
-          }
-          if (pool.length === 0 && withDist.length >= 2) {
-            pool = withDist;           // use whatever exists beyond 5 km if really sparse
-            radieM = Math.ceil(withDist[withDist.length - 1].distM / 100) * 100;
-          }
-
-          if (pool.length >= 2) {
-            const sorted = pool.map(o => o.djup).sort((a, b) => a - b);
-            result.jorddjup = {
-              median: sorted[Math.floor(sorted.length / 2)],
-              p25:    sorted[Math.floor(sorted.length * 0.25)],
-              p75:    sorted[Math.floor(sorted.length * 0.75)],
-              antal:  pool.length,
-              radieM,
-            };
-          }
+      // Elevation from OpenTopoData EU-DEM 25m (free, ~25 m resolution)
+      if (elevationRes.status === 'fulfilled' && elevationRes.value.ok) {
+        try {
+          const ed = await elevationRes.value.json();
+          const elev = ed.results?.[0]?.elevation;
+          if (typeof elev === 'number') result.elevation = Math.round(elev);
         } catch { /* ignore */ }
       }
 
@@ -909,6 +891,21 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
     };
   })();
 
+  // Jorddjup cap: if estimated GW depth exceeds soil thickness, groundwater is in bedrock
+  // (bergmagasinet). Only applies to soil aquifer types – skip for rock or unknown.
+  const jorddjupCapInfo = (() => {
+    if (!data?.jorddjup || !effectiveAquifer || effectiveAquifer.type === 'rock' || effectiveAquifer.type === 'unknown') return null;
+    const jd = data.jorddjup.djup;
+    if (!jd || jd <= 0.5) return null;
+    // Best depth estimate: calibrated median > HYPE-range midpoint
+    const refDepth = calibratedDepth?.median ?? (depth ? (depth.lo + depth.hi) / 2 : 0);
+    const hiDepth  = calibratedDepth?.hi   ?? depth?.hi ?? 0;
+    const likelyBedrock   = refDepth > jd;
+    const possiblyBedrock = !likelyBedrock && hiDepth > jd * 0.85;
+    if (!likelyBedrock && !possiblyBedrock) return null;
+    return { soilDepth: jd, likelyBedrock, possiblyBedrock };
+  })();
+
   // Separate median capacity for bedrock vs soil wells
   const medianOf = (brunnar: BrunnInfo[]) => {
     const vals = brunnar.map(b => b.kapacitet!).filter(v => v > 0).sort((a, b) => a - b);
@@ -996,6 +993,12 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
               <div className="text-xs space-y-0.5">
                 <div>WGS84: {data.lat.toFixed(5)}°N, {data.lon.toFixed(5)}°E</div>
                 <div className="text-muted-foreground">SWEREF99 TM: {Math.round(data.sweref[0])} E, {Math.round(data.sweref[1])} N</div>
+                {data.elevation != null && (
+                  <div className="text-muted-foreground">
+                    Höjd: <span className="font-medium text-foreground">{data.elevation} m ö.h.</span>
+                    <span className="text-[10px] ml-1">(EU-DEM 25m)</span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1102,6 +1105,31 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                         : 'Uppskattning baserad på jordart och SGU-HYPE-modellen. Osäkerheten är betydande – lokala förhållanden kan avvika.'}
                     </span>
                   </div>
+                  {jorddjupCapInfo && (
+                    <div className={`flex items-start gap-1.5 mt-2 rounded-md px-2.5 py-2 text-xs ${
+                      jorddjupCapInfo.likelyBedrock
+                        ? 'bg-orange-50 dark:bg-orange-950/40 text-orange-800 dark:text-orange-300'
+                        : 'bg-yellow-50 dark:bg-yellow-950/30 text-yellow-800 dark:text-yellow-300'
+                    }`}>
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                      <span>
+                        {jorddjupCapInfo.likelyBedrock ? (
+                          <>
+                            <span className="font-semibold">Troligen bergmagasin.</span>
+                            {' '}Estimerat djup ({calibratedDepth?.median ?? Math.round((depth!.lo + depth!.hi) / 2)} m) överstiger jorddjupet i närheten (~{jorddjupCapInfo.soilDepth.toFixed(1)} m).
+                            Grundvattnet finns troligen i sprickor i berggrunden.
+                            Osäkerheten ökar – bergmagasinets djup beror på täcklager, sprickor och topografiskt läge.
+                          </>
+                        ) : (
+                          <>
+                            <span className="font-semibold">Möjligt bergmagasin.</span>
+                            {' '}Övre delen av djupintervallet kan överstiga jorddjupet (~{jorddjupCapInfo.soilDepth.toFixed(1)} m),
+                            vilket antyder att grundvattnet delvis kan finnas i berggrunden.
+                          </>
+                        )}
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1137,18 +1165,14 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                     </span>
                   </div>
                 )}
-                {/* Jorddjup – thickness of soil above bedrock from nearby observations */}
+                {/* Jorddjup – thickness of soil above bedrock from WMS raster */}
                 {data.jorddjup && aquifer?.type !== 'rock' && (
                   <div className="text-xs mb-1.5">
                     <span className="font-medium">Jordlager (jorddjupsmodell):</span>
                     <span className="ml-1 text-blue-700 dark:text-blue-400 font-semibold">
-                      {data.jorddjup.median.toFixed(1)} m
+                      {data.jorddjup.djup.toFixed(1)} m
                     </span>
-                    <span className="text-muted-foreground ml-1">
-                      (P25–P75: {data.jorddjup.p25.toFixed(1)}–{data.jorddjup.p75.toFixed(1)} m
-                      · {data.jorddjup.antal} obs
-                      · {formatRadie(data.jorddjup.radieM)})
-                    </span>
+                    <span className="text-muted-foreground ml-1">(interpolerat 10×10 m raster)</span>
                   </div>
                 )}
                 {/* Sedimentjord: show small-aquifer raster (l/dygn/ha) — not relevant for morän/berg */}
@@ -1320,12 +1344,9 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
               {/* Jorddjup */}
               {data.jorddjup && (
                 <div className="flex justify-between items-baseline text-xs mb-1.5">
-                  <span className="text-muted-foreground">Jorddjup ({formatRadie(data.jorddjup.radieM)}, {data.jorddjup.antal} obs)</span>
+                  <span className="text-muted-foreground">Jorddjup (10×10 m raster, interpolerat)</span>
                   <span className="font-medium ml-2 text-right">
-                    {data.jorddjup.median.toFixed(1)} m
-                    <span className="text-muted-foreground font-normal ml-1">
-                      ({data.jorddjup.p25.toFixed(1)}–{data.jorddjup.p75.toFixed(1)} m)
-                    </span>
+                    {data.jorddjup.djup.toFixed(1)} m
                   </span>
                 </div>
               )}
@@ -1505,15 +1526,22 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                   />
                   <SourceRow
                     label="Jordlager / jorddjup (m)"
-                    source="SGU Jorddjupsmodell – underlag-jorddjup"
-                    note="OGC API Features – hämtar upp till 5 km, beräknar faktiskt avstånd per observation. Väljer minsta radier (100 m → 500 m → 2 km → 5 km) med ≥ 3 punkter. Fält: djup (m till berg), geometry (WGS84)."
-                    url="https://api.sgu.se/oppnadata/jorddjupsmodell/ogc/features/v1"
+                    source="SGU Jorddjupsmodell – WMS GetFeatureInfo"
+                    note="WMS 1.3.0 GetFeatureInfo – interpolerat 10×10 m raster (RASTER_INTERVALL), lager SE.GOV.SGU.MISC.JORDDJUPSMODELL.RASTER_INTERVALL. Ger ett enskilt interpolerat djupvärde för den klickade punkten i EPSG:3857. Via proxy (CORS)."
+                    url="https://resource.sgu.se/service/wms/130/jorddjupsmodell"
                   />
                   <SourceRow
                     label="Grundvattentillgång små magasin (l/dygn/ha)"
                     source="SGU GV-tillgång små magasin (WMS)"
                     note="WMS GetFeatureInfo – rastervärde via proxy. Lager: grundvattentillgang-sma-magasin. Fält: Grundvattentillgang_i_sma_magasin_l_dygn_ha."
                     url="https://api.sgu.se/oppnadata/grundvattentillgang-sma-magasin/wms"
+                  />
+
+                  <SourceRow
+                    label="Terrängmodell / höjd (m ö.h.)"
+                    source="OpenTopoData – EU-DEM 25m"
+                    note="REST API – punkthöjd via EU Digital Elevation Model (25 m upplösning). Används för höjdinformation i koordinatpanelen."
+                    url="https://www.opentopodata.org/datasets/eudem/"
                   />
 
                   <p className="text-muted-foreground pt-1 leading-relaxed">
