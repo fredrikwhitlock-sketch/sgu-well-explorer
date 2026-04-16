@@ -724,13 +724,12 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
       }
 
       // Jorddjup from jorddjupsmodell – single interpolated WMS raster value (10×10 m).
-      // GeoServer returns GRAY_INDEX with the raster band value in metres.
+      // Field name verified from GetFeatureInfo response: jorddjup_10x10m
       if (jorddjupRes.status === 'fulfilled' && jorddjupRes.value.ok) {
         try {
           const d = await jorddjupRes.value.json();
           const p = d.features?.[0]?.properties ?? {};
-          // GeoServer raster GetFeatureInfo uses GRAY_INDEX for the band value
-          const raw = p.GRAY_INDEX ?? p.gray_index ?? p.djup ?? p.value ?? null;
+          const raw = p.jorddjup_10x10m ?? p.GRAY_INDEX ?? p.gray_index ?? null;
           const djup = typeof raw === 'number' ? raw : parseFloat(String(raw));
           if (!isNaN(djup) && djup > 0 && djup < 500) {
             result.jorddjup = { djup: Math.round(djup * 10) / 10 };
