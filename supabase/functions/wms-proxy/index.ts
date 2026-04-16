@@ -48,7 +48,7 @@ serve(async (req) => {
 
     const response = await fetch(fullWmsUrl, {
       headers: {
-        'Accept': 'image/png, image/jpeg, image/gif, */*',
+        'Accept': 'application/json, image/png, image/jpeg, image/gif, */*',
         'User-Agent': 'SGU-Well-Explorer/1.0',
       },
     });

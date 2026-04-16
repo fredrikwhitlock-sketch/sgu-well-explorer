@@ -724,13 +724,12 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
       }
 
       // Jorddjup from jorddjupsmodell – single interpolated WMS raster value (10×10 m).
-      // GeoServer returns GRAY_INDEX with the raster band value in metres.
+      // Field name verified from GetFeatureInfo response: jorddjup_10x10m
       if (jorddjupRes.status === 'fulfilled' && jorddjupRes.value.ok) {
         try {
           const d = await jorddjupRes.value.json();
           const p = d.features?.[0]?.properties ?? {};
-          // GeoServer raster GetFeatureInfo uses GRAY_INDEX for the band value
-          const raw = p.GRAY_INDEX ?? p.gray_index ?? p.djup ?? p.value ?? null;
+          const raw = p.jorddjup_10x10m ?? p.GRAY_INDEX ?? p.gray_index ?? null;
           const djup = typeof raw === 'number' ? raw : parseFloat(String(raw));
           if (!isNaN(djup) && djup > 0 && djup < 500) {
             result.jorddjup = { djup: Math.round(djup * 10) / 10 };
@@ -867,12 +866,19 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
     if (!pool) return null;
 
     const sorted = pool.map(o => o.djup).sort((a, b) => a - b);
+    const p25      = sorted[Math.floor(sorted.length * 0.25)];
+    const p75      = sorted[Math.floor(sorted.length * 0.75)];
+    const median   = sorted[Math.floor(sorted.length / 2)];
+    // Flag high spread: P75/P25 ratio > 3 or absolute spread > 5 m indicates
+    // that nearby stations represent genuinely different aquifer conditions.
+    const highVariance = p75 - p25 > 5 || (p25 > 0 && p75 / p25 > 3);
 
     return {
       antal:        pool.length,
-      medianDjup:   sorted[Math.floor(sorted.length / 2)],
-      p25:          sorted[Math.floor(sorted.length * 0.25)],
-      p75:          sorted[Math.floor(sorted.length * 0.75)],
+      medianDjup:   median,
+      p25,
+      p75,
+      highVariance,
       matchLabel:   subMatch.length >= 3  ? 'matchande jordart' :
                     sizeMatch.length >= 3 ? sizeLabel :
                                             'blandad (få stationer)',
@@ -1070,6 +1076,11 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                         <span className={`ml-1 ${obsKalibr!.aquiferMatch ? 'text-green-700 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400'}`}>
                           · {obsKalibr!.matchLabel}
                         </span>
+                        {obsKalibr!.highVariance && (
+                          <span className="block text-[10px] mt-0.5 text-orange-600 dark:text-orange-400">
+                            Stor spridning mellan stationer – heterogena akviferer i området. Kalibreringen är osäker.
+                          </span>
+                        )}
                         <span className="block text-[10px] mt-0.5 opacity-70">
                           Närmaste observation ±7 dagar från valt datum per station
                         </span>
@@ -1166,7 +1177,12 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                   </div>
                 )}
                 {/* Jorddjup – thickness of soil above bedrock from WMS raster */}
-                {data.jorddjup && aquifer?.type !== 'rock' && (
+                {aquifer?.type === 'rock' ? (
+                  <div className="text-xs mb-1.5">
+                    <span className="font-medium">Jordlager:</span>
+                    <span className="ml-1 text-muted-foreground italic">≈ 0 m – berg i dagen, inget jordmagasin</span>
+                  </div>
+                ) : data.jorddjup ? (
                   <div className="text-xs mb-1.5">
                     <span className="font-medium">Jordlager (jorddjupsmodell):</span>
                     <span className="ml-1 text-blue-700 dark:text-blue-400 font-semibold">
@@ -1174,7 +1190,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                     </span>
                     <span className="text-muted-foreground ml-1">(interpolerat 10×10 m raster)</span>
                   </div>
-                )}
+                ) : null}
                 {/* Sedimentjord: show small-aquifer raster (l/dygn/ha) — not relevant for morän/berg */}
                 {aquifer?.type !== 'rock' && aquifer?.type !== 'till' && data.gvTillgangLdha != null && (
                   <div className="text-xs mb-1.5">
@@ -1342,14 +1358,19 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
               )}
 
               {/* Jorddjup */}
-              {data.jorddjup && (
+              {aquifer?.type === 'rock' ? (
+                <div className="flex justify-between items-baseline text-xs mb-1.5">
+                  <span className="text-muted-foreground">Jorddjup</span>
+                  <span className="font-medium ml-2 text-right text-muted-foreground italic">≈ 0 m (berg i dagen)</span>
+                </div>
+              ) : data.jorddjup ? (
                 <div className="flex justify-between items-baseline text-xs mb-1.5">
                   <span className="text-muted-foreground">Jorddjup (10×10 m raster, interpolerat)</span>
                   <span className="font-medium ml-2 text-right">
                     {data.jorddjup.djup.toFixed(1)} m
                   </span>
                 </div>
-              )}
+              ) : null}
 
               {/* Grundvattenmagasin – card */}
               {data.magasin && (() => {
