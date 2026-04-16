@@ -547,10 +547,10 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
          if (ids.length > 0) {
            // Limit IN list to avoid very long URLs
            const idList = ids.slice(0, 200).map(id => `'${id.replace(/'/g, "''")}'`).join(',');
-           // Use a ±180-day window around selectedDate so every station is compared
-           // at the same approximate point in time (avoids mixing summer/winter readings).
+           // Use a tight ±7-day window around selectedDate for temporal coherence:
+           // ensures all stations contribute readings from the same week.
            const targetMs = new Date(selectedDate).getTime();
-           const wMs = 180 * 24 * 60 * 60 * 1000;
+           const wMs = 7 * 24 * 60 * 60 * 1000;
            const loDate = new Date(targetMs - wMs).toISOString().split('T')[0];
            const hiDate = new Date(targetMs + wMs).toISOString().split('T')[0];
            const filter = `platsbeteckning IN (${idList}) AND obsdatum >= '${loDate}' AND obsdatum <= '${hiDate}'`;
@@ -1071,7 +1071,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                           · {obsKalibr!.matchLabel}
                         </span>
                         <span className="block text-[10px] mt-0.5 opacity-70">
-                          Närmaste observation ±6 mån från valt datum per station
+                          Närmaste observation ±7 dagar från valt datum per station
                         </span>
                       </div>
                     </>
