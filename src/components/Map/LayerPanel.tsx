@@ -33,6 +33,8 @@ interface LayerPanelProps {
   sguJordarter25kOpacity: number;
   sguGvTillgangVisible: boolean;
   sguGvTillgangOpacity: number;
+  sguJorddjupVisible: boolean;
+  sguJorddjupOpacity: number;
   sourcesLoaded: number;
   wellsLoaded: number;
   aquifersLoaded: number;
@@ -67,6 +69,8 @@ interface LayerPanelProps {
   onSguJordarter25kOpacityChange: (opacity: number) => void;
   onSguGvTillgangVisibleChange: (visible: boolean) => void;
   onSguGvTillgangOpacityChange: (opacity: number) => void;
+  onSguJorddjupVisibleChange: (visible: boolean) => void;
+  onSguJorddjupOpacityChange: (opacity: number) => void;
   onDownloadGvTillgangGeoTiff?: () => void;
   onExportWells?: () => void;
   onClearWells?: () => void;
@@ -175,6 +179,10 @@ export const LayerPanel = ({
   onSguJordarter25kOpacityChange,
   onSguGvTillgangVisibleChange,
   onSguGvTillgangOpacityChange,
+  sguJorddjupVisible,
+  sguJorddjupOpacity,
+  onSguJorddjupVisibleChange,
+  onSguJorddjupOpacityChange,
   onDownloadGvTillgangGeoTiff,
   onExportWells,
   onClearWells,
@@ -1278,6 +1286,51 @@ export const LayerPanel = ({
                   </div>
                 )}
               </div>
+            </div>
+          )}
+        </div>
+
+        {/* SGU Jorddjupsmodell WMS Layer Control */}
+        <div className="space-y-3 pt-4 border-t border-border">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label htmlFor="sgu-jorddjup-layer" className="text-sm font-medium">
+                Jorddjupsmodell
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Skattat djup till berg, 10×10 m raster
+              </p>
+            </div>
+            <Switch
+              id="sgu-jorddjup-layer"
+              checked={sguJorddjupVisible}
+              onCheckedChange={onSguJorddjupVisibleChange}
+            />
+          </div>
+          {sguJorddjupVisible && (
+            <div className="mt-3 space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="sgu-jorddjup-opacity" className="text-xs text-muted-foreground">
+                  Transparens: {Math.round(sguJorddjupOpacity * 100)}%
+                </Label>
+                <Slider
+                  id="sgu-jorddjup-opacity"
+                  min={0}
+                  max={1}
+                  step={0.1}
+                  value={[sguJorddjupOpacity]}
+                  onValueChange={([value]) => onSguJorddjupOpacityChange(value)}
+                  className="w-full"
+                />
+              </div>
+              <a
+                href="https://www.sgu.se/produkter-och-tjanster/geologiska-data/jorddjupsmodellen/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-sgu-link hover:underline inline-flex items-center gap-1"
+              >
+                Produktbeskrivning <ExternalLink className="w-3 h-3" />
+              </a>
             </div>
           )}
         </div>
