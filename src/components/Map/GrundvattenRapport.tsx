@@ -865,27 +865,20 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                  null;
     if (!pool) return null;
 
-    // Tukey IQR outlier filter: remove readings outside [Q1 − 1.5×IQR, Q3 + 1.5×IQR].
-    // This dampens the effect of a single anomalous station in the same area while
-    // preserving genuine seasonal spread. Fall back to full pool if too few remain.
-    const rawSorted = pool.map(o => o.djup).sort((a, b) => a - b);
-    const iqrQ1  = rawSorted[Math.floor(rawSorted.length * 0.25)];
-    const iqrQ3  = rawSorted[Math.floor(rawSorted.length * 0.75)];
-    const iqr    = iqrQ3 - iqrQ1;
-    const filtered = iqr > 0
-      ? pool.filter(o => o.djup >= iqrQ1 - 1.5 * iqr && o.djup <= iqrQ3 + 1.5 * iqr)
-      : pool;
-    const finalPool = filtered.length >= 3 ? filtered : pool;
-
-    const sorted = finalPool.map(o => o.djup).sort((a, b) => a - b);
-    const outlierCount = pool.length - finalPool.length;
+    const sorted = pool.map(o => o.djup).sort((a, b) => a - b);
+    const p25      = sorted[Math.floor(sorted.length * 0.25)];
+    const p75      = sorted[Math.floor(sorted.length * 0.75)];
+    const median   = sorted[Math.floor(sorted.length / 2)];
+    // Flag high spread: P75/P25 ratio > 3 or absolute spread > 5 m indicates
+    // that nearby stations represent genuinely different aquifer conditions.
+    const highVariance = p75 - p25 > 5 || (p25 > 0 && p75 / p25 > 3);
 
     return {
-      antal:        finalPool.length,
-      outlierCount,
-      medianDjup:   sorted[Math.floor(sorted.length / 2)],
-      p25:          sorted[Math.floor(sorted.length * 0.25)],
-      p75:          sorted[Math.floor(sorted.length * 0.75)],
+      antal:        pool.length,
+      medianDjup:   median,
+      p25,
+      p75,
+      highVariance,
       matchLabel:   subMatch.length >= 3  ? 'matchande jordart' :
                     sizeMatch.length >= 3 ? sizeLabel :
                                             'blandad (få stationer)',
@@ -1079,10 +1072,15 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                       <div className="text-xs mt-1.5 text-muted-foreground">
                         Observerat P25–P75: {obsKalibr!.p25.toFixed(1)}–{obsKalibr!.p75.toFixed(1)} m
                         · median {obsKalibr!.medianDjup.toFixed(1)} m
-                        · {obsKalibr!.antal} stationer{obsKalibr!.outlierCount > 0 && <span className="text-yellow-600 dark:text-yellow-400"> ({obsKalibr!.outlierCount} outlier{obsKalibr!.outlierCount > 1 ? 's' : ''} borttagen{obsKalibr!.outlierCount > 1 ? 'a' : ''})</span>}
+                        · {obsKalibr!.antal} stationer
                         <span className={`ml-1 ${obsKalibr!.aquiferMatch ? 'text-green-700 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400'}`}>
                           · {obsKalibr!.matchLabel}
                         </span>
+                        {obsKalibr!.highVariance && (
+                          <span className="block text-[10px] mt-0.5 text-orange-600 dark:text-orange-400">
+                            Stor spridning mellan stationer – heterogena akviferer i området. Kalibreringen är osäker.
+                          </span>
+                        )}
                         <span className="block text-[10px] mt-0.5 opacity-70">
                           Närmaste observation ±7 dagar från valt datum per station
                         </span>
