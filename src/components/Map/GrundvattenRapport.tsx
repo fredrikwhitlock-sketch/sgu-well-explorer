@@ -572,11 +572,9 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
       // Tight bbox for WMS GFI (~100 m) – faster than 200 m
       const delta = 0.001;
       const bbox = `${lon - delta},${lat - delta},${lon + delta},${lat + delta}`;
-      // ~1.5 km bbox for grundvattenmagasin – larger than the WMS bbox so that named
-      // aquifer polygons (isälvssediment etc.) are caught even when the click point
-      // falls in the overlying clay polygon rather than inside the aquifer polygon.
-      const deltaGVM = 0.014;
-      const gvmBbox = `${lon - deltaGVM},${lat - deltaGVM},${lon + deltaGVM},${lat + deltaGVM}`;
+      // Grundvattenmagasin: exact point-in-polygon via CQL2 – only show when click
+      // is actually inside a mapped aquifer polygon.
+      const gvmCql2Url = `https://api.sgu.se/oppnadata/grundvattenmagasin/ogc/features/v1/collections/grundvattenmagasin/items?f=json&filter=${encodeURIComponent(`S_INTERSECTS(geometry,POINT(${lon} ${lat}))`)}&filter-lang=cql2-text&limit=1`;
       // ~15 km radius for brunnar
       const brunnarDelta = 0.13;
       const brunnarBbox = `${lon - brunnarDelta},${lat - brunnarDelta},${lon + brunnarDelta},${lat + brunnarDelta}`;
@@ -707,7 +705,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
         fetch(gvTillgangUrl, { signal }),
         fetch(jordartCql2Url, { signal }),
         fetch(jordartBboxUrl, { signal }),
-        fetch(`https://api.sgu.se/oppnadata/grundvattenmagasin/ogc/features/v1/collections/grundvattenmagasin/items?f=json&bbox=${gvmBbox}&limit=3`, { signal }),
+        fetch(gvmCql2Url, { signal }),
         fetch(`https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar/items?f=json&bbox=${brunnarBbox}&limit=25`, { signal }),
         fetch(jorddjupWmsUrl, { signal }),
         obsStationerChain, // side-effects: fills stJordart, sets nivaerPromise
