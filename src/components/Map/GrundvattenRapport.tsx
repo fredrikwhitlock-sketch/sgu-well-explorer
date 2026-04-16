@@ -542,9 +542,15 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
          if (ids.length > 0) {
            // Limit IN list to avoid very long URLs
            const idList = ids.slice(0, 200).map(id => `'${id.replace(/'/g, "''")}'`).join(',');
-           const filter = `platsbeteckning IN (${idList}) AND obsdatum > '2020-01-01'`;
+           // Use a ±180-day window around selectedDate so every station is compared
+           // at the same approximate point in time (avoids mixing summer/winter readings).
+           const targetMs = new Date(selectedDate).getTime();
+           const wMs = 180 * 24 * 60 * 60 * 1000;
+           const loDate = new Date(targetMs - wMs).toISOString().split('T')[0];
+           const hiDate = new Date(targetMs + wMs).toISOString().split('T')[0];
+           const filter = `platsbeteckning IN (${idList}) AND obsdatum >= '${loDate}' AND obsdatum <= '${hiDate}'`;
            nivaerPromise = fetch(
-             `${obsBase}/nivaer/items?f=json&filter=${encodeURIComponent(filter)}&filter-lang=cql2-text&sortby=-obsdatum&limit=1500`,
+             `${obsBase}/nivaer/items?f=json&filter=${encodeURIComponent(filter)}&filter-lang=cql2-text&sortby=obsdatum&limit=3000`,
              { signal }
            ).then(r => r.ok ? r.json().catch(() => null) : null).catch(() => null);
          }
@@ -759,23 +765,31 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
         } catch { /* ignore */ }
       }
 
-      // Parse observed nivaer: take most recent reading per station (sorted -obsdatum),
-      // join with stJordart map for soil type. Both property names verified against API.
-      const seenSt = new Set<string>();
+      // Parse observed nivaer: for each station pick the reading closest to selectedDate.
+      // This ensures P25–P75 reflects levels at a consistent time, not a mix of
+      // summer-drought vs spring-flood readings from different years.
+      const nivaerTargetMs = new Date(selectedDate).getTime();
+      const stBest = new Map<string, { djup: number; distMs: number }>();
       const obsArr: Array<{ djup: number; jordart?: string; aquiferGroup?: 'rock' | 'jord'; aquiferSize?: 'large' | 'small' }> = [];
       try {
         for (const f of nivaerData?.features ?? []) {
           const p = f.properties ?? {};
-          const sid = p.platsbeteckning;
-          if (!sid || seenSt.has(String(sid))) continue;
-          seenSt.add(String(sid));
+          const sid = String(p.platsbeteckning ?? '');
+          if (!sid) continue;
           const djup = p.grundvattenniva_m_u_markyta;
           if (typeof djup !== 'number' || djup <= 0 || djup > 100) continue;
+          const obsDateStr = String(p.obsdatum ?? '').split('T')[0];
+          const obsMs = obsDateStr ? new Date(obsDateStr).getTime() : NaN;
+          const dist = isNaN(obsMs) ? Infinity : Math.abs(obsMs - nivaerTargetMs);
+          const prev = stBest.get(sid);
+          if (!prev || dist < prev.distMs) stBest.set(sid, { djup, distMs: dist });
+        }
+        for (const [sid, { djup }] of stBest) {
           obsArr.push({
             djup,
-            jordart:      stJordart.get(String(sid)) || undefined,
-            aquiferGroup: stAkvifer.get(String(sid)),
-            aquiferSize:  stAkvifSize.get(String(sid)),
+            jordart:      stJordart.get(sid) || undefined,
+            aquiferGroup: stAkvifer.get(sid),
+            aquiferSize:  stAkvifSize.get(sid),
           });
         }
       } catch { /* ignore */ }
@@ -1052,6 +1066,9 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                         · {obsKalibr!.antal} stationer
                         <span className={`ml-1 ${obsKalibr!.aquiferMatch ? 'text-green-700 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400'}`}>
                           · {obsKalibr!.matchLabel}
+                        </span>
+                        <span className="block text-[10px] mt-0.5 opacity-70">
+                          Närmaste observation ±6 mån från valt datum per station
                         </span>
                       </div>
                     </>
