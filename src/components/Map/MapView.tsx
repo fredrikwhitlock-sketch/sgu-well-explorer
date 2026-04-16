@@ -73,6 +73,8 @@ export const MapView = () => {
   const [sguJordarter25kOpacity, setSguJordarter25kOpacity] = useState(0.7);
   const [sguGvTillgangVisible, setSguGvTillgangVisible] = useState(false);
   const [sguGvTillgangOpacity, setSguGvTillgangOpacity] = useState(0.7);
+  const [sguJorddjupVisible, setSguJorddjupVisible] = useState(false);
+  const [sguJorddjupOpacity, setSguJorddjupOpacity] = useState(0.7);
   const [coordinates, setCoordinates] = useState<[number, number] | null>(null);
   const [selectedFeatures, setSelectedFeatures] = useState<{ properties: Record<string, any>; type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType' | 'gvTillgang' | 'observation' | 'hypoArea' | 'jorddjupObs' | 'jorddjupKartor' | 'jorddjupSprick'; analysisResults?: any[] }[]>([]);
   const [selectedFeatureIndex, setSelectedFeatureIndex] = useState(0);
@@ -153,6 +155,7 @@ export const MapView = () => {
   const sguJordarter1MLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
   const sguJordarter25kLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
   const sguGvTillgangLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
+  const sguJorddjupLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
   const geolocationLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const geolocationWatchRef = useRef<number | null>(null);
   const [isTracking, setIsTracking] = useState(false);
@@ -297,6 +300,24 @@ export const MapView = () => {
       opacity: sguGvTillgangOpacity,
     });
     sguGvTillgangLayerRef.current = sguGvTillgangLayer;
+
+    // SGU Jorddjupsmodell WMS layer (10×10 m interpolerat raster)
+    const sguJorddjupLayer = new ImageLayer({
+      source: new ImageWMS({
+        url: wmsProxyUrl,
+        params: {
+          'url': 'https://maps3.sgu.se/geoserver/misc/ows',
+          'LAYERS': 'SE.GOV.SGU.MISC.JORDDJUPSMODELL.RASTER_INTERVALL',
+          'VERSION': '1.3.0',
+          'FORMAT': 'image/png',
+        },
+        ratio: 1,
+        serverType: 'geoserver',
+      }),
+      visible: sguJorddjupVisible,
+      opacity: sguJorddjupOpacity,
+    });
+    sguJorddjupLayerRef.current = sguJorddjupLayer;
 
     // OGC API Features layer for Källor (sources) - bbox-based loading
     const sourcesSource = new VectorSource({ format: new GeoJSON() });
@@ -1357,6 +1378,7 @@ export const MapView = () => {
         sguJordarter1MLayer,
         sguJordarter25kLayer,
         sguGvTillgangLayer,
+        sguJorddjupLayer,
         // Vector layers on top
         jorddjupKartorLayer,
         jorddjupSprickLayer,
@@ -1833,6 +1855,20 @@ export const MapView = () => {
     }
   }, [sguGvTillgangOpacity]);
 
+  // Update SGU Jorddjup visibility
+  useEffect(() => {
+    if (sguJorddjupLayerRef.current) {
+      sguJorddjupLayerRef.current.setVisible(sguJorddjupVisible);
+    }
+  }, [sguJorddjupVisible]);
+
+  // Update SGU Jorddjup opacity
+  useEffect(() => {
+    if (sguJorddjupLayerRef.current) {
+      sguJorddjupLayerRef.current.setOpacity(sguJorddjupOpacity);
+    }
+  }, [sguJorddjupOpacity]);
+
   // Jorddjupsmodell – extent-based loading (minzoom 12), same pattern as brunnar
   useEffect(() => {
     if (jorddjupObsLayerRef.current) {
@@ -2132,6 +2168,10 @@ export const MapView = () => {
         onSguJordarter25kOpacityChange={setSguJordarter25kOpacity}
         onSguGvTillgangVisibleChange={setSguGvTillgangVisible}
         onSguGvTillgangOpacityChange={setSguGvTillgangOpacity}
+        sguJorddjupVisible={sguJorddjupVisible}
+        sguJorddjupOpacity={sguJorddjupOpacity}
+        onSguJorddjupVisibleChange={setSguJorddjupVisible}
+        onSguJorddjupOpacityChange={setSguJorddjupOpacity}
         onDownloadGvTillgangGeoTiff={() => {
           if (!mapInstanceRef.current) return;
           const extent = mapInstanceRef.current.getView().calculateExtent();
