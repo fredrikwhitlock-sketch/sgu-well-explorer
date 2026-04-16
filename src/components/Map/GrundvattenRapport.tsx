@@ -186,6 +186,144 @@ function classifyAquifer(jordart: string | undefined): AquiferClass {
   };
 }
 
+// ── jg2-code-based classifier ─────────────────────────────────────────────────
+// Maps every code from SGU jordarter 1:25 000–100 000 (grundlager) to an
+// AquiferClass. Prefer this over classifyAquifer() at the click point where
+// we have the exact jg2 code; keep classifyAquifer() for observation-station
+// text fields (jordart_tx) that come from the stationer API.
+function classifyByJg2(jg2: number): AquiferClass {
+  // ── Berg ────────────────────────────────────────────────────────────────────
+  if (jg2 === 888 || jg2 === 890)
+    return { type: 'rock', label: 'Berg – sprickzonsmagasin',
+      depthMin: 5, depthMax: 20, capacityLabel: 'Se grundvattentillgång (bergborrad brunn)', useStoraMagasin: false };
+  if (jg2 === 823)
+    return { type: 'rock', label: 'Fanerozoisk diabas – sprickzonsmagasin',
+      depthMin: 5, depthMax: 20, capacityLabel: 'Se grundvattentillgång (bergborrad brunn)', useStoraMagasin: false };
+  if (jg2 === 849 || jg2 === 850)
+    return { type: 'rock', label: 'Sedimentärt berg – sprickzons-/karstmagasin',
+      depthMin: 5, depthMax: 30, capacityLabel: 'Varierande – beroende på sprickor och kast', useStoraMagasin: false };
+  if (jg2 === 9950 || jg2 === 9960)
+    return { type: 'rock', label: 'Skålla av berg – tunt jordtäcke',
+      depthMin: 3, depthMax: 15, capacityLabel: 'Bergborrad brunn trolig', useStoraMagasin: false };
+  if (jg2 === 81)
+    return { type: 'rock', label: 'Talus (rasmassor) – grovkornigt, nära berg',
+      depthMin: 1, depthMax: 10, capacityLabel: 'Varierande; bergborrad brunn möjlig', useStoraMagasin: false };
+  if (jg2 === 82 || jg2 === 8919 || jg2 === 8950)
+    return { type: 'rock', label: 'Vittringsjord – tunt ytligt lager',
+      depthMin: 1, depthMax: 8, capacityLabel: 'Bergborrad brunn trolig', useStoraMagasin: false };
+
+  // ── Isälvssediment ──────────────────────────────────────────────────────────
+  if (jg2 === 50 || jg2 === 51 || jg2 === 55 || jg2 === 57 || (jg2 > 50 && jg2 < 60))
+    return { type: 'porous-coarse', label: 'Isälvssediment – poröst grovkornigt magasin',
+      depthMin: 0.5, depthMax: 4, capacityLabel: '500–10 000 l/h (grävd/borrad infiltrationsbrunn)', useStoraMagasin: true };
+
+  // ── Morän ────────────────────────────────────────────────────────────────────
+  if (jg2 === 98 || jg2 === 99 || jg2 === 101 || jg2 === 9792 || jg2 === 9794)
+    return { type: 'confining', label: 'Moränlera – täckande lager',
+      depthMin: 5, depthMax: 30, capacityLabel: 'Ej lämpligt för ytlig brunn; kan täcka djupare magasin', useStoraMagasin: false };
+  if (jg2 === 93 || jg2 === 95 || jg2 === 97 || jg2 === 100 || jg2 === 9147 || jg2 === 9299 || jg2 === 9336)
+    return { type: 'till', label: 'Morän – varierande magasin',
+      depthMin: 2, depthMax: 12, capacityLabel: '50–600 l/h (bergborrad brunn vanligast)', useStoraMagasin: false };
+
+  // ── Lera och silt – täckande ─────────────────────────────────────────────────
+  if ([17, 19, 22, 40, 43, 44, 85, 86, 8186].includes(jg2))
+    return { type: 'confining', label: 'Lera – täckande lager',
+      depthMin: 5, depthMax: 30, capacityLabel: 'Ej lämpligt för ytlig brunn; täckande lager kan dölja djupare magasin', useStoraMagasin: false };
+  if ([24, 39, 48, 9060].includes(jg2))
+    return { type: 'confining', label: 'Silt – halvtäckande lager',
+      depthMin: 3, depthMax: 20, capacityLabel: 'Dålig kapacitet; kan täcka djupare akvifer', useStoraMagasin: false };
+  if (jg2 === 16)
+    return { type: 'confining', label: 'Gyttjelera – organiskt täckande lager',
+      depthMin: 3, depthMax: 15, capacityLabel: 'Ej lämpligt', useStoraMagasin: false };
+
+  // ── Sand och grus ─────────────────────────────────────────────────────────
+  if ([21, 31, 84, 87, 33, 89].includes(jg2))
+    return { type: 'porous-coarse', label: 'Sand/grus – poröst magasin',
+      depthMin: 1, depthMax: 5, capacityLabel: '200–5 000 l/h (grävd/borrad brunn)', useStoraMagasin: true };
+  if (jg2 === 34)
+    return { type: 'porous-coarse', label: 'Klapper – grovkornigt magasin',
+      depthMin: 0.5, depthMax: 3, capacityLabel: 'Hög kapacitet lokalt', useStoraMagasin: true };
+  if ([26, 28, 79].includes(jg2))
+    return { type: 'porous-fine', label: 'Finsand/grovsilt – svagt poröst magasin',
+      depthMin: 1, depthMax: 8, capacityLabel: '50–500 l/h', useStoraMagasin: false };
+  if (jg2 === 13)
+    return { type: 'porous-fine', label: 'Flygsand – homogen men lågkapacitetsakvifer',
+      depthMin: 1, depthMax: 6, capacityLabel: '50–300 l/h', useStoraMagasin: false };
+  if (jg2 === 66 || jg2 === 92)
+    return { type: 'porous-coarse', label: 'Blockmark/sten-block – hög permeabilitet, begränsad kapacitet',
+      depthMin: 1, depthMax: 5, capacityLabel: '< 200 l/h (begränsad lagringskapacitet)', useStoraMagasin: false };
+
+  // ── Svämsediment ─────────────────────────────────────────────────────────
+  if (jg2 === 62)
+    return { type: 'porous-coarse', label: 'Svämsediment, grus – poröst magasin',
+      depthMin: 0.5, depthMax: 4, capacityLabel: '200–3 000 l/h', useStoraMagasin: true };
+  if (jg2 === 10)
+    return { type: 'porous-coarse', label: 'Svämsediment, sand – poröst magasin',
+      depthMin: 0.5, depthMax: 5, capacityLabel: '200–3 000 l/h', useStoraMagasin: true };
+  if (jg2 === 9 || jg2 === 8937)
+    return { type: 'porous-fine', label: 'Svämsediment, ler-silt – svagt poröst',
+      depthMin: 1, depthMax: 8, capacityLabel: '50–300 l/h', useStoraMagasin: false };
+  if (jg2 === 9010)
+    return { type: 'porous-fine', label: 'Svämsediment, grovsilt-finsand – svagt poröst',
+      depthMin: 1, depthMax: 6, capacityLabel: '50–300 l/h', useStoraMagasin: false };
+
+  // ── Älvsediment ───────────────────────────────────────────────────────────
+  if (jg2 === 8803 || jg2 === 8814)
+    return { type: 'porous-coarse', label: 'Älvsediment, grus/sten-block – poröst fluvialt magasin',
+      depthMin: 0.5, depthMax: 4, capacityLabel: '200–3 000 l/h', useStoraMagasin: true };
+  if (jg2 === 8809)
+    return { type: 'porous-coarse', label: 'Älvsediment, sand – poröst fluvialt magasin',
+      depthMin: 1, depthMax: 5, capacityLabel: '200–2 000 l/h', useStoraMagasin: true };
+  if (jg2 === 8802)
+    return { type: 'porous-fine', label: 'Älvsediment, grovsilt-finsand – svagt poröst',
+      depthMin: 1, depthMax: 6, capacityLabel: '50–300 l/h', useStoraMagasin: false };
+  if (jg2 === 8806)
+    return { type: 'porous-fine', label: 'Älvsediment, ler-silt – svagt poröst',
+      depthMin: 2, depthMax: 8, capacityLabel: '50–200 l/h', useStoraMagasin: false };
+  if (jg2 === 8804)
+    return { type: 'porous-fine', label: 'Älvsediment – fluvialt sediment',
+      depthMin: 1, depthMax: 6, capacityLabel: '50–500 l/h', useStoraMagasin: false };
+
+  // ── Torv och organiska ────────────────────────────────────────────────────
+  if (jg2 === 1 || jg2 === 75 || jg2 === 8175)
+    return { type: 'porous-fine', label: 'Torv/mossa – ytligt grundvatten',
+      depthMin: 0.2, depthMax: 2, capacityLabel: 'Ej lämpligt för dricksvattenbrunn', useStoraMagasin: false };
+  if (jg2 === 5)
+    return { type: 'porous-fine', label: 'Kärrtorv – ytligt grundvatten',
+      depthMin: 0.2, depthMax: 2, capacityLabel: 'Ej lämpligt för dricksvattenbrunn', useStoraMagasin: false };
+  if (jg2 === 6 || jg2 === 2306)
+    return { type: 'porous-fine', label: 'Gyttja/kalkgyttja – organiskt sediment',
+      depthMin: 0.5, depthMax: 3, capacityLabel: 'Ej lämpligt', useStoraMagasin: false };
+  if (jg2 === 2368 || jg2 === 2372)
+    return { type: 'porous-fine', label: 'Slamströmssediment/flytjord – instabilt',
+      depthMin: 1, depthMax: 5, capacityLabel: 'Ej lämpligt', useStoraMagasin: false };
+  if (jg2 === 36)
+    return { type: 'porous-fine', label: 'Skaljord – kalkhaltigt sediment',
+      depthMin: 1, depthMax: 4, capacityLabel: '100–500 l/h', useStoraMagasin: false };
+  if (jg2 === 1950)
+    return { type: 'porous-fine', label: 'Kalktuff – karstig porös kalksten',
+      depthMin: 0.5, depthMax: 5, capacityLabel: '100–1 000 l/h', useStoraMagasin: false };
+
+  // ── Fyllning ─────────────────────────────────────────────────────────────
+  if (jg2 >= 200 && jg2 < 400)
+    return { type: 'unknown', label: 'Fyllning – varierande egenskaper',
+      depthMin: 1, depthMax: 10, capacityLabel: 'Okänd (fyllnadsmassor)', useStoraMagasin: false };
+
+  // ── Övrigt ───────────────────────────────────────────────────────────────
+  if (jg2 === 9191)
+    return { type: 'unknown', label: 'Glaciär – ej tillämpligt',
+      depthMin: 0, depthMax: 0, capacityLabel: 'Ej tillämpligt', useStoraMagasin: false };
+  if (jg2 === 91)
+    return { type: 'unknown', label: 'Vatten',
+      depthMin: 0, depthMax: 0, capacityLabel: 'Ej tillämpligt', useStoraMagasin: false };
+  if (jg2 === 90 || jg2 === 8114)
+    return { type: 'unknown', label: 'Oklassat område',
+      depthMin: 2, depthMax: 15, capacityLabel: 'Okänd', useStoraMagasin: false };
+
+  return { type: 'unknown', label: `Okänd jordart (kod ${jg2})`,
+    depthMin: 2, depthMax: 15, capacityLabel: 'Okänd', useStoraMagasin: false };
+}
+
 // Adjust typical depth range based on HYPE fyllnadsgrad percentile
 function depthAdjustment(fyllnad: number | null | undefined): {
   factor: number;
@@ -277,7 +415,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
     if (!onAnalysisData) return;
     if (!data) { onAnalysisData(null); return; }
 
-    const aq = classifyAquifer(data.jordartNamn);
+    const aq = data.jordartKod ? classifyByJg2(Number(data.jordartKod)) : classifyAquifer(data.jordartNamn);
     const hasStoraMag = !!data.magasin;
     const relevantF = aq.useStoraMagasin || hasStoraMag ? data.fyllnadsgradStora : data.fyllnadsgradSma;
     const d = estimatedDepth(aq, relevantF);
@@ -789,7 +927,10 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
   useEffect(() => { fetchData(); }, [fetchData]);
 
   // ── Derived interpretation ─────────────────────────────────────────────────
-  const aquifer = data ? classifyAquifer(data.jordartNamn) : null;
+  // Use jg2 code when available (precise); fall back to name-based match.
+  const aquifer = data
+    ? (data.jordartKod ? classifyByJg2(Number(data.jordartKod)) : classifyAquifer(data.jordartNamn))
+    : null;
 
   // When the surface deposit is a confining layer (lera/silt/moränlera), the
   // actual aquifer lies BELOW it. If the grundvattenmagasin API returned a named
