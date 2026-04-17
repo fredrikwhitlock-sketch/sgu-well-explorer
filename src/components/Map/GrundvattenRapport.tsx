@@ -652,7 +652,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
              fetch(`${levelBase}&filter=${encodeURIComponent(`omrade_id=${id}`)}&sortby=-datum&limit=1`, { signal }).then(safeJson).catch(() => null),
            ]);
            const monthUrls: string[] = [];
-           for (let i = 12; i >= 0; i--) {
+           for (let i = 24; i >= 0; i--) {
              const md = new Date(selectedDate);
              md.setMonth(md.getMonth() - i);
              md.setDate(1);
@@ -1264,18 +1264,18 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                   </div>
                 )}
                 {/* Jorddjup – thickness of soil above bedrock from WMS raster */}
-                {aquifer?.type === 'rock' ? (
-                  <div className="text-xs mb-1.5">
-                    <span className="font-medium">Jordlager:</span>
-                    <span className="ml-1 text-muted-foreground italic">≈ 0 m – berg i dagen, inget jordmagasin</span>
-                  </div>
-                ) : data.jorddjup ? (
+                {data.jorddjup ? (
                   <div className="text-xs mb-1.5">
                     <span className="font-medium">Jordlager (jorddjupsmodell):</span>
                     <span className="ml-1 text-blue-700 dark:text-blue-400 font-semibold">
                       {data.jorddjup.djup.toFixed(1)} m
                     </span>
                     <span className="text-muted-foreground ml-1">(interpolerat 10×10 m raster)</span>
+                  </div>
+                ) : aquifer?.type === 'rock' ? (
+                  <div className="text-xs mb-1.5">
+                    <span className="font-medium">Jordlager:</span>
+                    <span className="ml-1 text-muted-foreground italic">≈ 0 m – berg i dagen, inget jordmagasin</span>
                   </div>
                 ) : null}
                 {/* Sedimentjord: show small-aquifer raster (l/dygn/ha) — not relevant for morän/berg */}
@@ -1367,25 +1367,36 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                     {[
                       { label: 'Fyllnadsgrad\nSmå magasin', val: data.fyllnadsgradSma },
                       { label: 'Fyllnadsgrad\nStora magasin', val: data.fyllnadsgradStora },
-                    ].map(({ label, val }) => (
-                      <div key={label} className={`rounded-lg p-2.5 ${fyllnadBg(val)}`}>
-                        <div className="text-xs text-muted-foreground mb-1 whitespace-pre-line leading-tight">{label}</div>
-                        {val != null && val !== -1 ? (
-                          <>
-                            <div className={`text-xl font-bold leading-none ${fyllnadColor(val)}`}>
-                              {Math.round(val)}<span className="text-xs font-normal text-muted-foreground">:e perc.</span>
-                            </div>
-                            <div className={`text-xs mt-1 font-medium ${fyllnadColor(val)}`}>{fyllnadLabel(val)}</div>
-                          </>
-                        ) : (
-                          <div className="text-xs text-muted-foreground">Ingen data</div>
-                        )}
-                      </div>
-                    ))}
+                    ].map(({ label, val }) => {
+                      const isStora = label.includes('Stora');
+                      const noData = val == null || val === -1;
+                      return (
+                        <div key={label} className={`rounded-lg p-2.5 ${fyllnadBg(val)}`}>
+                          <div className="text-xs text-muted-foreground mb-1 whitespace-pre-line leading-tight">{label}</div>
+                          {!noData ? (
+                            <>
+                              <div className={`text-xl font-bold leading-none ${fyllnadColor(val)}`}>
+                                {Math.round(val)}<span className="text-xs font-normal text-muted-foreground">:e perc.</span>
+                              </div>
+                              <div className={`text-xs mt-1 font-medium ${fyllnadColor(val)}`}>{fyllnadLabel(val)}</div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="text-xs text-muted-foreground">Ingen data</div>
+                              {isStora && (
+                                <div className="text-[10px] text-muted-foreground mt-1 italic leading-tight">
+                                  Troligen inget stort magasin i området
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                   {data.hypoSeries && data.hypoSeries.length >= 2 && (
                     <div className="mt-3 mb-3">
-                      <div className="text-[10px] text-muted-foreground mb-1 uppercase tracking-wide">Trend – senaste året</div>
+                      <div className="text-[10px] text-muted-foreground mb-1 uppercase tracking-wide">Trend – senaste 2 åren</div>
                       <ResponsiveContainer width="100%" height={90}>
                         <AreaChart data={data.hypoSeries} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
                           <defs>
@@ -1398,7 +1409,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                               <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
                             </linearGradient>
                           </defs>
-                          <XAxis dataKey="datum" tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }} tickLine={false} axisLine={false} tickFormatter={v => new Date(v).toLocaleDateString('sv', { month: 'short' }).replace('.', '')} interval="preserveStartEnd" />
+                          <XAxis dataKey="datum" tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }} tickLine={false} axisLine={false} tickFormatter={v => { const d = new Date(v); const m = d.toLocaleDateString('sv', { month: 'short' }).replace('.', ''); return d.getMonth() === 0 ? `${m} ${d.getFullYear()}` : m; }} interval={2} />
                           <YAxis domain={[0, 100]} hide />
                           <Tooltip content={({ active, payload, label }) => {
                             if (!active || !payload?.length) return null;
@@ -1494,17 +1505,17 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
               )}
 
               {/* Jorddjup */}
-              {aquifer?.type === 'rock' ? (
-                <div className="flex justify-between items-baseline text-xs mb-1.5">
-                  <span className="text-muted-foreground">Jorddjup</span>
-                  <span className="font-medium ml-2 text-right text-muted-foreground italic">≈ 0 m (berg i dagen)</span>
-                </div>
-              ) : data.jorddjup ? (
+              {data.jorddjup ? (
                 <div className="flex justify-between items-baseline text-xs mb-1.5">
                   <span className="text-muted-foreground">Jorddjup (10×10 m raster, interpolerat)</span>
                   <span className="font-medium ml-2 text-right">
                     {data.jorddjup.djup.toFixed(1)} m
                   </span>
+                </div>
+              ) : aquifer?.type === 'rock' ? (
+                <div className="flex justify-between items-baseline text-xs mb-1.5">
+                  <span className="text-muted-foreground">Jorddjup</span>
+                  <span className="font-medium ml-2 text-right text-muted-foreground italic">≈ 0 m (berg i dagen)</span>
                 </div>
               ) : null}
 
