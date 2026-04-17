@@ -414,6 +414,15 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
 
     const aq = data.jordartKod ? classifyByJg2(Number(data.jordartKod)) : classifyAquifer(data.jordartNamn);
     const hasStoraMag = !!data.magasin;
+    const eff = (() => {
+      if (!aq || aq.type !== 'confining' || !data.magasin?.genes) return aq;
+      const g = classifyAquifer(data.magasin.genes);
+      return g.type !== 'unknown' && g.type !== 'confining' ? g : aq;
+    })();
+    const relevantF = eff?.useStoraMagasin || hasStoraMag ? data.fyllnadsgradStora : data.fyllnadsgradSma;
+    const d = eff ? estimatedDepth(eff, relevantF) : null;
+    const sitLabel = (v: number | null | undefined) =>
+      v == null || v === -1 ? 'Ingen data' : `${Math.round(v)}:e percentilen`;
 
     // Reconstruct calibrated depth label (mirrors obsKalibr logic above, no HYPE factor)
     let obsKalibrStr = 'Saknas (för få observationsstationer)';
@@ -449,16 +458,6 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
       const vals = arr.map(b => b.kapacitet!).filter(v => v > 0).sort((a, b) => a - b);
       return vals.length ? vals[Math.floor(vals.length / 2)] : null;
     };
-
-    const eff = (() => {
-      if (!aq || aq.type !== 'confining' || !data.magasin?.genes) return aq;
-      const g = classifyAquifer(data.magasin.genes);
-      return g.type !== 'unknown' && g.type !== 'confining' ? g : aq;
-    })();
-    const relevantF = eff?.useStoraMagasin || hasStoraMag ? data.fyllnadsgradStora : data.fyllnadsgradSma;
-    const d = eff ? estimatedDepth(eff, relevantF) : null;
-    const sitLabel = (v: number | null | undefined) =>
-      v == null || v === -1 ? 'Ingen data' : `${Math.round(v)}:e percentilen`;
 
     const lines: string[] = [
       `## Grundvattenanalys – ${data.lat.toFixed(5)}°N, ${data.lon.toFixed(5)}°E`,
