@@ -591,12 +591,22 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
       const gvmBase = `https://api.sgu.se/oppnadata/grundvattenmagasin/ogc/features/v1/collections`;
       const gvmCql2Url = `${gvmBase}/grundvattenmagasin/items?f=json&filter=${encodeURIComponent(`S_INTERSECTS(geom,POINT(${lon} ${lat}))`)}&filter-lang=cql2-text&limit=1`;
       const delomradeUrl = `${gvmBase}/magasinsdelomraden/items?f=json&filter=${encodeURIComponent(`S_INTERSECTS(geom,POINT(${lon} ${lat}))`)}&filter-lang=cql2-text&limit=1`;
-      // ~5 km radius for brunnar — expand to ~15 km if fewer than 3 found
       const brunnarBase = `https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar/items?f=json`;
-      const brunnarSmallDelta = 0.045; // ≈ 5 km
-      const brunnarLargeDelta = 0.13;  // ≈ 15 km
-      const brunnarSmallBbox = `${lon - brunnarSmallDelta},${lat - brunnarSmallDelta},${lon + brunnarSmallDelta},${lat + brunnarSmallDelta}`;
-      const brunnarLargeBbox = `${lon - brunnarLargeDelta},${lat - brunnarLargeDelta},${lon + brunnarLargeDelta},${lat + brunnarLargeDelta}`;
+      const brunnarBbox = (d: number) => `${lon - d},${lat - d},${lon + d},${lat + d}`;
+      const brunnarFetchJson = (delta: number, limit: number) =>
+        fetch(`${brunnarBase}&bbox=${brunnarBbox(delta)}&limit=${limit}`, { signal })
+          .then(r => r.ok ? r.json().catch(() => null) : null)
+          .catch(() => null);
+      const kapCount = (d: any) =>
+        (d?.features ?? []).filter((f: any) => (f.properties?.kapacitet ?? 0) > 0).length;
+      // Cascade: 100 m first → 5 km if no capacity well found → 15 km if fewer than 3
+      const brunnarChain: Promise<any> = (async () => {
+        const tiny = await brunnarFetchJson(0.0009, 10);   // ≈ 100 m
+        if (kapCount(tiny) >= 1) return tiny;
+        const medium = await brunnarFetchJson(0.045, 25);  // ≈ 5 km
+        if (kapCount(medium) >= 3) return medium;
+        return await brunnarFetchJson(0.13, 40) ?? medium; // ≈ 15 km
+      })();
       // Jorddjupsmodell – WMS GetFeatureInfo via proxy (10×10 m interpolated raster).
       // Use EPSG:3857 bbox (same CRS as map) to avoid WMS 1.3.0 axis-order issues.
       // 50 m half-width → 100×100 m box; 3×3 image, center pixel I=1,J=1.
@@ -707,7 +717,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
          return d;
        }).catch(() => null);
 
-      // All fetches at t=0
+      // All fetches at t=0 (brunnarChain runs concurrently as its own cascade)
       const allResults = await Promise.allSettled([
         omradenChain,
         fetch(gvTillgangUrl, { signal }),
@@ -715,31 +725,19 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
         fetch(jordartBboxUrl, { signal }),
         fetch(gvmCql2Url, { signal }),
         fetch(delomradeUrl, { signal }),
-        fetch(`${brunnarBase}&bbox=${brunnarSmallBbox}&limit=25`, { signal }),
         fetch(jorddjupWmsUrl, { signal }),
         obsStationerChain,
         fetch(`https://api.opentopodata.org/v1/eudem25m?locations=${lat},${lon}`, { signal }),
       ]);
-      const [omradenRes, gvTillgangRes, jordartCql2Res, jordartBboxRes, forekomstRes, delomradeRes, brunnarRes, jorddjupRes, , elevationRes] = allResults;
-
-      const brunnarNearData = brunnarRes.status === 'fulfilled' && brunnarRes.value.ok
-        ? await brunnarRes.value.json().catch(() => null)
-        : null;
-      const closeCount = (brunnarNearData?.features ?? [])
-        .filter((f: any) => (f.properties?.kapacitet ?? 0) > 0).length;
-      const brunnarExpandPromise: Promise<any> = closeCount < 3 && !signal.aborted
-        ? fetch(`${brunnarBase}&bbox=${brunnarLargeBbox}&limit=40`, { signal })
-            .then(r => r.ok ? r.json().catch(() => null) : null)
-            .catch(() => null)
-        : Promise.resolve(null);
+      const [omradenRes, gvTillgangRes, jordartCql2Res, jordartBboxRes, forekomstRes, delomradeRes, jorddjupRes, , elevationRes] = allResults;
 
       if (signal.aborted) return;
 
-      const [[dateResult, latestResult], seriesData, nivaerData, brunnarExpandedData] = await Promise.all([
+      const [[dateResult, latestResult], seriesData, nivaerData, brunnarData] = await Promise.all([
         levelsPromise ?? Promise.resolve([null, null]),
         seriesPromise ?? Promise.resolve(null),
         nivaerPromise ?? Promise.resolve(null),
-        brunnarExpandPromise,
+        brunnarChain,
       ]);
 
       if (signal.aborted) return;
@@ -859,7 +857,6 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
         } catch { /* ignore */ }
       }
 
-      const brunnarData = brunnarExpandedData ?? brunnarNearData;
       if (brunnarData?.features?.length > 0) {
         result.brunnar = brunnarData.features
           .filter((f: any) => {
