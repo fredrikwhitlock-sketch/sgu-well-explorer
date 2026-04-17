@@ -592,9 +592,12 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
       const gvmBase = `https://api.sgu.se/oppnadata/grundvattenmagasin/ogc/features/v1/collections`;
       const gvmCql2Url = `${gvmBase}/grundvattenmagasin/items?f=json&filter=${encodeURIComponent(`S_INTERSECTS(geom,POINT(${lon} ${lat}))`)}&filter-lang=cql2-text&limit=1`;
       const delomradeUrl = `${gvmBase}/magasinsdelomraden/items?f=json&filter=${encodeURIComponent(`S_INTERSECTS(geom,POINT(${lon} ${lat}))`)}&filter-lang=cql2-text&limit=1`;
-      // ~15 km radius for brunnar
-      const brunnarDelta = 0.13;
-      const brunnarBbox = `${lon - brunnarDelta},${lat - brunnarDelta},${lon + brunnarDelta},${lat + brunnarDelta}`;
+      // ~5 km radius for brunnar — expand to ~15 km if fewer than 3 found
+      const brunnarBase = `https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar/items?f=json`;
+      const brunnarSmallDelta = 0.045; // ≈ 5 km
+      const brunnarLargeDelta = 0.13;  // ≈ 15 km
+      const brunnarSmallBbox = `${lon - brunnarSmallDelta},${lat - brunnarSmallDelta},${lon + brunnarSmallDelta},${lat + brunnarSmallDelta}`;
+      const brunnarLargeBbox = `${lon - brunnarLargeDelta},${lat - brunnarLargeDelta},${lon + brunnarLargeDelta},${lat + brunnarLargeDelta}`;
       // Jorddjupsmodell – WMS GetFeatureInfo via proxy (10×10 m interpolated raster).
       // Use EPSG:3857 bbox (same CRS as map) to avoid WMS 1.3.0 axis-order issues.
       // 50 m half-width → 100×100 m box; 3×3 image, center pixel I=1,J=1.
@@ -713,12 +716,26 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
         fetch(jordartBboxUrl, { signal }),
         fetch(gvmCql2Url, { signal }),
         fetch(delomradeUrl, { signal }),
-        fetch(`https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar/items?f=json&bbox=${brunnarBbox}&limit=25`, { signal }),
+        fetch(`${brunnarBase}&bbox=${brunnarSmallBbox}&limit=25`, { signal }),
         fetch(jorddjupWmsUrl, { signal }),
         obsStationerChain,
         fetch(`https://api.opentopodata.org/v1/eudem25m?locations=${lat},${lon}`, { signal }),
       ]);
       const [omradenRes, gvTillgangRes, jordartCql2Res, jordartBboxRes, forekomstRes, delomradeRes, brunnarRes, jorddjupRes, , elevationRes] = allResults;
+
+      // Expand brunnar search to ~15 km if fewer than 3 wells with capacity found close by
+      let brunnarResExpanded: Response | null = null;
+      {
+        const closeCount = brunnarRes.status === 'fulfilled' && brunnarRes.value.ok
+          ? await brunnarRes.value.clone().json().then((d: any) =>
+              (d.features ?? []).filter((f: any) => (f.properties?.kapacitet ?? 0) > 0).length
+            ).catch(() => 0)
+          : 0;
+        if (closeCount < 3 && !signal.aborted) {
+          const r = await fetch(`${brunnarBase}&bbox=${brunnarLargeBbox}&limit=40`, { signal }).catch(() => null);
+          if (r?.ok) brunnarResExpanded = r;
+        }
+      }
 
       if (signal.aborted) return;
 
@@ -846,10 +863,11 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
         } catch { /* ignore */ }
       }
 
-      // Brunnar – actual property is 'kapacitet' (l/h), not 'kapacitet_lh'
-      if (brunnarRes.status === 'fulfilled' && brunnarRes.value.ok) {
+      // Brunnar – use expanded response if available, otherwise close radius result
+      const brunnarSource = brunnarResExpanded ?? (brunnarRes.status === 'fulfilled' && brunnarRes.value.ok ? brunnarRes.value : null);
+      if (brunnarSource) {
         try {
-          const d = await brunnarRes.value.json();
+          const d = await brunnarSource.json();
           if (d.features?.length > 0) {
             result.brunnar = d.features
               .filter((f: any) => {
