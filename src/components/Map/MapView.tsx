@@ -29,7 +29,7 @@ import { ChartViewer } from "./ChartViewer";
 import { PolygonFetcher } from "./PolygonFetcher";
 import WmsLegend from "./WmsLegend";
 import { AIChatPanel } from "./AIChatPanel";
-import { Search, Bot, Locate, Layers, Droplets, PenLine } from "lucide-react";
+import { Search, Locate, Layers, Droplets, PenLine } from "lucide-react";
 import { toast } from "sonner";
 import { getSoilTypeColor } from "@/lib/soilTypeColors";
 import { getAquiferColorFor } from "@/lib/aquiferColors";
@@ -59,7 +59,7 @@ export const MapView = () => {
   const [soilTypesVisible, setSoilTypesVisible] = useState(false);
   const [soilTypesOpacity, setSoilTypesOpacity] = useState(0.7);
   // Lantmäteriet WMS layers
-  const [topoWebbVisible, setTopoWebbVisible] = useState(false);
+  const [topoWebbVisible, setTopoWebbVisible] = useState(true);
   const [ortofotoVisible, setOrtofotoVisible] = useState(false);
   const [terrangskuggningVisible, setTerrangskuggningVisible] = useState(false);
   const [terrangskuggningOpacity, setTerrangskuggningOpacity] = useState(0.5);
@@ -205,7 +205,7 @@ export const MapView = () => {
     const terrangskuggningLayer = new ImageLayer({
       source: new ImageWMS({
         url: 'https://minkarta.lantmateriet.se/map/hojdmodell',
-        params: { 'LAYERS': 'terrangskuggning', 'VERSION': '1.1.1' },
+        params: { 'LAYERS': 'terrangskuggning', 'VERSION': '1.1.1', 'FORMAT': 'image/png', 'TRANSPARENT': 'TRUE' },
         ratio: 1,
         serverType: 'geoserver',
       }),
@@ -2076,15 +2076,6 @@ export const MapView = () => {
             title={drawModeActive ? 'Avbryt ritning (Esc)' : 'Rita polygon – hämta data i område'}
           >
             <PenLine className="w-5 h-5" />
-          </button>
-          <div className="h-px bg-border mx-2" />
-          {/* AI-analys */}
-          <button
-            onClick={() => setAiChatOpen(true)}
-            className={`w-12 h-12 flex items-center justify-center transition-colors ${aiChatOpen ? 'bg-sgu-maroon text-white' : 'hover:bg-secondary'}`}
-            title="AI-analys"
-          >
-            <Bot className="w-5 h-5 text-sgu-maroon" />
           </button>
         </div>
       </div>
