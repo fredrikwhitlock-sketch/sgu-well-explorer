@@ -59,7 +59,7 @@ export const MapView = () => {
   const [soilTypesVisible, setSoilTypesVisible] = useState(false);
   const [soilTypesOpacity, setSoilTypesOpacity] = useState(0.7);
   // Lantmäteriet WMS layers
-  const [topoWebbVisible, setTopoWebbVisible] = useState(false);
+  const [topoWebbVisible, setTopoWebbVisible] = useState(true);
   const [ortofotoVisible, setOrtofotoVisible] = useState(false);
   const [terrangskuggningVisible, setTerrangskuggningVisible] = useState(false);
   const [terrangskuggningOpacity, setTerrangskuggningOpacity] = useState(0.5);
