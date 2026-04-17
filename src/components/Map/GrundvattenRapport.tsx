@@ -576,10 +576,10 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
       // Tight bbox for WMS GFI (~100 m) – faster than 200 m
       const delta = 0.001;
       const bbox = `${lon - delta},${lat - delta},${lon + delta},${lat + delta}`;
-      // Grundvattenmagasin: CQL2 point-in-polygon primary; bbox fallback if CQL2 fails or returns empty.
-      const gvmBase = `https://api.sgu.se/oppnadata/grundvattenmagasin/ogc/features/v1/collections/grundvattenmagasin/items?f=json`;
-      const gvmCql2Url = `${gvmBase}&filter=${encodeURIComponent(`S_INTERSECTS(geometry,POINT(${lon} ${lat}))`)}&filter-lang=cql2-text&limit=1`;
-      const gvmBboxUrl = `${gvmBase}&bbox=${bbox}&limit=3`;
+      // Grundvattenmagasin: exact point-in-polygon via CQL2 – only show when click
+      // is actually inside a mapped aquifer polygon (no bbox fallback: that risks
+      // showing a neighbouring aquifer whose polygon doesn't contain the point).
+      const gvmCql2Url = `https://api.sgu.se/oppnadata/grundvattenmagasin/ogc/features/v1/collections/grundvattenmagasin/items?f=json&filter=${encodeURIComponent(`S_INTERSECTS(geometry,POINT(${lon} ${lat}))`)}&filter-lang=cql2-text&limit=1`;
       // ~15 km radius for brunnar
       const brunnarDelta = 0.13;
       const brunnarBbox = `${lon - brunnarDelta},${lat - brunnarDelta},${lon + brunnarDelta},${lat + brunnarDelta}`;
@@ -700,13 +700,12 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
         fetch(jordartCql2Url, { signal }),
         fetch(jordartBboxUrl, { signal }),
         fetch(gvmCql2Url, { signal }),
-        fetch(gvmBboxUrl, { signal }),
         fetch(`https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar/items?f=json&bbox=${brunnarBbox}&limit=25`, { signal }),
         fetch(jorddjupWmsUrl, { signal }),
         obsStationerChain,
         fetch(`https://api.opentopodata.org/v1/eudem25m?locations=${lat},${lon}`, { signal }),
       ]);
-      const [omradenRes, gvTillgangRes, jordartCql2Res, jordartBboxRes, forekomstCql2Res, forekomstBboxRes, brunnarRes, jorddjupRes, , elevationRes] = allResults;
+      const [omradenRes, gvTillgangRes, jordartCql2Res, jordartBboxRes, forekomstRes, brunnarRes, jorddjupRes, , elevationRes] = allResults;
 
       if (signal.aborted) return;
 
@@ -781,45 +780,40 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
         if (jordart) { result.jordartNamn = jordart.name; result.jordartKod = jordart.kod; }
       } catch { /* ignore */ }
 
-      // Grundvattenmagasin – CQL2 primary, bbox fallback
+      // Grundvattenmagasin
       // Properties verified against live API: magasinsnamn, akvifertyp, genes,
       // tillrinning_fran_tillrinningsomraden_l_per_s, medelmaktighet_mattad_zon,
       // lank_magasinsbeskrivning, magasinsposition
-      {
-        const cql2Good = forekomstCql2Res.status === 'fulfilled' && forekomstCql2Res.value.ok;
-        const bboxGood = forekomstBboxRes.status === 'fulfilled' && forekomstBboxRes.value.ok;
-        const gvmRes = cql2Good ? forekomstCql2Res : (bboxGood ? forekomstBboxRes : null);
-        if (gvmRes?.status === 'fulfilled' && gvmRes.value.ok) {
-          try {
-            const d = await gvmRes.value.json();
-            if (d.features?.length > 0) {
-              const p = d.features[0].properties ?? {};
-              const namn = p.magasinsnamn;
-              if (namn) {
-                result.magasin = {
-                  namn,
-                  akvifertyp:              p.akvifertyp || undefined,
-                  genes:                   p.genes || undefined,
-                  positionKod:             typeof p.magasinsposition === 'string'
-                                             ? (p.magasinsposition.match(/^[JB]\d/)?.[0] ?? undefined)
-                                             : undefined,
-                  geomAreaKm2:             typeof p.geom_area === 'number' && p.geom_area > 0
-                                             ? Math.round(p.geom_area / 1e5) / 10
-                                             : undefined,
-                  grvbildningstyp:         p.grvbildningstyp_kod > 0 ? p.grvbildningstyp : undefined,
-                  tillrinningLs:           typeof p.tillrinning_fran_tillrinningsomraden_l_per_s === 'number'
-                                             ? p.tillrinning_fran_tillrinningsomraden_l_per_s : undefined,
-                  medelmaktighetMattad:    p.medelmaktighet_mattad_zon_kod > 0
-                                             ? p.medelmaktighet_mattad_zon : undefined,
-                  medelmaktighetOmattad:   p.medelmaktighet_omattad_zon_kod > 0
-                                             ? p.medelmaktighet_omattad_zon : undefined,
-                  lankBeskrivning:         p.lank_magasinsbeskrivning || undefined,
-                  magasinsposition:        p.magasinsposition_kod > 0 ? p.magasinsposition : undefined,
-                };
-              }
+      if (forekomstRes.status === 'fulfilled' && forekomstRes.value.ok) {
+        try {
+          const d = await forekomstRes.value.json();
+          if (d.features?.length > 0) {
+            const p = d.features[0].properties ?? {};
+            const namn = p.magasinsnamn;
+            if (namn) {
+              result.magasin = {
+                namn,
+                akvifertyp:              p.akvifertyp || undefined,
+                genes:                   p.genes || undefined,
+                positionKod:             typeof p.magasinsposition === 'string'
+                                           ? (p.magasinsposition.match(/^[JB]\d/)?.[0] ?? undefined)
+                                           : undefined,
+                geomAreaKm2:             typeof p.geom_area === 'number' && p.geom_area > 0
+                                           ? Math.round(p.geom_area / 1e5) / 10
+                                           : undefined,
+                grvbildningstyp:         p.grvbildningstyp_kod > 0 ? p.grvbildningstyp : undefined,
+                tillrinningLs:           typeof p.tillrinning_fran_tillrinningsomraden_l_per_s === 'number'
+                                           ? p.tillrinning_fran_tillrinningsomraden_l_per_s : undefined,
+                medelmaktighetMattad:    p.medelmaktighet_mattad_zon_kod > 0
+                                           ? p.medelmaktighet_mattad_zon : undefined,
+                medelmaktighetOmattad:   p.medelmaktighet_omattad_zon_kod > 0
+                                           ? p.medelmaktighet_omattad_zon : undefined,
+                lankBeskrivning:         p.lank_magasinsbeskrivning || undefined,
+                magasinsposition:        p.magasinsposition_kod > 0 ? p.magasinsposition : undefined,
+              };
             }
-          } catch { /* ignore */ }
-        }
+          }
+        } catch { /* ignore */ }
       }
 
       // Brunnar – actual property is 'kapacitet' (l/h), not 'kapacitet_lh'
