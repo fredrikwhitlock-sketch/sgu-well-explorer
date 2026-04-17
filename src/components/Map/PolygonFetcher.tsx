@@ -43,12 +43,6 @@ const DATA_SOURCES: DataSource[] = [
     buildUrl: (bbox) =>
       `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/provplatser/items?f=json&bbox=${bbox}`,
   },
-  {
-    id: 'jordarter',
-    label: 'Jordarter',
-    buildUrl: (bbox) =>
-      `https://api.sgu.se/oppnadata/jordarter25k-100k/ogc/features/v1/collections/grundlager/items?f=json&bbox=${bbox}`,
-  },
 ];
 
 const DEFAULT_SELECTED = new Set(['brunnar', 'kallor', 'magasin', 'nivaer', 'kvalitet']);
