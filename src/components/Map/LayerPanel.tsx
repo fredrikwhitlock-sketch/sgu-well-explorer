@@ -335,7 +335,7 @@ export const LayerPanel = ({
                 Grundvattenmagasin
               </Label>
               <p className="text-xs text-muted-foreground">
-                Avgränsningar {aquifersLoaded > 0 && `(${aquifersLoaded})`}
+                Uttagsmöjlighet per delområde {aquifersLoaded > 0 && `(${aquifersLoaded})`}
               </p>
             </div>
             <Switch
@@ -362,23 +362,20 @@ export const LayerPanel = ({
                 />
               </div>
               <div className="text-xs space-y-1">
-                <div className="font-medium text-muted-foreground mb-2">Akvifertyp:</div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-sm border-2 border-[rgba(34,197,94,0.9)] bg-[rgba(34,197,94,0.25)]" />
-                  <span className="text-muted-foreground">Porakvifer (jord)</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-sm border-2 border-[rgba(245,158,11,0.9)] bg-[rgba(245,158,11,0.25)]" />
-                  <span className="text-muted-foreground">Porakvifer (berg/komb.)</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-sm border-2 border-[rgba(220,38,38,0.9)] bg-[rgba(220,38,38,0.25)]" />
-                  <span className="text-muted-foreground">Sprickakvifer</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-sm border-2 border-[rgba(147,51,234,0.9)] bg-[rgba(147,51,234,0.25)]" />
-                  <span className="text-muted-foreground">Por- och sprickakvifer</span>
-                </div>
+                <div className="font-medium text-muted-foreground mb-2">Uttagsmöjlighet (J1):</div>
+                {[
+                  { label: '<1 l/s',   fill: 'rgba(205,120,75,0.5)',   stroke: 'rgba(180,90,40,0.85)' },
+                  { label: '1–5 l/s',  fill: 'rgba(240,190,170,0.5)',  stroke: 'rgba(210,140,110,0.85)' },
+                  { label: '5–25 l/s', fill: 'rgba(175,230,240,0.5)',  stroke: 'rgba(100,180,210,0.85)' },
+                  { label: '25–125 l/s', fill: 'rgba(80,195,230,0.5)', stroke: 'rgba(0,160,200,0.85)' },
+                  { label: '>125 l/s', fill: 'rgba(50,80,200,0.55)',   stroke: 'rgba(30,60,180,0.9)' },
+                  { label: 'Okänd',    fill: 'rgba(160,160,160,0.35)', stroke: 'rgba(120,120,120,0.7)' },
+                ].map(({ label, fill, stroke }) => (
+                  <div key={label} className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: fill, outline: `2px solid ${stroke}` }} />
+                    <span className="text-muted-foreground">{label}</span>
+                  </div>
+                ))}
                 <p className="text-[10px] text-muted-foreground mt-1">Laddas per vy (zoom ≥ 9)</p>
                 <a 
                   href="https://www.sgu.se/produkter-och-tjanster/geologiska-data/grundvatten--geologiska-data/" 
