@@ -205,7 +205,7 @@ export const MapView = () => {
     const terrangskuggningLayer = new ImageLayer({
       source: new ImageWMS({
         url: 'https://minkarta.lantmateriet.se/map/hojdmodell',
-        params: { 'LAYERS': 'terrangskuggning', 'VERSION': '1.1.1' },
+        params: { 'LAYERS': 'terrangskuggning', 'VERSION': '1.1.1', 'FORMAT': 'image/png', 'TRANSPARENT': 'TRUE' },
         ratio: 1,
         serverType: 'geoserver',
       }),
