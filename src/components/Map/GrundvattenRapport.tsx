@@ -1601,13 +1601,9 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
             {data.brunnar && data.brunnar.length > 0 && (() => {
               // Sort: matching aquifer type first, then by capacity descending. Cap display at 8.
               // Berg/morän: bergborrade first; sediment: jord first
-              const preferBerg = aquifer?.type === 'rock' || aquifer?.type === 'till';
-              const sorted = [...data.brunnar].sort((a, b) => {
-                const aMatch = preferBerg ? a.isBergborrad : !a.isBergborrad;
-                const bMatch = preferBerg ? b.isBergborrad : !b.isBergborrad;
-                if (aMatch !== bMatch) return aMatch ? -1 : 1;
-                return (b.kapacitet ?? 0) - (a.kapacitet ?? 0);
-              }).slice(0, 8);
+              const sorted = [...data.brunnar].sort((a, b) =>
+                (a.distKm ?? 999) - (b.distKm ?? 999)
+              ).slice(0, 8);
               return (
                 <>
                   <hr className="border-border" />
