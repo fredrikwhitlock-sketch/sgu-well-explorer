@@ -59,6 +59,14 @@ interface ReportData {
   obsFeatures?: Array<{ djup: number; jordart?: string; aquiferGroup?: 'rock' | 'jord'; aquiferSize?: 'large' | 'small' }>;
   // Nearby observed stations sorted by distance — shown in level analysis section
   obsStationer?: Array<{ id: string; namn: string; djup: number; obsdatum: string; distKm: number; aquiferGroup?: 'rock' | 'jord'; jordart?: string }>;
+  // Magasinsdelområde – withdrawal capacity and sub-area properties
+  delomrade?: {
+    uttagsmojligheter?: string;
+    uttagsmojligheterKod?: number;
+    kornstorlek?: string;
+    artesiskt?: string;
+    delomradeskvalitet?: string;
+  };
 }
 
 // ── Aquifer classification ────────────────────────────────────────────────────
@@ -484,6 +492,8 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
       if (m.medelmaktighetMattad) lines.push(`- **Mättad zon:** ${m.medelmaktighetMattad}`);
       if (m.medelmaktighetOmattad) lines.push(`- **Omättad zon:** ${m.medelmaktighetOmattad}`);
       if (m.tillrinningLs != null) lines.push(`- **Tillrinning från tillrinningsområden:** ${m.tillrinningLs} l/s`);
+      if (data.delomrade?.uttagsmojligheter) lines.push(`- **Uttagsmöjlighet (delområde):** ${data.delomrade.uttagsmojligheter}`);
+      if (data.delomrade?.artesiskt) lines.push(`- **Artesiskt:** ${data.delomrade.artesiskt}`);
     }
 
     lines.push('', '### Grundvattennivå');
@@ -579,7 +589,9 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
       // Grundvattenmagasin: exact point-in-polygon via CQL2 – only show when click
       // is actually inside a mapped aquifer polygon (no bbox fallback: that risks
       // showing a neighbouring aquifer whose polygon doesn't contain the point).
-      const gvmCql2Url = `https://api.sgu.se/oppnadata/grundvattenmagasin/ogc/features/v1/collections/grundvattenmagasin/items?f=json&filter=${encodeURIComponent(`S_INTERSECTS(geom,POINT(${lon} ${lat}))`)}&filter-lang=cql2-text&limit=1`;
+      const gvmBase = `https://api.sgu.se/oppnadata/grundvattenmagasin/ogc/features/v1/collections`;
+      const gvmCql2Url = `${gvmBase}/grundvattenmagasin/items?f=json&filter=${encodeURIComponent(`S_INTERSECTS(geom,POINT(${lon} ${lat}))`)}&filter-lang=cql2-text&limit=1`;
+      const delomradeUrl = `${gvmBase}/magasinsdelomraden/items?f=json&filter=${encodeURIComponent(`S_INTERSECTS(geom,POINT(${lon} ${lat}))`)}&filter-lang=cql2-text&limit=1`;
       // ~15 km radius for brunnar
       const brunnarDelta = 0.13;
       const brunnarBbox = `${lon - brunnarDelta},${lat - brunnarDelta},${lon + brunnarDelta},${lat + brunnarDelta}`;
@@ -700,12 +712,13 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
         fetch(jordartCql2Url, { signal }),
         fetch(jordartBboxUrl, { signal }),
         fetch(gvmCql2Url, { signal }),
+        fetch(delomradeUrl, { signal }),
         fetch(`https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar/items?f=json&bbox=${brunnarBbox}&limit=25`, { signal }),
         fetch(jorddjupWmsUrl, { signal }),
         obsStationerChain,
         fetch(`https://api.opentopodata.org/v1/eudem25m?locations=${lat},${lon}`, { signal }),
       ]);
-      const [omradenRes, gvTillgangRes, jordartCql2Res, jordartBboxRes, forekomstRes, brunnarRes, jorddjupRes, , elevationRes] = allResults;
+      const [omradenRes, gvTillgangRes, jordartCql2Res, jordartBboxRes, forekomstRes, delomradeRes, brunnarRes, jorddjupRes, , elevationRes] = allResults;
 
       if (signal.aborted) return;
 
@@ -812,6 +825,23 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                 magasinsposition:        p.magasinsposition_kod > 0 ? p.magasinsposition : undefined,
               };
             }
+          }
+        } catch { /* ignore */ }
+      }
+
+      // Magasinsdelområde – withdrawal capacity
+      if (delomradeRes.status === 'fulfilled' && delomradeRes.value.ok) {
+        try {
+          const d = await delomradeRes.value.json();
+          if (d.features?.length > 0) {
+            const p = d.features[0].properties ?? {};
+            result.delomrade = {
+              uttagsmojligheter:     p.uttagsmojligheter || undefined,
+              uttagsmojligheterKod:  typeof p.uttagsmojligheter_kod === 'number' ? p.uttagsmojligheter_kod : undefined,
+              kornstorlek:           p.kornstorlek_kod > 0 ? p.kornstorlek : undefined,
+              artesiskt:             p.artesiskt_kod > 0 ? p.artesiskt : undefined,
+              delomradeskvalitet:    p.delomradeskvalitet_kod > 0 ? p.delomradeskvalitet : undefined,
+            };
           }
         } catch { /* ignore */ }
       }
@@ -1518,6 +1548,30 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                         <div className="flex justify-between items-baseline gap-2">
                           <span className="text-muted-foreground shrink-0">Tillrinning</span>
                           <span className="font-medium">{m.tillrinningLs.toLocaleString('sv')} l/s</span>
+                        </div>
+                      )}
+                      {data.delomrade?.uttagsmojligheter && (
+                        <div className="flex justify-between items-baseline gap-2">
+                          <span className="text-muted-foreground shrink-0">Uttagsmöjlighet (delområde)</span>
+                          <span className="font-semibold text-blue-700 dark:text-blue-400">{data.delomrade.uttagsmojligheter}</span>
+                        </div>
+                      )}
+                      {data.delomrade?.kornstorlek && (
+                        <div className="flex justify-between items-baseline gap-2">
+                          <span className="text-muted-foreground shrink-0">Kornstorlek</span>
+                          <span className="font-medium text-right capitalize">{data.delomrade.kornstorlek}</span>
+                        </div>
+                      )}
+                      {data.delomrade?.artesiskt && (
+                        <div className="flex justify-between items-baseline gap-2">
+                          <span className="text-muted-foreground shrink-0">Artesiskt</span>
+                          <span className="font-medium text-right capitalize">{data.delomrade.artesiskt}</span>
+                        </div>
+                      )}
+                      {data.delomrade?.delomradeskvalitet && (
+                        <div className="flex justify-between items-baseline gap-2">
+                          <span className="text-muted-foreground shrink-0">Karterings­kvalitet</span>
+                          <span className="font-medium text-right capitalize text-muted-foreground">{data.delomrade.delomradeskvalitet}</span>
                         </div>
                       )}
                       {m.grvbildningstyp && (
