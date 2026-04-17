@@ -51,7 +51,6 @@ const DATA_SOURCES: DataSource[] = [
   },
 ];
 
-// Default on/off per source
 const DEFAULT_SELECTED = new Set(['brunnar', 'kallor', 'magasin', 'nivaer', 'kvalitet']);
 
 interface SourceState {
@@ -60,8 +59,14 @@ interface SourceState {
   error?: string;
 }
 
+interface LinkedState {
+  features: any[];
+  loading: boolean;
+  error?: string;
+}
+
 interface PolygonFetcherProps {
-  bbox: [number, number, number, number]; // [minLon, minLat, maxLon, maxLat]
+  bbox: [number, number, number, number];
   areaKm2: number;
   onClose: () => void;
 }
@@ -74,11 +79,9 @@ function escapeCSV(v: any): string {
   return s;
 }
 
-function downloadCSV(features: any[], sourceId: string) {
+function triggerCSV(features: any[], filename: string) {
   if (features.length === 0) return;
-  const keys = Array.from(
-    new Set(features.flatMap(f => Object.keys(f.properties || {})))
-  );
+  const keys = Array.from(new Set(features.flatMap(f => Object.keys(f.properties || {}))));
   const rows = [
     keys.join(';'),
     ...features.map(f => keys.map(k => escapeCSV(f.properties?.[k])).join(';')),
@@ -87,30 +90,34 @@ function downloadCSV(features: any[], sourceId: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `${sourceId}_polygon_${new Date().toISOString().split('T')[0]}.csv`;
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
 
-function downloadGeoJSON(features: any[], sourceId: string) {
-  const geojson = { type: 'FeatureCollection', features };
-  const blob = new Blob([JSON.stringify(geojson, null, 2)], { type: 'application/geo+json' });
+function triggerGeoJSON(features: any[], filename: string) {
+  const blob = new Blob([JSON.stringify({ type: 'FeatureCollection', features }, null, 2)], {
+    type: 'application/geo+json',
+  });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `${sourceId}_polygon_${new Date().toISOString().split('T')[0]}.geojson`;
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
+
+const today = new Date().toISOString().split('T')[0];
 
 export const PolygonFetcher = ({ bbox, areaKm2, onClose }: PolygonFetcherProps) => {
   const [selected, setSelected] = useState<Set<string>>(new Set(DEFAULT_SELECTED));
   const [results, setResults] = useState<Record<string, SourceState>>({});
   const [fetching, setFetching] = useState(false);
+  const [linked, setLinked] = useState<{ analysresultat?: LinkedState; nivaObs?: LinkedState }>({});
 
   const bboxStr = bbox.join(',');
 
@@ -134,11 +141,28 @@ export const PolygonFetcher = ({ bbox, areaKm2, onClose }: PolygonFetcherProps) 
     return all;
   };
 
+  // Fetch linked data in batches to stay within URL length limits.
+  const fetchByIdBatches = async (
+    baseUrl: string,
+    filterFn: (ids: string[]) => string,
+    ids: string[],
+    batchSize = 80
+  ): Promise<any[]> => {
+    const all: any[] = [];
+    for (let i = 0; i < ids.length; i += batchSize) {
+      const batch = ids.slice(i, i + batchSize);
+      const url = `${baseUrl}&filter=${encodeURIComponent(filterFn(batch))}&filter-lang=cql2-text`;
+      const features = await fetchAllPages(url);
+      all.push(...features);
+    }
+    return all;
+  };
+
   const handleFetch = async () => {
     setFetching(true);
+    setLinked({});
     const sources = DATA_SOURCES.filter(s => selected.has(s.id));
 
-    // Initialize loading states
     const init: Record<string, SourceState> = {};
     for (const s of sources) init[s.id] = { features: [], loading: true };
     setResults(init);
@@ -155,16 +179,105 @@ export const PolygonFetcher = ({ bbox, areaKm2, onClose }: PolygonFetcherProps) 
     );
 
     setFetching(false);
-    const total = Object.values(results).reduce((sum, r) => sum + r.features.length, 0);
-    if (total > 0) toast.success(`Hämtade totalt ${total} objekt`);
+  };
+
+  const fetchAnalysresultat = async () => {
+    const provplatser = results['kvalitet']?.features ?? [];
+    const ids = provplatser
+      .map(f => f.properties?.nationellt_provplatsid)
+      .filter((v): v is number => typeof v === 'number');
+    if (ids.length === 0) { toast.info('Inga provplatser med ID hittades'); return; }
+
+    setLinked(l => ({ ...l, analysresultat: { features: [], loading: true } }));
+    try {
+      const base = 'https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/analysresultat/items?f=json';
+      const features = await fetchByIdBatches(
+        base,
+        batch => `nationellt_provplatsid IN (${batch.join(',')})`,
+        ids.map(String)
+      );
+      setLinked(l => ({ ...l, analysresultat: { features, loading: false } }));
+      toast.success(`Hämtade ${features.length} analysresultat`);
+    } catch {
+      setLinked(l => ({ ...l, analysresultat: { features: [], loading: false, error: 'Misslyckades' } }));
+      toast.error('Kunde inte hämta analysresultat');
+    }
+  };
+
+  const fetchNivaObs = async () => {
+    const stationer = results['nivaer']?.features ?? [];
+    const ids = stationer
+      .map(f => f.properties?.platsbeteckning)
+      .filter((v): v is string => typeof v === 'string' && v.length > 0);
+    if (ids.length === 0) { toast.info('Inga stationer med platsbeteckning hittades'); return; }
+
+    setLinked(l => ({ ...l, nivaObs: { features: [], loading: true } }));
+    try {
+      const base = 'https://api.sgu.se/oppnadata/grundvattennivaer-observerade/ogc/features/v1/collections/nivaer/items?f=json';
+      const features = await fetchByIdBatches(
+        base,
+        batch => `platsbeteckning IN (${batch.map(id => `'${id.replace(/'/g, "''")}'`).join(',')})`,
+        ids
+      );
+      setLinked(l => ({ ...l, nivaObs: { features, loading: false } }));
+      toast.success(`Hämtade ${features.length} nivåobservationer`);
+    } catch {
+      setLinked(l => ({ ...l, nivaObs: { features: [], loading: false, error: 'Misslyckades' } }));
+      toast.error('Kunde inte hämta nivåobservationer');
+    }
   };
 
   const hasFetched = Object.keys(results).length > 0;
   const anyResults = Object.values(results).some(r => r.features.length > 0);
 
+  const LinkedRow = ({
+    label, state, onFetch, csvName, geojsonName,
+  }: {
+    label: string;
+    state: LinkedState | undefined;
+    onFetch: () => void;
+    csvName: string;
+    geojsonName: string;
+  }) => (
+    <div className="ml-3 mt-1 border-l-2 border-border pl-2">
+      {!state ? (
+        <button
+          className="text-xs text-sgu-link hover:underline inline-flex items-center gap-1"
+          onClick={onFetch}
+        >
+          <Download className="w-3 h-3" /> Hämta {label}
+        </button>
+      ) : state.loading ? (
+        <span className="text-xs text-muted-foreground inline-flex items-center gap-1">
+          <Loader2 className="w-3 h-3 animate-spin" /> Hämtar {label}…
+        </span>
+      ) : state.error ? (
+        <span className="text-xs text-destructive">{state.error}</span>
+      ) : state.features.length === 0 ? (
+        <span className="text-xs text-muted-foreground">Inga {label} hittades</span>
+      ) : (
+        <div className="flex items-center gap-1 flex-wrap">
+          <span className="text-xs text-muted-foreground">{label} ({state.features.length})</span>
+          <button
+            className="text-xs text-sgu-link hover:underline inline-flex items-center gap-0.5"
+            onClick={() => triggerCSV(state.features, csvName)}
+          >
+            <Download className="w-3 h-3" /> CSV
+          </button>
+          <span className="text-muted-foreground text-xs">/</span>
+          <button
+            className="text-xs text-sgu-link hover:underline inline-flex items-center gap-0.5"
+            onClick={() => triggerGeoJSON(state.features, geojsonName)}
+          >
+            GeoJSON
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <Card className="absolute top-20 left-4 w-72 max-h-[calc(100vh-120px)] overflow-y-auto bg-card/95 backdrop-blur-sm shadow-lg border-border z-30">
-      {/* Header */}
       <div className="sticky top-0 bg-sgu-maroon border-b border-border p-3 flex items-center justify-between z-10">
         <h3 className="font-semibold text-white text-sm">Hämta data i polygon</h3>
         <button onClick={onClose} className="text-white/70 hover:text-white">
@@ -173,7 +286,6 @@ export const PolygonFetcher = ({ bbox, areaKm2, onClose }: PolygonFetcherProps) 
       </div>
 
       <div className="p-3 space-y-3">
-        {/* Area */}
         <div className="text-xs text-muted-foreground">
           Ritat område:{' '}
           <span className="font-medium text-foreground">{areaKm2.toFixed(2)} km²</span>
@@ -184,7 +296,6 @@ export const PolygonFetcher = ({ bbox, areaKm2, onClose }: PolygonFetcherProps) 
 
         <Separator />
 
-        {/* Source selector */}
         <div className="space-y-0.5">
           <p className="text-xs font-semibold text-foreground mb-1">Välj datakällor</p>
           {DATA_SOURCES.map(s => {
@@ -222,32 +333,53 @@ export const PolygonFetcher = ({ bbox, areaKm2, onClose }: PolygonFetcherProps) 
             : <><Database className="w-3 h-3 mr-2" /> Hämta data</>}
         </Button>
 
-        {/* Export section */}
         {hasFetched && !fetching && anyResults && (
           <>
             <Separator />
             <p className="text-xs font-semibold text-foreground">Exportera</p>
-            <div className="space-y-0.5">
+            <div className="space-y-1.5">
               {DATA_SOURCES.filter(s => results[s.id]?.features.length > 0).map(s => {
                 const r = results[s.id];
                 return (
-                  <div key={s.id} className="flex items-center gap-1 px-2 py-1">
-                    <span className="text-xs text-foreground flex-1">{s.label} ({r.features.length})</span>
-                    <button
-                      className="text-xs text-sgu-link hover:underline inline-flex items-center gap-0.5"
-                      onClick={() => downloadCSV(r.features, s.id)}
-                      title="Ladda ned CSV"
-                    >
-                      <Download className="w-3 h-3" /> CSV
-                    </button>
-                    <span className="text-muted-foreground text-xs">/</span>
-                    <button
-                      className="text-xs text-sgu-link hover:underline inline-flex items-center gap-0.5"
-                      onClick={() => downloadGeoJSON(r.features, s.id)}
-                      title="Ladda ned GeoJSON"
-                    >
-                      GeoJSON
-                    </button>
+                  <div key={s.id}>
+                    <div className="flex items-center gap-1 px-2 py-1">
+                      <span className="text-xs text-foreground flex-1">{s.label} ({r.features.length})</span>
+                      <button
+                        className="text-xs text-sgu-link hover:underline inline-flex items-center gap-0.5"
+                        onClick={() => triggerCSV(r.features, `${s.id}_polygon_${today}.csv`)}
+                      >
+                        <Download className="w-3 h-3" /> CSV
+                      </button>
+                      <span className="text-muted-foreground text-xs">/</span>
+                      <button
+                        className="text-xs text-sgu-link hover:underline inline-flex items-center gap-0.5"
+                        onClick={() => triggerGeoJSON(r.features, `${s.id}_polygon_${today}.geojson`)}
+                      >
+                        GeoJSON
+                      </button>
+                    </div>
+
+                    {/* Linked: analysis results for quality stations */}
+                    {s.id === 'kvalitet' && (
+                      <LinkedRow
+                        label="analysresultat"
+                        state={linked.analysresultat}
+                        onFetch={fetchAnalysresultat}
+                        csvName={`analysresultat_polygon_${today}.csv`}
+                        geojsonName={`analysresultat_polygon_${today}.geojson`}
+                      />
+                    )}
+
+                    {/* Linked: level observations for level stations */}
+                    {s.id === 'nivaer' && (
+                      <LinkedRow
+                        label="nivåobservationer"
+                        state={linked.nivaObs}
+                        onFetch={fetchNivaObs}
+                        csvName={`nivaer_observationer_polygon_${today}.csv`}
+                        geojsonName={`nivaer_observationer_polygon_${today}.geojson`}
+                      />
+                    )}
                   </div>
                 );
               })}
