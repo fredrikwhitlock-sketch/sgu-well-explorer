@@ -268,19 +268,3 @@ export const getSoilTypeColor = (jg2: number): { fill: string; stroke: string; n
   return DEFAULT_SOIL_COLOR;
 };
 
-// Officiella huvudkategorier för legend
-export const SOIL_TYPE_CATEGORIES = [
-  { code: 100, name: 'Morän', fill: hexToRgba(SGU_COLORS.moran), stroke: hexToRgbaStroke(SGU_COLORS.moran) },
-  { code: 101, name: 'Moränlera', fill: hexToRgba(SGU_COLORS.moranLera), stroke: hexToRgbaStroke(SGU_COLORS.moranLera) },
-  { code: 50, name: 'Isälvssediment', fill: hexToRgba(SGU_COLORS.isalvs), stroke: hexToRgbaStroke(SGU_COLORS.isalvs) },
-  { code: 21, name: 'Postglacial sand', fill: hexToRgba(SGU_COLORS.postglacialSand), stroke: hexToRgbaStroke(SGU_COLORS.postglacialSand) },
-  { code: 40, name: 'Lera/Silt', fill: hexToRgba(SGU_COLORS.lera), stroke: hexToRgbaStroke(SGU_COLORS.lera) },
-  { code: 10, name: 'Svämsediment', fill: hexToRgba(SGU_COLORS.svamsediment), stroke: hexToRgbaStroke(SGU_COLORS.svamsediment) },
-  { code: 8804, name: 'Älvsediment', fill: hexToRgba(SGU_COLORS.alvsediment), stroke: hexToRgbaStroke(SGU_COLORS.alvsediment) },
-  { code: 75, name: 'Torv', fill: hexToRgba(SGU_COLORS.torv), stroke: hexToRgbaStroke(SGU_COLORS.torv) },
-  { code: 6, name: 'Gyttja', fill: hexToRgba(SGU_COLORS.gyttja), stroke: hexToRgbaStroke(SGU_COLORS.gyttja) },
-  { code: 888, name: 'Berg', fill: hexToRgba(SGU_COLORS.berg), stroke: hexToRgbaStroke(SGU_COLORS.berg) },
-  { code: 850, name: 'Sedimentärt berg', fill: hexToRgba(SGU_COLORS.sedimentartBerg), stroke: hexToRgbaStroke(SGU_COLORS.sedimentartBerg) },
-  { code: 200, name: 'Fyllning', fill: hexToRgba(SGU_COLORS.fyllning), stroke: hexToRgbaStroke(SGU_COLORS.fyllning) },
-  { code: 91, name: 'Vatten', fill: hexToRgba(SGU_COLORS.vatten, 0.5), stroke: hexToRgbaStroke(SGU_COLORS.vatten) },
-];

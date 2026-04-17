@@ -32,6 +32,7 @@ import { AIChatPanel } from "./AIChatPanel";
 import { Search, Bot, Locate, Layers, Droplets, PenLine } from "lucide-react";
 import { toast } from "sonner";
 import { getSoilTypeColor } from "@/lib/soilTypeColors";
+import { getAquiferColorFor } from "@/lib/aquiferColors";
 import { exportWellsToCSV, exportFeaturesToCSV } from "@/lib/exportWells";
 
 
@@ -601,36 +602,11 @@ export const MapView = () => {
       format: new GeoJSON(),
     });
 
-    // Magasinsdelomraden color scheme by uttagsmojligheter
     const getAquiferStyle = (feature: any) => {
-      const uttag = (feature.get('uttagsmojligheter') || '').toLowerCase();
-
-      let fillColor: string;
-      let strokeColor: string;
-
-      if (uttag.includes('<1')) {
-        fillColor  = 'rgba(205, 120, 75, 0.5)';
-        strokeColor = 'rgba(180, 90, 40, 0.85)';
-      } else if (uttag.startsWith('1')) {
-        fillColor  = 'rgba(240, 190, 170, 0.5)';
-        strokeColor = 'rgba(210, 140, 110, 0.85)';
-      } else if (uttag.startsWith('5')) {
-        fillColor  = 'rgba(175, 230, 240, 0.5)';
-        strokeColor = 'rgba(100, 180, 210, 0.85)';
-      } else if (uttag.startsWith('25')) {
-        fillColor  = 'rgba(80, 195, 230, 0.5)';
-        strokeColor = 'rgba(0, 160, 200, 0.85)';
-      } else if (uttag.startsWith('>')) {
-        fillColor  = 'rgba(50, 80, 200, 0.55)';
-        strokeColor = 'rgba(30, 60, 180, 0.9)';
-      } else {
-        fillColor  = 'rgba(160, 160, 160, 0.35)';
-        strokeColor = 'rgba(120, 120, 120, 0.7)';
-      }
-
+      const { fill, stroke } = getAquiferColorFor(feature.get('uttagsmojligheter') || '');
       return new Style({
-        stroke: new Stroke({ color: strokeColor, width: 1.5 }),
-        fill: new Fill({ color: fillColor }),
+        stroke: new Stroke({ color: stroke, width: 1.5 }),
+        fill: new Fill({ color: fill }),
       });
     };
 
@@ -731,25 +707,31 @@ export const MapView = () => {
         const bbox = `${minLon},${minLat},${maxLon},${maxLat}`;
         const jordartBase = `https://api.sgu.se/oppnadata/jordarter25k-100k/ogc/features/v1/collections`;
         // Fetch grundlager (main layer), ytlager (thin surface) and oversta-ytlager (topmost thin) in parallel
-        const [grundRes, ytRes, overstRes] = await Promise.allSettled([
-          fetch(`${jordartBase}/grundlager/items?f=json&bbox=${bbox}&limit=20000`),
-          fetch(`${jordartBase}/ytlager/items?f=json&bbox=${bbox}&limit=5000`),
-          fetch(`${jordartBase}/oversta-ytlager/items?f=json&bbox=${bbox}&limit=5000`),
-        ]);
+        const layerLimits = [
+          { url: `${jordartBase}/grundlager/items?f=json&bbox=${bbox}&limit=20000`, limit: 20000 },
+          { url: `${jordartBase}/ytlager/items?f=json&bbox=${bbox}&limit=5000`,     limit: 5000 },
+          { url: `${jordartBase}/oversta-ytlager/items?f=json&bbox=${bbox}&limit=5000`, limit: 5000 },
+        ];
+        const responses = await Promise.allSettled(layerLimits.map(l => fetch(l.url)));
+        const parsed = await Promise.all(
+          responses.map(res =>
+            res.status === 'fulfilled' && res.value.ok
+              ? res.value.json().catch(() => null)
+              : Promise.resolve(null)
+          )
+        );
 
         let allRawFeatures: any[] = [];
         let hitLimit = false;
-        for (const res of [grundRes, ytRes, overstRes]) {
-          if (res.status === 'fulfilled' && res.value.ok) {
-            const d = await res.value.json().catch(() => null);
-            if (d?.features?.length) {
-              allRawFeatures = allRawFeatures.concat(d.features);
-              if (d.features.length >= 5000) hitLimit = true;
-            }
+        parsed.forEach((d, i) => {
+          const features = d?.features;
+          if (features?.length) {
+            allRawFeatures = allRawFeatures.concat(features);
+            if (features.length >= layerLimits[i].limit) hitLimit = true;
           }
-        }
+        });
 
-        if (hitLimit) toast.info("Visar max 20 000 jordarter per område. Zooma in för fler detaljer.");
+        if (hitLimit) toast.info("Visar max jordarter per område. Zooma in för fler detaljer.");
 
         console.log(`Received ${allRawFeatures.length} soil type features`);
 

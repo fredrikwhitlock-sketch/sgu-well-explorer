@@ -62,7 +62,6 @@ interface ReportData {
   // Magasinsdelområde – withdrawal capacity and sub-area properties
   delomrade?: {
     uttagsmojligheter?: string;
-    uttagsmojligheterKod?: number;
     kornstorlek?: string;
     artesiskt?: string;
     delomradeskvalitet?: string;
@@ -723,26 +722,24 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
       ]);
       const [omradenRes, gvTillgangRes, jordartCql2Res, jordartBboxRes, forekomstRes, delomradeRes, brunnarRes, jorddjupRes, , elevationRes] = allResults;
 
-      // Expand brunnar search to ~15 km if fewer than 3 wells with capacity found close by
-      let brunnarResExpanded: Response | null = null;
-      {
-        const closeCount = brunnarRes.status === 'fulfilled' && brunnarRes.value.ok
-          ? await brunnarRes.value.clone().json().then((d: any) =>
-              (d.features ?? []).filter((f: any) => (f.properties?.kapacitet ?? 0) > 0).length
-            ).catch(() => 0)
-          : 0;
-        if (closeCount < 3 && !signal.aborted) {
-          const r = await fetch(`${brunnarBase}&bbox=${brunnarLargeBbox}&limit=40`, { signal }).catch(() => null);
-          if (r?.ok) brunnarResExpanded = r;
-        }
-      }
+      const brunnarNearData = brunnarRes.status === 'fulfilled' && brunnarRes.value.ok
+        ? await brunnarRes.value.json().catch(() => null)
+        : null;
+      const closeCount = (brunnarNearData?.features ?? [])
+        .filter((f: any) => (f.properties?.kapacitet ?? 0) > 0).length;
+      const brunnarExpandPromise: Promise<any> = closeCount < 3 && !signal.aborted
+        ? fetch(`${brunnarBase}&bbox=${brunnarLargeBbox}&limit=40`, { signal })
+            .then(r => r.ok ? r.json().catch(() => null) : null)
+            .catch(() => null)
+        : Promise.resolve(null);
 
       if (signal.aborted) return;
 
-      const [[dateResult, latestResult], seriesData, nivaerData] = await Promise.all([
+      const [[dateResult, latestResult], seriesData, nivaerData, brunnarExpandedData] = await Promise.all([
         levelsPromise ?? Promise.resolve([null, null]),
         seriesPromise ?? Promise.resolve(null),
         nivaerPromise ?? Promise.resolve(null),
+        brunnarExpandPromise,
       ]);
 
       if (signal.aborted) return;
@@ -853,47 +850,40 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
           if (d.features?.length > 0) {
             const p = d.features[0].properties ?? {};
             result.delomrade = {
-              uttagsmojligheter:     p.uttagsmojligheter || undefined,
-              uttagsmojligheterKod:  typeof p.uttagsmojligheter_kod === 'number' ? p.uttagsmojligheter_kod : undefined,
-              kornstorlek:           p.kornstorlek_kod > 0 ? p.kornstorlek : undefined,
-              artesiskt:             p.artesiskt_kod > 0 ? p.artesiskt : undefined,
-              delomradeskvalitet:    p.delomradeskvalitet_kod > 0 ? p.delomradeskvalitet : undefined,
+              uttagsmojligheter:   p.uttagsmojligheter || undefined,
+              kornstorlek:         p.kornstorlek_kod > 0 ? p.kornstorlek : undefined,
+              artesiskt:           p.artesiskt_kod > 0 ? p.artesiskt : undefined,
+              delomradeskvalitet:  p.delomradeskvalitet_kod > 0 ? p.delomradeskvalitet : undefined,
             };
           }
         } catch { /* ignore */ }
       }
 
-      // Brunnar – use expanded response if available, otherwise close radius result
-      const brunnarSource = brunnarResExpanded ?? (brunnarRes.status === 'fulfilled' && brunnarRes.value.ok ? brunnarRes.value : null);
-      if (brunnarSource) {
-        try {
-          const d = await brunnarSource.json();
-          if (d.features?.length > 0) {
-            result.brunnar = d.features
-              .filter((f: any) => {
-                const kap = f.properties?.kapacitet;
-                return kap != null && kap > 0;
-              })
-              .slice(0, 20)
-              .map((f: any) => {
-                const p = f.properties ?? {};
-                const totaldjup = p.totaldjup ?? p.borrhalsdjup ?? null;
-                const jorddjup  = p.jorddjup ?? 0;
-                const coords = f.geometry?.type === 'Point' ? f.geometry.coordinates : null;
-                const distKm = coords
-                  ? Math.round(haversineKm(lat, lon, coords[1], coords[0]) * 10) / 10
-                  : undefined;
-                return {
-                  id: p.brunnsid || p.id || f.id || '?',
-                  kapacitet: p.kapacitet,
-                  djup: totaldjup,
-                  jorddjup,
-                  isBergborrad: totaldjup != null && (totaldjup - jorddjup) > 15,
-                  distKm,
-                };
-              });
-          }
-        } catch { /* ignore */ }
+      const brunnarData = brunnarExpandedData ?? brunnarNearData;
+      if (brunnarData?.features?.length > 0) {
+        result.brunnar = brunnarData.features
+          .filter((f: any) => {
+            const kap = f.properties?.kapacitet;
+            return kap != null && kap > 0;
+          })
+          .slice(0, 20)
+          .map((f: any) => {
+            const p = f.properties ?? {};
+            const totaldjup = p.totaldjup ?? p.borrhalsdjup ?? null;
+            const jorddjup  = p.jorddjup ?? 0;
+            const coords = f.geometry?.type === 'Point' ? f.geometry.coordinates : null;
+            const distKm = coords
+              ? Math.round(haversineKm(lat, lon, coords[1], coords[0]) * 10) / 10
+              : undefined;
+            return {
+              id: p.brunnsid || p.id || f.id || '?',
+              kapacitet: p.kapacitet,
+              djup: totaldjup,
+              jorddjup,
+              isBergborrad: totaldjup != null && (totaldjup - jorddjup) > 15,
+              distKm,
+            };
+          });
       }
 
       // Jorddjup from jorddjupsmodell – single interpolated WMS raster value (10×10 m).
@@ -1617,8 +1607,6 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
 
             {/* Brunnar i närheten */}
             {data.brunnar && data.brunnar.length > 0 && (() => {
-              // Sort: matching aquifer type first, then by capacity descending. Cap display at 8.
-              // Berg/morän: bergborrade first; sediment: jord first
               const sorted = [...data.brunnar].sort((a, b) =>
                 (a.distKm ?? 999) - (b.distKm ?? 999)
               ).slice(0, 8);
