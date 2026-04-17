@@ -14,10 +14,11 @@ interface Props {
 
 interface BrunnInfo {
   id: string;
-  kapacitet?: number;    // l/h
-  djup?: number;         // totaldjup m
-  jorddjup?: number;     // soil cover m
-  isBergborrad: boolean; // totaldjup - jorddjup > 15 m
+  kapacitet?: number;
+  djup?: number;
+  jorddjup?: number;
+  isBergborrad: boolean;
+  distKm?: number;
 }
 
 interface ReportData {
@@ -829,12 +830,17 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                 const p = f.properties ?? {};
                 const totaldjup = p.totaldjup ?? p.borrhalsdjup ?? null;
                 const jorddjup  = p.jorddjup ?? 0;
+                const coords = f.geometry?.type === 'Point' ? f.geometry.coordinates : null;
+                const distKm = coords
+                  ? Math.round(haversineKm(lat, lon, coords[1], coords[0]) * 10) / 10
+                  : undefined;
                 return {
                   id: p.brunnsid || p.id || f.id || '?',
                   kapacitet: p.kapacitet,
                   djup: totaldjup,
                   jorddjup,
                   isBergborrad: totaldjup != null && (totaldjup - jorddjup) > 15,
+                  distKm,
                 };
               });
           }
@@ -1370,7 +1376,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                       <div key={st.id} className="flex items-center justify-between bg-secondary/30 rounded px-2.5 py-1.5 text-xs">
                         <div className="min-w-0 flex-1">
                           <span className="font-medium">{st.namn || st.id}</span>
-                          <span className="text-muted-foreground ml-1.5">{st.distKm.toFixed(1)} km</span>
+                          <span className="text-muted-foreground ml-1.5">{st.distKm.toFixed(1)} km fr. punkten</span>
                           {st.jordart && (
                             <span className="text-muted-foreground ml-1.5 truncate">{st.jordart}</span>
                           )}
@@ -1603,6 +1609,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                             <span className="font-medium">{b.id}</span>
                             <span className="text-muted-foreground ml-1.5">{b.isBergborrad ? 'berg' : 'jord'}</span>
                             {b.djup != null && <span className="text-muted-foreground ml-1.5">{b.djup} m</span>}
+                            {b.distKm != null && <span className="text-muted-foreground ml-1.5">{b.distKm.toFixed(1)} km fr. punkten</span>}
                           </div>
                           <div className="font-semibold text-blue-700 dark:text-blue-400 ml-2 shrink-0">{b.kapacitet} l/h</div>
                         </div>
