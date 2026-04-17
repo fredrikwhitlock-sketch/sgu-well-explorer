@@ -729,36 +729,43 @@ export const MapView = () => {
         const maxLat = (Math.atan(Math.exp((maxY / 20037508.34) * Math.PI)) * 360 / Math.PI) - 90;
         
         const bbox = `${minLon},${minLat},${maxLon},${maxLat}`;
-        const url = `https://api.sgu.se/oppnadata/jordarter25k-100k/ogc/features/v1/collections/grundlager/items?f=json&bbox=${bbox}&limit=20000`;
-        
-        const response = await fetch(url);
-        
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+        const jordartBase = `https://api.sgu.se/oppnadata/jordarter25k-100k/ogc/features/v1/collections`;
+        // Fetch grundlager (main layer), ytlager (thin surface) and oversta-ytlager (topmost thin) in parallel
+        const [grundRes, ytRes, overstRes] = await Promise.allSettled([
+          fetch(`${jordartBase}/grundlager/items?f=json&bbox=${bbox}&limit=20000`),
+          fetch(`${jordartBase}/ytlager/items?f=json&bbox=${bbox}&limit=5000`),
+          fetch(`${jordartBase}/oversta-ytlager/items?f=json&bbox=${bbox}&limit=5000`),
+        ]);
+
+        let allRawFeatures: any[] = [];
+        let hitLimit = false;
+        for (const res of [grundRes, ytRes, overstRes]) {
+          if (res.status === 'fulfilled' && res.value.ok) {
+            const d = await res.value.json().catch(() => null);
+            if (d?.features?.length) {
+              allRawFeatures = allRawFeatures.concat(d.features);
+              if (d.features.length >= 5000) hitLimit = true;
+            }
+          }
         }
-        
-        const data = await response.json();
-        console.log(`Received ${data.features?.length || 0} soil type features`);
-        
-        if (data.features && data.features.length > 0) {
+
+        if (hitLimit) toast.info("Visar max 20 000 jordarter per område. Zooma in för fler detaljer.");
+
+        console.log(`Received ${allRawFeatures.length} soil type features`);
+
+        if (allRawFeatures.length > 0) {
           const features = new GeoJSON().readFeatures(
-            { type: "FeatureCollection", features: data.features },
+            { type: "FeatureCollection", features: allRawFeatures },
             {
               dataProjection: "EPSG:4326",
               featureProjection: "EPSG:3857",
             }
           );
-          
-          // Add all features (polygons may overlap between areas, that's OK)
+
           soilTypesSource.addFeatures(features);
           setSoilTypesLoaded(soilTypesSource.getFeatures().length);
           loadedSoilExtentsRef.push(gridKey);
-          
-          if (data.features.length >= 20000) {
-            toast.info("Visar max 20 000 jordarter per område. Zooma in för fler detaljer.");
-          }
         } else {
-          // Mark as loaded even if empty
           loadedSoilExtentsRef.push(gridKey);
         }
       } catch (error) {
