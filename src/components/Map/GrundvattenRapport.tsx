@@ -1184,102 +1184,6 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                 </div>
               ) : null}
 
-              {/* Depth estimate – shown for non-unknown, non-pure-confining aquifers with HYPE data */}
-              {depth && effectiveAquifer?.type !== 'unknown' && !(aquifer?.type === 'confining' && effectiveAquifer === aquifer) && (
-                <div className={`rounded-lg p-3 mb-2 ${fyllnadBg(relevantFyllnad)}`}>
-                  {calibratedDepth ? (
-                    <>
-                      <div className="text-xs text-muted-foreground mb-1">
-                        Grundvattennivå under markyta – kalibrerad
-                        {data.hypoDate && (
-                          <span className="ml-1">
-                            · {data.hypoDate.replace(/Z$/, '')}
-                            {data.hypoDateIsFallback && <span className="italic"> (senaste tillgängliga)</span>}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-baseline gap-1.5">
-                        <span className={`text-2xl font-bold leading-none ${fyllnadColor(relevantFyllnad)}`}>
-                          {calibratedDepth.lo}–{calibratedDepth.hi}
-                        </span>
-                        <span className="text-sm font-medium text-muted-foreground">m</span>
-                      </div>
-                      <div className={`text-xs mt-1 ${depth.adj.color}`}>{depth.adj.label}</div>
-                      <div className="text-xs mt-1.5 text-muted-foreground">
-                        Observerat P25–P75: {obsKalibr!.p25.toFixed(1)}–{obsKalibr!.p75.toFixed(1)} m
-                        · median {obsKalibr!.medianDjup.toFixed(1)} m
-                        · {obsKalibr!.antal} stationer
-                        <span className={`ml-1 ${obsKalibr!.aquiferMatch ? 'text-green-700 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400'}`}>
-                          · {obsKalibr!.matchLabel}
-                        </span>
-                        {obsKalibr!.highVariance && (
-                          <span className="block text-[10px] mt-0.5 text-orange-600 dark:text-orange-400">
-                            Stor spridning mellan stationer – heterogena akviferer i området. Kalibreringen är osäker.
-                          </span>
-                        )}
-                        <span className="block text-[10px] mt-0.5 opacity-70">
-                          Närmaste observation ±7 dagar från valt datum per station
-                        </span>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="text-xs text-muted-foreground mb-1">
-                        Uppskattad grundvattennivå under markyta
-                        {data?.hypoDate && (
-                          <span className="ml-1">
-                            · {data.hypoDate.replace(/Z$/, '')}
-                            {data?.hypoDateIsFallback && <span className="italic"> (senaste tillgängliga)</span>}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-baseline gap-1.5">
-                        <span className={`text-2xl font-bold leading-none ${fyllnadColor(relevantFyllnad)}`}>
-                          {depth.lo}–{depth.hi}
-                        </span>
-                        <span className="text-sm font-medium text-muted-foreground">m</span>
-                      </div>
-                      <div className={`text-xs mt-1 ${depth.adj.color}`}>
-                        Aktuell situation: {depth.adj.label}
-                      </div>
-                    </>
-                  )}
-                  <div className="flex items-start gap-1 mt-2 text-xs text-muted-foreground">
-                    <Info className="w-3 h-3 shrink-0 mt-0.5" />
-                    <span>
-                      {calibratedDepth
-                        ? `Kalibrerad mot ${obsKalibr!.matchLabel} (SGU) inom 50 km, justerad med SGU-HYPE-situationen. Lokala förhållanden kan avvika.`
-                        : 'Uppskattning baserad på jordart och SGU-HYPE-modellen. Osäkerheten är betydande – lokala förhållanden kan avvika.'}
-                    </span>
-                  </div>
-                  {jorddjupCapInfo && (
-                    <div className={`flex items-start gap-1.5 mt-2 rounded-md px-2.5 py-2 text-xs ${
-                      jorddjupCapInfo.likelyBedrock
-                        ? 'bg-orange-50 dark:bg-orange-950/40 text-orange-800 dark:text-orange-300'
-                        : 'bg-yellow-50 dark:bg-yellow-950/30 text-yellow-800 dark:text-yellow-300'
-                    }`}>
-                      <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                      <span>
-                        {jorddjupCapInfo.likelyBedrock ? (
-                          <>
-                            <span className="font-semibold">Troligen bergmagasin.</span>
-                            {' '}Estimerat djup ({calibratedDepth?.median ?? Math.round((depth!.lo + depth!.hi) / 2)} m) överstiger jorddjupet i närheten (~{jorddjupCapInfo.soilDepth.toFixed(1)} m).
-                            Grundvattnet finns troligen i sprickor i berggrunden.
-                            Osäkerheten ökar – bergmagasinets djup beror på täcklager, sprickor och topografiskt läge.
-                          </>
-                        ) : (
-                          <>
-                            <span className="font-semibold">Möjligt bergmagasin.</span>
-                            {' '}Övre delen av djupintervallet kan överstiga jorddjupet (~{jorddjupCapInfo.soilDepth.toFixed(1)} m),
-                            vilket antyder att grundvattnet delvis kan finnas i berggrunden.
-                          </>
-                        )}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )}
-
               {/* Capacity interpretation */}
               <div className="rounded-lg border border-border p-3">
                 <div className="text-xs text-muted-foreground mb-0.5">Kapacitet – uppskattning</div>
@@ -1477,6 +1381,61 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                 </>
               ) : (
                 <div className="text-xs text-muted-foreground mb-3">Ingen HYPE-data för denna punkt</div>
+              )}
+
+              {/* Estimated/calibrated depth – sits right below HYPE trend */}
+              {depth && effectiveAquifer?.type !== 'unknown' && !(aquifer?.type === 'confining' && effectiveAquifer === aquifer) && (
+                <div className="mt-2 mb-3 bg-secondary/30 border border-border rounded-lg p-3">
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                    Grundvattennivå – uppskattad
+                  </div>
+                  {calibratedDepth ? (
+                    <>
+                      <div className="text-xl font-bold mb-3">
+                        {calibratedDepth.lo}–{calibratedDepth.hi} m u. markytan
+                      </div>
+                      <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Beräkning</div>
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-muted-foreground">Observerat median</span>
+                          <span className="font-medium">{obsKalibr!.medianDjup.toFixed(1)} m</span>
+                        </div>
+                        <div className="flex justify-between text-xs">
+                          <span className="text-muted-foreground">Kvartilar P25–P75</span>
+                          <span className="font-medium">{obsKalibr!.p25.toFixed(1)}–{obsKalibr!.p75.toFixed(1)} m</span>
+                        </div>
+                        <div className="flex justify-between text-xs">
+                          <span className="text-muted-foreground">Stationer</span>
+                          <span className="font-medium">{obsKalibr!.antal} st · {obsKalibr!.matchLabel}</span>
+                        </div>
+                        <div className="flex justify-between text-xs">
+                          <span className="text-muted-foreground">HYPE-situationsfaktor</span>
+                          <span className="font-medium">{depth.adj.factor}× · {depth.adj.label}</span>
+                        </div>
+                        <div className="flex justify-between text-xs border-t border-border pt-1 mt-0.5">
+                          <span className="text-muted-foreground font-medium">Resultat (kvartilar × faktor)</span>
+                          <span className="font-semibold">{calibratedDepth.lo}–{calibratedDepth.hi} m</span>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-xl font-bold mb-1">
+                        {depth.lo}–{depth.hi} m u. markytan
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Baserat på akvifärtyp + HYPE-nivå ({depth.adj.label}) – inga observerade stationer för kalibrering
+                      </div>
+                    </>
+                  )}
+                  {jorddjupCapInfo && (
+                    <div className="mt-2 text-xs text-orange-600 dark:text-orange-400">
+                      {jorddjupCapInfo.likelyBedrock
+                        ? `Jorddjup (${jorddjupCapInfo.soilDepth.toFixed(1)} m) grundare än uppskattningen – grundvatten troligen i berg`
+                        : `Observera: övre gräns når nära jorddjup (${jorddjupCapInfo.soilDepth.toFixed(1)} m)`}
+                    </div>
+                  )}
+                </div>
               )}
 
               {/* Jordart */}
