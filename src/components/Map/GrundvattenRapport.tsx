@@ -61,9 +61,13 @@ interface ReportData {
   obsStationer?: Array<{ id: string; namn: string; djup: number; obsdatum: string; distKm: number; aquiferGroup?: 'rock' | 'jord'; jordart?: string }>;
   // Magasinsdelområde – withdrawal capacity and sub-area properties
   delomrade?: {
+    namn?: string;
+    magasinsnamn?: string;
     uttagsmojligheter?: string;
     kornstorlek?: string;
     artesiskt?: string;
+    nivaforhallande?: string;
+    vattenkemi?: string;
     delomradeskvalitet?: string;
   };
 }
@@ -492,7 +496,10 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
       if (m.medelmaktighetOmattad) lines.push(`- **Omättad zon:** ${m.medelmaktighetOmattad}`);
       if (m.tillrinningLs != null) lines.push(`- **Tillrinning från tillrinningsområden:** ${m.tillrinningLs} l/s`);
       if (data.delomrade?.uttagsmojligheter) lines.push(`- **Uttagsmöjlighet (delområde):** ${data.delomrade.uttagsmojligheter}`);
+      if (data.delomrade?.kornstorlek) lines.push(`- **Kornstorlek (delområde):** ${data.delomrade.kornstorlek}`);
       if (data.delomrade?.artesiskt) lines.push(`- **Artesiskt:** ${data.delomrade.artesiskt}`);
+      if (data.delomrade?.nivaforhallande) lines.push(`- **Nivåförhållande:** ${data.delomrade.nivaforhallande}`);
+      if (data.delomrade?.vattenkemi) lines.push(`- **Vattenkemi:** ${data.delomrade.vattenkemi}`);
     }
 
     lines.push('', '### Grundvattennivå');
@@ -848,9 +855,13 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
           if (d.features?.length > 0) {
             const p = d.features[0].properties ?? {};
             result.delomrade = {
+              namn:                p.delomradesnamn || undefined,
+              magasinsnamn:        p.magasinsnamn || undefined,
               uttagsmojligheter:   p.uttagsmojligheter || undefined,
               kornstorlek:         p.kornstorlek_kod > 0 ? p.kornstorlek : undefined,
               artesiskt:           p.artesiskt_kod > 0 ? p.artesiskt : undefined,
+              nivaforhallande:     p.nivaforhallande_kod > 0 ? p.nivaforhallande : undefined,
+              vattenkemi:          p.vattenkemi_kod > 0 ? p.vattenkemi : undefined,
               delomradeskvalitet:  p.delomradeskvalitet_kod > 0 ? p.delomradeskvalitet : undefined,
             };
           }
@@ -1498,104 +1509,95 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
               ) : null}
 
               {/* Grundvattenmagasin – card */}
-              {data.magasin && (() => {
-                const m = data.magasin!;
+              {(data.magasin || data.delomrade) && (() => {
+                const m = data.magasin;
+                const d = data.delomrade;
+                const Row = ({ label, value, bold, blue, muted }: { label: string; value: React.ReactNode; bold?: boolean; blue?: boolean; muted?: boolean }) => (
+                  <div className="flex justify-between items-baseline gap-2">
+                    <span className="text-muted-foreground shrink-0">{label}</span>
+                    <span className={`text-right ${bold ? 'font-semibold' : 'font-medium'} ${blue ? 'text-blue-700 dark:text-blue-400' : ''} ${muted ? 'text-muted-foreground' : ''} capitalize`}>{value}</span>
+                  </div>
+                );
                 return (
                   <div className="mt-1 bg-secondary/30 border border-border rounded-lg p-3 space-y-2.5">
-                    {/* Header: label */}
                     <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                       Grundvattenmagasin (SGU)
                     </div>
 
-                    {/* Name */}
-                    <div className="text-xs font-semibold leading-snug">{m.namn}</div>
+                    {m && (
+                      <>
+                        <div className="text-xs font-semibold leading-snug">{m.namn}</div>
 
-                    {/* Badges: position code + type + genesis */}
-                    <div className="flex flex-wrap gap-1">
-                      {m.positionKod && (
-                        <span className="text-[10px] font-mono font-bold bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200 px-1.5 py-0.5 rounded">
-                          {m.positionKod}
-                        </span>
-                      )}
-                      {m.akvifertyp && (
-                        <span className="text-[10px] bg-secondary text-muted-foreground px-1.5 py-0.5 rounded capitalize border border-border">
-                          {m.akvifertyp}
-                        </span>
-                      )}
-                      {m.genes && (
-                        <span className="text-[10px] bg-secondary text-muted-foreground px-1.5 py-0.5 rounded capitalize border border-border">
-                          {m.genes}
-                        </span>
-                      )}
-                    </div>
+                        {/* Badges: position code + type + genesis */}
+                        <div className="flex flex-wrap gap-1">
+                          {m.positionKod && (
+                            <span className="text-[10px] font-mono font-bold bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200 px-1.5 py-0.5 rounded">
+                              {m.positionKod}
+                            </span>
+                          )}
+                          {m.akvifertyp && (
+                            <span className="text-[10px] bg-secondary text-muted-foreground px-1.5 py-0.5 rounded capitalize border border-border">
+                              {m.akvifertyp}
+                            </span>
+                          )}
+                          {m.genes && (
+                            <span className="text-[10px] bg-secondary text-muted-foreground px-1.5 py-0.5 rounded capitalize border border-border">
+                              {m.genes}
+                            </span>
+                          )}
+                        </div>
 
-                    {/* Data rows */}
-                    <div className="space-y-1 text-xs">
-                      {m.geomAreaKm2 != null && (
-                        <div className="flex justify-between items-baseline gap-2">
-                          <span className="text-muted-foreground shrink-0">Yta</span>
-                          <span className="font-medium">~{m.geomAreaKm2} km²</span>
-                        </div>
-                      )}
-                      {m.medelmaktighetMattad && (
-                        <div className="flex justify-between items-baseline gap-2">
-                          <span className="text-muted-foreground shrink-0">Mättad zon</span>
-                          <span className="font-medium text-right">{m.medelmaktighetMattad}</span>
-                        </div>
-                      )}
-                      {m.medelmaktighetOmattad && (
-                        <div className="flex justify-between items-baseline gap-2">
-                          <span className="text-muted-foreground shrink-0">Omättad zon</span>
-                          <span className="font-medium text-right">{m.medelmaktighetOmattad}</span>
-                        </div>
-                      )}
-                      {m.tillrinningLs != null && (
-                        <div className="flex justify-between items-baseline gap-2">
-                          <span className="text-muted-foreground shrink-0">Tillrinning</span>
-                          <span className="font-medium">{m.tillrinningLs.toLocaleString('sv')} l/s</span>
-                        </div>
-                      )}
-                      {data.delomrade?.uttagsmojligheter && (
-                        <div className="flex justify-between items-baseline gap-2">
-                          <span className="text-muted-foreground shrink-0">Uttagsmöjlighet (delområde)</span>
-                          <span className="font-semibold text-blue-700 dark:text-blue-400">{data.delomrade.uttagsmojligheter}</span>
-                        </div>
-                      )}
-                      {data.delomrade?.kornstorlek && (
-                        <div className="flex justify-between items-baseline gap-2">
-                          <span className="text-muted-foreground shrink-0">Kornstorlek</span>
-                          <span className="font-medium text-right capitalize">{data.delomrade.kornstorlek}</span>
-                        </div>
-                      )}
-                      {data.delomrade?.artesiskt && (
-                        <div className="flex justify-between items-baseline gap-2">
-                          <span className="text-muted-foreground shrink-0">Artesiskt</span>
-                          <span className="font-medium text-right capitalize">{data.delomrade.artesiskt}</span>
-                        </div>
-                      )}
-                      {data.delomrade?.delomradeskvalitet && (
-                        <div className="flex justify-between items-baseline gap-2">
-                          <span className="text-muted-foreground shrink-0">Karterings­kvalitet</span>
-                          <span className="font-medium text-right capitalize text-muted-foreground">{data.delomrade.delomradeskvalitet}</span>
-                        </div>
-                      )}
-                      {m.grvbildningstyp && (
-                        <div className="flex justify-between items-baseline gap-2">
-                          <span className="text-muted-foreground shrink-0">GV-bildning</span>
-                          <span className="capitalize">{m.grvbildningstyp}</span>
-                        </div>
-                      )}
-                    </div>
+                        {/* Full position label text */}
+                        {m.magasinsposition && (
+                          <div className="text-[11px] text-muted-foreground leading-snug -mt-1">{m.magasinsposition}</div>
+                        )}
 
-                    {m.lankBeskrivning && (
-                      <a
-                        href={m.lankBeskrivning}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="block text-xs text-blue-700 dark:text-blue-400 hover:underline"
-                      >
-                        Magasinsbeskrivning (SGU) →
-                      </a>
+                        <div className="space-y-1 text-xs">
+                          {m.geomAreaKm2 != null && <Row label="Yta" value={`~${m.geomAreaKm2} km²`} />}
+                          {m.medelmaktighetMattad && <Row label="Mättad zon" value={m.medelmaktighetMattad} />}
+                          {m.medelmaktighetOmattad && <Row label="Omättad zon" value={m.medelmaktighetOmattad} />}
+                          {m.tillrinningLs != null && <Row label="Tillrinning" value={`${m.tillrinningLs.toLocaleString('sv')} l/s`} />}
+                          {m.grvbildningstyp && <Row label="GV-bildning" value={m.grvbildningstyp} />}
+                        </div>
+
+                        {m.lankBeskrivning && (
+                          <a
+                            href={m.lankBeskrivning}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block text-xs text-blue-700 dark:text-blue-400 hover:underline"
+                          >
+                            Magasinsbeskrivning (SGU) →
+                          </a>
+                        )}
+                      </>
+                    )}
+
+                    {/* Delområde sub-section */}
+                    {d && (
+                      <>
+                        {m && <div className="border-t border-border pt-2 mt-1" />}
+                        <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                          Delområde (J1)
+                          {d.namn && <span className="ml-1 normal-case font-normal">– {d.namn}</span>}
+                        </div>
+                        {!m && d.magasinsnamn && (
+                          <div className="text-xs font-semibold leading-snug">{d.magasinsnamn}</div>
+                        )}
+                        <div className="space-y-1 text-xs">
+                          {d.uttagsmojligheter && (
+                            <div className="flex justify-between items-baseline gap-2">
+                              <span className="text-muted-foreground shrink-0">Uttagsmöjlighet</span>
+                              <span className="font-bold text-blue-700 dark:text-blue-400">{d.uttagsmojligheter}</span>
+                            </div>
+                          )}
+                          {d.kornstorlek && <Row label="Kornstorlek" value={d.kornstorlek} />}
+                          {d.artesiskt && <Row label="Artesiskt" value={d.artesiskt} />}
+                          {d.nivaforhallande && <Row label="Nivåförhållande" value={d.nivaforhallande} />}
+                          {d.vattenkemi && <Row label="Vattenkemi" value={d.vattenkemi} />}
+                          {d.delomradeskvalitet && <Row label="Karteringskvalitet" value={d.delomradeskvalitet} muted />}
+                        </div>
+                      </>
                     )}
                   </div>
                 );
