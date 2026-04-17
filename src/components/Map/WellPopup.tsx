@@ -1616,22 +1616,24 @@ export const WellPopup = ({
             )}
           </>
         ) : (
+          <>
+            <Separator className="my-2" />
 
-        <Separator className="my-2" />
-        
-        <div className="pt-2">
-          <p className="text-xs text-muted-foreground">
-            Källa:{" "}
-            <a 
-              href="https://www.sgu.se" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="text-sgu-link hover:underline"
-            >
-              Sveriges geologiska undersökning (SGU)
-            </a>
-          </p>
-        </div>
+            <div className="pt-2">
+              <p className="text-xs text-muted-foreground">
+                Källa:{" "}
+                <a
+                  href="https://www.sgu.se"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sgu-link hover:underline"
+                >
+                  Sveriges geologiska undersökning (SGU)
+                </a>
+              </p>
+            </div>
+          </>
+        )}
       </div>
     </Card>
   );
