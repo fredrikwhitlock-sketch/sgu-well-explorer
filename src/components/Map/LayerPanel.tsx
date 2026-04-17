@@ -4,7 +4,7 @@ import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { Layers, ExternalLink, Download, Trash2, X } from "lucide-react";
-import { SOIL_TYPE_CATEGORIES } from "@/lib/soilTypeColors";
+import { SOIL_LEGEND } from "@/lib/soilTypeColors";
 
 interface LayerPanelProps {
   sourcesVisible: boolean;
@@ -413,7 +413,7 @@ export const LayerPanel = ({
                 Jordarter 1:25k-100k
               </Label>
               <p className="text-xs text-muted-foreground">
-                Grundlager {soilTypesLoaded > 0 && `(${soilTypesLoaded})`}
+                Grundlager + ytlager {soilTypesLoaded > 0 && `(${soilTypesLoaded})`}
               </p>
             </div>
             <Switch
@@ -442,16 +442,13 @@ export const LayerPanel = ({
               <div className="text-xs space-y-1">
                 <div className="font-medium text-muted-foreground mb-2">Jordartskategorier:</div>
                 <div className="grid grid-cols-2 gap-1">
-                  {SOIL_TYPE_CATEGORIES.slice(0, 8).map((cat) => (
-                    <div key={cat.code} className="flex items-center gap-1">
-                      <div 
-                        className="w-3 h-3 rounded-sm border" 
-                        style={{ 
-                          backgroundColor: cat.fill, 
-                          borderColor: cat.stroke 
-                        }} 
+                  {SOIL_LEGEND.map((cat) => (
+                    <div key={cat.label} className="flex items-center gap-1">
+                      <div
+                        className="w-3 h-3 rounded-sm flex-shrink-0"
+                        style={{ backgroundColor: cat.fill, outline: `1.5px solid ${cat.stroke}` }}
                       />
-                      <span className="text-muted-foreground text-[10px] truncate">{cat.name}</span>
+                      <span className="text-muted-foreground text-[10px] truncate">{cat.label}</span>
                     </div>
                   ))}
                 </div>
