@@ -1264,18 +1264,18 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                   </div>
                 )}
                 {/* Jorddjup – thickness of soil above bedrock from WMS raster */}
-                {aquifer?.type === 'rock' ? (
-                  <div className="text-xs mb-1.5">
-                    <span className="font-medium">Jordlager:</span>
-                    <span className="ml-1 text-muted-foreground italic">≈ 0 m – berg i dagen, inget jordmagasin</span>
-                  </div>
-                ) : data.jorddjup ? (
+                {data.jorddjup ? (
                   <div className="text-xs mb-1.5">
                     <span className="font-medium">Jordlager (jorddjupsmodell):</span>
                     <span className="ml-1 text-blue-700 dark:text-blue-400 font-semibold">
                       {data.jorddjup.djup.toFixed(1)} m
                     </span>
                     <span className="text-muted-foreground ml-1">(interpolerat 10×10 m raster)</span>
+                  </div>
+                ) : aquifer?.type === 'rock' ? (
+                  <div className="text-xs mb-1.5">
+                    <span className="font-medium">Jordlager:</span>
+                    <span className="ml-1 text-muted-foreground italic">≈ 0 m – berg i dagen, inget jordmagasin</span>
                   </div>
                 ) : null}
                 {/* Sedimentjord: show small-aquifer raster (l/dygn/ha) — not relevant for morän/berg */}
@@ -1505,17 +1505,17 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
               )}
 
               {/* Jorddjup */}
-              {aquifer?.type === 'rock' ? (
-                <div className="flex justify-between items-baseline text-xs mb-1.5">
-                  <span className="text-muted-foreground">Jorddjup</span>
-                  <span className="font-medium ml-2 text-right text-muted-foreground italic">≈ 0 m (berg i dagen)</span>
-                </div>
-              ) : data.jorddjup ? (
+              {data.jorddjup ? (
                 <div className="flex justify-between items-baseline text-xs mb-1.5">
                   <span className="text-muted-foreground">Jorddjup (10×10 m raster, interpolerat)</span>
                   <span className="font-medium ml-2 text-right">
                     {data.jorddjup.djup.toFixed(1)} m
                   </span>
+                </div>
+              ) : aquifer?.type === 'rock' ? (
+                <div className="flex justify-between items-baseline text-xs mb-1.5">
+                  <span className="text-muted-foreground">Jorddjup</span>
+                  <span className="font-medium ml-2 text-right text-muted-foreground italic">≈ 0 m (berg i dagen)</span>
                 </div>
               ) : null}
 
