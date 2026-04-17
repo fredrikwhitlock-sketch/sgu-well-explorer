@@ -35,6 +35,7 @@ interface ReportData {
   gvTillgangLdha?: number | null;
   jordartNamn?: string;
   jordartKod?: string;
+  jordartKalla?: 'oversta-ytlager' | 'ytlager' | 'grundlager';
   // Jorddjup från jorddjupsmodell – interpolerat WMS GetFeatureInfo (10×10 m raster)
   jorddjup?: { djup: number };
   // Terrängmodell – EU-DEM 25m via OpenTopoData
@@ -478,7 +479,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
       ...(data.elevation != null ? [`**Höjd:** ${data.elevation} m ö.h. (EU-DEM 25m)`] : []),
       '',
       '### Jordart & Akvifer',
-      `- **Jordart:** ${data.jordartNamn ?? 'Okänd'}`,
+      `- **Jordart:** ${data.jordartNamn ?? 'Okänd'}${data.jordartKalla ? ` (källa: ${data.jordartKalla})` : ''}`,
       `- **Klassificering:** ${aq.label}`,
       `- **Kapacitetsuppskattning:** ${aq.capacityLabel}`,
     ];
@@ -629,9 +630,12 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
       // CQL2 is precise but may not be supported by all SGU endpoints.
       // Bbox fallback picks the first non-water feature (code 91) so rivers
       // don't shadow the surrounding soil type.
-      const jordartBase = `https://api.sgu.se/oppnadata/jordarter25k-100k/ogc/features/v1/collections/grundlager/items?f=json`;
-      const jordartCql2Url = `${jordartBase}&filter=${encodeURIComponent(`S_INTERSECTS(geometry,POINT(${lon} ${lat}))`)}&filter-lang=cql2-text&limit=1`;
-      const jordartBboxUrl = `${jordartBase}&bbox=${bbox}&limit=5`;
+      const jordartApiBase = `https://api.sgu.se/oppnadata/jordarter25k-100k/ogc/features/v1/collections`;
+      const jordartCqlFilter = `filter=${encodeURIComponent(`S_INTERSECTS(geometry,POINT(${lon} ${lat}))`)}&filter-lang=cql2-text&limit=1`;
+      const jordartCql2Url     = `${jordartApiBase}/grundlager/items?f=json&${jordartCqlFilter}`;
+      const jordartBboxUrl     = `${jordartApiBase}/grundlager/items?f=json&bbox=${bbox}&limit=5`;
+      const ytlagerCql2Url     = `${jordartApiBase}/ytlager/items?f=json&${jordartCqlFilter}`;
+      const overstaCql2Url     = `${jordartApiBase}/oversta-ytlager/items?f=json&${jordartCqlFilter}`;
 
       // HYPE: chain levels fetch onto omraden response
       let levelsPromise: Promise<[any, any]> | null = null;
@@ -735,8 +739,10 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
         fetch(jorddjupWmsUrl, { signal }),
         obsStationerChain,
         fetch(`https://api.opentopodata.org/v1/eudem25m?locations=${lat},${lon}`, { signal }),
+        fetch(ytlagerCql2Url, { signal }),
+        fetch(overstaCql2Url, { signal }),
       ]);
-      const [omradenRes, gvTillgangRes, jordartCql2Res, jordartBboxRes, forekomstRes, delomradeRes, jorddjupRes, , elevationRes] = allResults;
+      const [omradenRes, gvTillgangRes, jordartCql2Res, jordartBboxRes, forekomstRes, delomradeRes, jorddjupRes, , elevationRes, ytlagerRes, overstaRes] = allResults;
 
       if (signal.aborted) return;
 
@@ -790,8 +796,8 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
         } catch { /* ignore */ }
       }
 
-      // Jordart: prefer CQL2 (exact point containment), fall back to bbox
-      // (first non-water feature). Suppresses "Okänd" when neither has data.
+      // Jordart: priority order oversta-ytlager → ytlager → grundlager (CQL2), then grundlager bbox.
+      // Surface layers represent what the map shows and what a driller encounters first.
       const extractJordart = (features: any[]): { name: string; kod: string } | null => {
         if (!features?.length) return null;
         const f = features.find(f => (f.properties?.jg2 ?? f.properties?.JG2) !== 91) ?? features[0];
@@ -801,15 +807,26 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
       };
       try {
         let jordart: { name: string; kod: string } | null = null;
-        if (jordartCql2Res.status === 'fulfilled' && jordartCql2Res.value.ok) {
-          const d = await jordartCql2Res.value.json().catch(() => null);
-          jordart = extractJordart(d?.features);
-        }
+        let kalla: ReportData['jordartKalla'] = undefined;
+
+        const tryRes = async (res: PromiseSettledResult<Response>, k: ReportData['jordartKalla']) => {
+          if (jordart) return;
+          if (res.status === 'fulfilled' && res.value.ok) {
+            const d = await res.value.json().catch(() => null);
+            const j = extractJordart(d?.features);
+            if (j) { jordart = j; kalla = k; }
+          }
+        };
+
+        await tryRes(overstaRes,    'oversta-ytlager');
+        await tryRes(ytlagerRes,    'ytlager');
+        await tryRes(jordartCql2Res, 'grundlager');
         if (!jordart && jordartBboxRes.status === 'fulfilled' && jordartBboxRes.value.ok) {
           const d = await jordartBboxRes.value.json().catch(() => null);
-          jordart = extractJordart(d?.features);
+          const j = extractJordart(d?.features);
+          if (j) { jordart = j; kalla = 'grundlager'; }
         }
-        if (jordart) { result.jordartNamn = jordart.name; result.jordartKod = jordart.kod; }
+        if (jordart) { result.jordartNamn = jordart.name; result.jordartKod = jordart.kod; result.jordartKalla = kalla; }
       } catch { /* ignore */ }
 
       // Grundvattenmagasin
@@ -1499,7 +1516,12 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
               {/* Jordart */}
               {data.jordartNamn && (
                 <div className="flex justify-between items-baseline text-xs mb-1.5">
-                  <span className="text-muted-foreground">Jordart (1:25k–100k)</span>
+                  <span className="text-muted-foreground">
+                    Jordart
+                    {data.jordartKalla && data.jordartKalla !== 'grundlager' && (
+                      <span className="ml-1 text-[10px]">({data.jordartKalla})</span>
+                    )}
+                  </span>
                   <span className="font-medium ml-2 text-right">{data.jordartNamn}</span>
                 </div>
               )}
