@@ -579,7 +579,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
       // Grundvattenmagasin: exact point-in-polygon via CQL2 – only show when click
       // is actually inside a mapped aquifer polygon (no bbox fallback: that risks
       // showing a neighbouring aquifer whose polygon doesn't contain the point).
-      const gvmCql2Url = `https://api.sgu.se/oppnadata/grundvattenmagasin/ogc/features/v1/collections/grundvattenmagasin/items?f=json&filter=${encodeURIComponent(`S_INTERSECTS(geometry,POINT(${lon} ${lat}))`)}&filter-lang=cql2-text&limit=1`;
+      const gvmCql2Url = `https://api.sgu.se/oppnadata/grundvattenmagasin/ogc/features/v1/collections/grundvattenmagasin/items?f=json&filter=${encodeURIComponent(`S_INTERSECTS(geom,POINT(${lon} ${lat}))`)}&filter-lang=cql2-text&limit=1`;
       // ~15 km radius for brunnar
       const brunnarDelta = 0.13;
       const brunnarBbox = `${lon - brunnarDelta},${lat - brunnarDelta},${lon + brunnarDelta},${lat + brunnarDelta}`;
