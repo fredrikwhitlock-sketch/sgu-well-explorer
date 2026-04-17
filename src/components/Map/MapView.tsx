@@ -601,35 +601,35 @@ export const MapView = () => {
       format: new GeoJSON(),
     });
 
-    // Aquifer color scheme by akvifertyp
+    // Magasinsdelomraden color scheme by uttagsmojligheter
     const getAquiferStyle = (feature: any) => {
-      const props = feature.getProperties();
-      const akvifertyp = props.akvifertyp || '';
-      const position = (props.magasinsposition || '').substring(0, 2);
+      const uttag = (feature.get('uttagsmojligheter') || '').toLowerCase();
 
       let fillColor: string;
       let strokeColor: string;
 
-      // Color by akvifertyp
-      if (akvifertyp === 'sprickakvifer') {
-        fillColor = 'rgba(220, 38, 38, 0.25)';  // red
-        strokeColor = 'rgba(220, 38, 38, 0.9)';
-      } else if (akvifertyp === 'por- och sprickakvifer') {
-        fillColor = 'rgba(147, 51, 234, 0.25)';  // purple
-        strokeColor = 'rgba(147, 51, 234, 0.9)';
+      if (uttag.includes('<1')) {
+        fillColor  = 'rgba(205, 120, 75, 0.5)';
+        strokeColor = 'rgba(180, 90, 40, 0.85)';
+      } else if (uttag.startsWith('1')) {
+        fillColor  = 'rgba(240, 190, 170, 0.5)';
+        strokeColor = 'rgba(210, 140, 110, 0.85)';
+      } else if (uttag.startsWith('5')) {
+        fillColor  = 'rgba(175, 230, 240, 0.5)';
+        strokeColor = 'rgba(100, 180, 210, 0.85)';
+      } else if (uttag.startsWith('25')) {
+        fillColor  = 'rgba(80, 195, 230, 0.5)';
+        strokeColor = 'rgba(0, 160, 200, 0.85)';
+      } else if (uttag.startsWith('>')) {
+        fillColor  = 'rgba(50, 80, 200, 0.55)';
+        strokeColor = 'rgba(30, 60, 180, 0.9)';
       } else {
-        // porakvifer (default) – color by position
-        if (position === 'K1' || position === 'S1' || position === 'S2') {
-          fillColor = 'rgba(245, 158, 11, 0.25)'; // amber for berg-related
-          strokeColor = 'rgba(245, 158, 11, 0.9)';
-        } else {
-          fillColor = 'rgba(34, 197, 94, 0.25)';  // green for J1 (jord)
-          strokeColor = 'rgba(34, 197, 94, 0.9)';
-        }
+        fillColor  = 'rgba(160, 160, 160, 0.35)';
+        strokeColor = 'rgba(120, 120, 120, 0.7)';
       }
 
       return new Style({
-        stroke: new Stroke({ color: strokeColor, width: 2 }),
+        stroke: new Stroke({ color: strokeColor, width: 1.5 }),
         fill: new Fill({ color: fillColor }),
       });
     };
@@ -653,20 +653,20 @@ export const MapView = () => {
 
         const bbox = `${minLon},${minLat},${maxLon},${maxLat}`;
         const allFeatures = await fetchAllPages(
-          `https://api.sgu.se/oppnadata/grundvattenmagasin/ogc/features/v1/collections/grundvattenmagasin/items?f=json&bbox=${bbox}`,
+          `https://api.sgu.se/oppnadata/grundvattenmagasin/ogc/features/v1/collections/magasinsdelomraden/items?f=json&bbox=${bbox}`,
           (count) => setAquifersLoaded(prev => aquifersSource.getFeatures().length + count)
         );
 
         if (allFeatures.length > 0) {
-          // Deduplicate by unik_magasinsidentitet
+          // Deduplicate by unik_delomradesidentitet
           const existingIds = new (globalThis.Map as typeof Map)<string, boolean>();
           for (const f of aquifersSource.getFeatures()) {
-            const id = f.get('unik_magasinsidentitet');
+            const id = f.get('unik_delomradesidentitet');
             if (id) existingIds.set(id, true);
           }
 
           const newFeatures = allFeatures.filter(f => {
-            const id = f.properties?.unik_magasinsidentitet;
+            const id = f.properties?.unik_delomradesidentitet;
             return id && !existingIds.has(id);
           });
 
@@ -2335,8 +2335,8 @@ export const MapView = () => {
             {loadingAquifers && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="font-medium">Laddar grundvattenmagasin...</span>
-                  <span className="text-muted-foreground">{aquifersLoaded} magasin</span>
+                  <span className="font-medium">Laddar magasinsdelområden...</span>
+                  <span className="text-muted-foreground">{aquifersLoaded} delområden</span>
                 </div>
                 <div className="w-full bg-secondary rounded-full h-2 overflow-hidden">
                   <div className="h-full bg-primary transition-all duration-300 rounded-full animate-pulse" style={{ width: '100%' }} />
