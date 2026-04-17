@@ -5,6 +5,7 @@ import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { Layers, ExternalLink, Download, Trash2, X } from "lucide-react";
 import { SOIL_LEGEND } from "@/lib/soilTypeColors";
+import { AQUIFER_LEGEND, AQUIFER_UNKNOWN } from "@/lib/aquiferColors";
 
 interface LayerPanelProps {
   sourcesVisible: boolean;
@@ -363,14 +364,7 @@ export const LayerPanel = ({
               </div>
               <div className="text-xs space-y-1">
                 <div className="font-medium text-muted-foreground mb-2">Uttagsmöjlighet (J1):</div>
-                {[
-                  { label: '<1 l/s',   fill: 'rgba(205,120,75,0.5)',   stroke: 'rgba(180,90,40,0.85)' },
-                  { label: '1–5 l/s',  fill: 'rgba(240,190,170,0.5)',  stroke: 'rgba(210,140,110,0.85)' },
-                  { label: '5–25 l/s', fill: 'rgba(175,230,240,0.5)',  stroke: 'rgba(100,180,210,0.85)' },
-                  { label: '25–125 l/s', fill: 'rgba(80,195,230,0.5)', stroke: 'rgba(0,160,200,0.85)' },
-                  { label: '>125 l/s', fill: 'rgba(50,80,200,0.55)',   stroke: 'rgba(30,60,180,0.9)' },
-                  { label: 'Okänd',    fill: 'rgba(160,160,160,0.35)', stroke: 'rgba(120,120,120,0.7)' },
-                ].map(({ label, fill, stroke }) => (
+                {[...AQUIFER_LEGEND, AQUIFER_UNKNOWN].map(({ label, fill, stroke }) => (
                   <div key={label} className="flex items-center gap-2">
                     <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: fill, outline: `2px solid ${stroke}` }} />
                     <span className="text-muted-foreground">{label}</span>
