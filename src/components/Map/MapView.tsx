@@ -1498,6 +1498,33 @@ export const MapView = () => {
       }
 
       if (clickedItems.length > 0) {
+        // Enrich magasinsdelomraden features with parent grundvattenmagasin data
+        // (adds lank_magasinsbeskrivning, tillrinning, medelmaktighet, etc.)
+        const aquiferIndices = clickedItems
+          .map((item, i) => item.type === 'aquifer' ? i : -1)
+          .filter(i => i >= 0);
+        if (aquiferIndices.length > 0) {
+          try {
+            const lon = (evt.coordinate[0] / 20037508.34) * 180;
+            const lat = (Math.atan(Math.exp((evt.coordinate[1] / 20037508.34) * Math.PI)) * 360 / Math.PI) - 90;
+            const gvmUrl = `https://api.sgu.se/oppnadata/grundvattenmagasin/ogc/features/v1/collections/grundvattenmagasin/items?f=json&filter=${encodeURIComponent(`S_INTERSECTS(geom,POINT(${lon} ${lat}))`)}&filter-lang=cql2-text&limit=1`;
+            const res = await fetch(gvmUrl);
+            if (res.ok) {
+              const data = await res.json();
+              if (data.features?.length > 0) {
+                const gvmProps = data.features[0].properties ?? {};
+                for (const idx of aquiferIndices) {
+                  // GVM props go first so delomrade-specific fields (uttagsmojligheter etc.) take precedence
+                  clickedItems[idx] = {
+                    ...clickedItems[idx],
+                    properties: { ...gvmProps, ...clickedItems[idx].properties },
+                  };
+                }
+              }
+            }
+          } catch { /* non-critical enrichment */ }
+        }
+
         setSelectedFeatures(clickedItems);
         setSelectedFeatureIndex(0);
       }
