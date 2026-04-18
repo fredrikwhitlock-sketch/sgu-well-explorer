@@ -609,10 +609,10 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
         (d?.features ?? []).filter((f: any) => (f.properties?.kapacitet ?? 0) > 0).length;
       // Cascade: 100 m first → 5 km if no capacity well found → 15 km if fewer than 3
       const brunnarChain: Promise<any> = (async () => {
-        const tiny = await brunnarFetchJson(0.0009, 10);   // ≈ 100 m
-        if (kapCount(tiny) >= 1) return tiny;
-        const medium = await brunnarFetchJson(0.045, 25);  // ≈ 5 km
-        if (kapCount(medium) >= 3) return medium;
+        const tiny = await brunnarFetchJson(0.0009, 10);   // ≈ 100 m first
+        const hasNearby = kapCount(tiny) >= 1;
+        const medium = await brunnarFetchJson(0.045, 25);  // ≈ 5 km always after tiny
+        if (hasNearby || kapCount(medium) >= 3) return medium;
         return await brunnarFetchJson(0.13, 40) ?? medium; // ≈ 15 km
       })();
       // Jorddjupsmodell – WMS GetFeatureInfo via proxy (10×10 m interpolated raster).
