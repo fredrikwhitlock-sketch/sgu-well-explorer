@@ -951,7 +951,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
       if (geokemiRes.status === 'fulfilled' && geokemiRes.value.ok) {
         try {
           const gd = await geokemiRes.value.json();
-          const KEYS = ['as','pb','cd','ni','cr','u','mn','cu','zn','co','mo','v','ba','sr'];
+          const KEYS = ['as','pb','cd','ni','cr','u','mn','cu','zn','co','mo','v','ba','sr','fe','f','ca','mg'];
           let nearest: typeof result.geokemi | null = null;
           let nearestDist = Infinity;
           for (const f of gd.features ?? []) {
@@ -1683,24 +1683,29 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
 
               {/* Geokemi – närmaste morän ICP-MS-prov */}
               {data.geokemi && (() => {
-                const ELEMENTS: { key: string; label: string; elevated: number; high: number }[] = [
-                  { key: 'as', label: 'As', elevated: 10,   high: 25   },
-                  { key: 'u',  label: 'U',  elevated: 5,    high: 12   },
-                  { key: 'ni', label: 'Ni', elevated: 35,   high: 80   },
-                  { key: 'pb', label: 'Pb', elevated: 35,   high: 80   },
-                  { key: 'cr', label: 'Cr', elevated: 80,   high: 200  },
-                  { key: 'cd', label: 'Cd', elevated: 0.4,  high: 1.0  },
-                  { key: 'mn', label: 'Mn', elevated: 800,  high: 2000 },
-                  { key: 'cu', label: 'Cu', elevated: 30,   high: 70   },
-                  { key: 'zn', label: 'Zn', elevated: 120,  high: 300  },
-                  { key: 'co', label: 'Co', elevated: 15,   high: 40   },
-                  { key: 'mo', label: 'Mo', elevated: 2,    high: 6    },
-                  { key: 'v',  label: 'V',  elevated: 60,   high: 150  },
+                const ELEMENTS: { key: string; label: string; elevated: number; high: number; note?: string }[] = [
+                  { key: 'as', label: 'As', elevated: 10,     high: 25     },
+                  { key: 'u',  label: 'U',  elevated: 5,      high: 12     },
+                  { key: 'ni', label: 'Ni', elevated: 35,     high: 80     },
+                  { key: 'pb', label: 'Pb', elevated: 35,     high: 80     },
+                  { key: 'cr', label: 'Cr', elevated: 80,     high: 200    },
+                  { key: 'cd', label: 'Cd', elevated: 0.4,    high: 1.0    },
+                  { key: 'mn', label: 'Mn', elevated: 800,    high: 2000   },
+                  { key: 'fe', label: 'Fe', elevated: 45000,  high: 80000  },
+                  { key: 'f',  label: 'F',  elevated: 600,    high: 1200   },
+                  { key: 'cu', label: 'Cu', elevated: 30,     high: 70     },
+                  { key: 'zn', label: 'Zn', elevated: 120,    high: 300    },
+                  { key: 'co', label: 'Co', elevated: 15,     high: 40     },
+                  { key: 'mo', label: 'Mo', elevated: 2,      high: 6      },
+                  { key: 'v',  label: 'V',  elevated: 60,     high: 150    },
+                  { key: 'ca', label: 'Ca', elevated: 25000,  high: 60000, note: 'buffert' },
+                  { key: 'mg', label: 'Mg', elevated: 15000,  high: 35000, note: 'buffert' },
                 ];
-                const dot = (v: number | null, elevated: number, high: number) => {
+                const dot = (v: number | null, elevated: number, high: number, note?: string) => {
                   if (v == null) return <span className="text-muted-foreground/40">–</span>;
-                  if (v >= high) return <span className="inline-block w-2 h-2 rounded-full bg-red-500 mr-1" />;
-                  if (v >= elevated) return <span className="inline-block w-2 h-2 rounded-full bg-orange-400 mr-1" />;
+                  const isBuf = note === 'buffert';
+                  if (v >= high) return <span className={`inline-block w-2 h-2 rounded-full mr-1 ${isBuf ? 'bg-blue-500' : 'bg-red-500'}`} />;
+                  if (v >= elevated) return <span className={`inline-block w-2 h-2 rounded-full mr-1 ${isBuf ? 'bg-blue-400' : 'bg-orange-400'}`} />;
                   return <span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-1" />;
                 };
                 const hasAny = ELEMENTS.some(e => data.geokemi!.elements[e.key] != null);
@@ -1714,13 +1719,17 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                       <div className="grid grid-cols-3 gap-x-2 gap-y-0.5">
                         {ELEMENTS.filter(e => data.geokemi!.elements[e.key] != null).map(e => {
                           const v = data.geokemi!.elements[e.key]!;
+                          const isBuf = e.note === 'buffert';
                           const isHigh = v >= e.high;
                           const isElevated = v >= e.elevated;
+                          const labelColor = isBuf
+                            ? (isHigh || isElevated ? 'text-blue-600 dark:text-blue-400' : 'text-foreground')
+                            : (isHigh ? 'text-red-600 dark:text-red-400' : isElevated ? 'text-orange-500 dark:text-orange-400' : 'text-foreground');
                           return (
                             <div key={e.key} className="flex items-center text-[11px]">
-                              {dot(v, e.elevated, e.high)}
-                              <span className={`font-medium mr-1 ${isHigh ? 'text-red-600 dark:text-red-400' : isElevated ? 'text-orange-500 dark:text-orange-400' : 'text-foreground'}`}>{e.label}</span>
-                              <span className="text-muted-foreground truncate">{v < 1 ? v.toFixed(2) : v < 10 ? v.toFixed(1) : Math.round(v)}</span>
+                              {dot(v, e.elevated, e.high, e.note)}
+                              <span className={`font-medium mr-1 ${labelColor}`}>{e.label}</span>
+                              <span className="text-muted-foreground truncate">{v < 1 ? v.toFixed(2) : v < 10 ? v.toFixed(1) : v < 1000 ? Math.round(v) : (v / 1000).toFixed(1) + 'k'}</span>
                             </div>
                           );
                         })}
@@ -1728,7 +1737,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                     ) : (
                       <p className="text-xs text-muted-foreground">Inga elementdata i provet</p>
                     )}
-                    <p className="text-[10px] text-muted-foreground mt-1.5">mg/kg i morän · <span className="inline-flex items-center gap-0.5"><span className="inline-block w-1.5 h-1.5 rounded-full bg-orange-400" /> förhöjd</span> · <span className="inline-flex items-center gap-0.5"><span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500" /> hög</span></p>
+                    <p className="text-[10px] text-muted-foreground mt-1.5">mg/kg i morän · <span className="inline-flex items-center gap-0.5"><span className="inline-block w-1.5 h-1.5 rounded-full bg-orange-400" /> förhöjd</span> · <span className="inline-flex items-center gap-0.5"><span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500" /> hög</span> · <span className="inline-flex items-center gap-0.5"><span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500" /> hög buffert</span></p>
                   </div>
                 );
               })()}
