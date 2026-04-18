@@ -737,7 +737,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
        }).catch(() => null);
 
       // All fetches at t=0 (brunnarChain runs concurrently as its own cascade)
-      const geokemiBboxUrl = `https://api.sgu.se/oppnadata/markgeokemi-regional/ogc/features/v1/collections/moran_0063mm_ar_icpms/items?f=json&bbox=${lon - 0.15},${lat - 0.1},${lon + 0.15},${lat + 0.1}&limit=15`;
+      const geokemiAesBboxUrl = `https://api.sgu.se/oppnadata/markgeokemi-regional/ogc/features/v1/collections/moran_0063mm_ar_icpaes/items?f=json&bbox=${lon - 0.15},${lat - 0.1},${lon + 0.15},${lat + 0.1}&limit=15`;
 
       const allResults = await Promise.allSettled([
         omradenChain,
@@ -751,7 +751,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
         fetch(`https://api.opentopodata.org/v1/eudem25m?locations=${lat},${lon}`, { signal }),
         fetch(ytlagerCql2Url, { signal }),
         fetch(overstaCql2Url, { signal }),
-        fetch(geokemiBboxUrl, { signal }),
+        fetch(geokemiAesBboxUrl, { signal }),
       ]);
       const [omradenRes, gvTillgangRes, jordartCql2Res, jordartBboxRes, forekomstRes, delomradeRes, jorddjupRes, , elevationRes, ytlagerRes, overstaRes, geokemiRes] = allResults;
 
@@ -947,12 +947,12 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
         } catch { /* ignore */ }
       }
 
-      // Geochemistry – find nearest morän ICP-MS sample within bbox
+      // Geochemistry – find nearest morän ICP-AES sample (major + minor elements)
+      // ICP-AES has: Ni, Pb, Cr, Co, V, Zn, Cu, Fe₂O₃%, MnO%, CaO%, MgO%
+      // Major elements reported as oxide weight-% → convert to element mg/kg
       if (geokemiRes.status === 'fulfilled' && geokemiRes.value.ok) {
         try {
           const gd = await geokemiRes.value.json();
-          const KEYS = ['as','pb','cd','ni','cr','u','mn','cu','zn','co','mo','v','ba','sr','fe','f','ca','mg'];
-          let nearest: typeof result.geokemi | null = null;
           let nearestDist = Infinity;
           for (const f of gd.features ?? []) {
             const coords = f.geometry?.coordinates;
@@ -962,20 +962,34 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
             if (d < nearestDist) {
               nearestDist = d;
               const p = f.properties ?? {};
-              const elements: Record<string, number | null> = {};
-              for (const k of KEYS) {
-                const v = p[k] ?? p[k.toUpperCase()] ?? null;
-                elements[k] = typeof v === 'number' ? v : null;
-              }
-              nearest = {
+              const num = (k: string) => { const v = p[k]; return typeof v === 'number' && v > 0 ? v : null; };
+              // Oxide % → element mg/kg conversion factors (molecular weight ratio × 10000)
+              const oxToEl = (v: number | null, factor: number) => v != null ? Math.round(v * factor * 10) / 10 : null;
+              result.geokemi = {
                 distKm: Math.round(d * 10) / 10,
-                artal: p.prov_artal ?? p.artal ?? undefined,
+                artal: p.prov_artal ?? undefined,
                 provtyp: p.provtyp ?? undefined,
-                elements,
+                elements: {
+                  ni: num('ni_ppm'),
+                  pb: num('pb_ppm'),
+                  cr: num('cr_ppm'),
+                  cd: num('cd_ppm'),
+                  co: num('co_ppm'),
+                  cu: num('cu_ppm'),
+                  zn: num('zn_ppm'),
+                  v:  num('v_ppm'),
+                  mo: num('mo_ppm'),
+                  as: num('as_ppm'),
+                  u:  num('u_ppm'),
+                  // Oxides → element (factor = 10000 * elementMW / oxideMW)
+                  fe: oxToEl(num('fe2o3_proc'), 6994), // Fe₂O₃ → Fe
+                  mn: oxToEl(num('mno_proc'),   7745), // MnO   → Mn
+                  ca: oxToEl(num('cao_proc'),   7147), // CaO   → Ca
+                  mg: oxToEl(num('mgo_proc'),   6032), // MgO   → Mg
+                },
               };
             }
           }
-          if (nearest) result.geokemi = nearest;
         } catch { /* ignore */ }
       }
 
