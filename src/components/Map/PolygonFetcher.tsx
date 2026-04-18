@@ -123,16 +123,25 @@ export const PolygonFetcher = ({ bbox, areaKm2, onClose }: PolygonFetcherProps) 
     });
 
   const fetchAllPages = async (baseUrl: string): Promise<any[]> => {
-    const all: any[] = [];
-    let nextUrl: string | null = `${baseUrl}&limit=1000`;
-    while (nextUrl) {
-      const res = await fetch(nextUrl);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      all.push(...(data.features || []));
-      nextUrl = data.links?.find((l: any) => l.rel === 'next')?.href ?? null;
+    const pageSize = 1000;
+    const first = await fetch(`${baseUrl}&limit=${pageSize}`);
+    if (!first.ok) throw new Error(`HTTP ${first.status}`);
+    const firstData = await first.json();
+    const features: any[] = firstData.features ?? [];
+    const total: number = firstData.numberMatched ?? firstData.numberReturned ?? features.length;
+    const remaining = Math.ceil((total - features.length) / pageSize);
+    if (remaining > 0) {
+      const pages = await Promise.all(
+        Array.from({ length: remaining }, (_, i) =>
+          fetch(`${baseUrl}&limit=${pageSize}&offset=${(i + 1) * pageSize}`)
+            .then(r => r.ok ? r.json() : null)
+            .then(d => d?.features ?? [])
+            .catch(() => [])
+        )
+      );
+      features.push(...pages.flat());
     }
-    return all;
+    return features;
   };
 
   // Fetch linked data in batches, running all batches in parallel.
