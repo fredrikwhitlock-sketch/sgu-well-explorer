@@ -1388,7 +1388,7 @@ export const MapView = () => {
         geolocationLayer,
       ],
       view: new View({
-        center: [1784000, 8347000], // Uppsala center in Web Mercator
+        center: [1964000, 8558000], // Uppsala (17.645°E, 59.858°N) in Web Mercator
         zoom: 11,
         projection: "EPSG:3857", // Web Mercator for OSM compatibility
       }),
