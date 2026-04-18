@@ -60,6 +60,7 @@ interface ReportData {
   hypoSeries?: Array<{ datum: string; fyllnadSma: number | null; fyllnadStora: number | null; sitSma: number | null; sitStora: number | null }>;
   geokemi?: {
     distKm: number;
+    distKmAes?: number;
     artal?: number;
     provtyp?: string;
     elements: Record<string, number | null>;
@@ -737,7 +738,10 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
        }).catch(() => null);
 
       // All fetches at t=0 (brunnarChain runs concurrently as its own cascade)
-      const geokemiAesBboxUrl = `https://api.sgu.se/oppnadata/markgeokemi-regional/ogc/features/v1/collections/moran_0063mm_ar_icpaes/items?f=json&bbox=${lon - 0.15},${lat - 0.1},${lon + 0.15},${lat + 0.1}&limit=15`;
+      const geokemiBase = `https://api.sgu.se/oppnadata/markgeokemi-regional/ogc/features/v1/collections`;
+      const geokemiBbox = `bbox=${lon - 0.5},${lat - 0.35},${lon + 0.5},${lat + 0.35}&limit=30`;
+      const geokemiMsBboxUrl  = `${geokemiBase}/moran_0063mm_ar_icpms/items?f=json&${geokemiBbox}`;
+      const geokemiAesBboxUrl = `${geokemiBase}/moran_0063mm_ar_icpaes/items?f=json&${geokemiBbox}`;
 
       const allResults = await Promise.allSettled([
         omradenChain,
@@ -752,8 +756,9 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
         fetch(ytlagerCql2Url, { signal }),
         fetch(overstaCql2Url, { signal }),
         fetch(geokemiAesBboxUrl, { signal }),
+        fetch(geokemiMsBboxUrl,  { signal }),
       ]);
-      const [omradenRes, gvTillgangRes, jordartCql2Res, jordartBboxRes, forekomstRes, delomradeRes, jorddjupRes, , elevationRes, ytlagerRes, overstaRes, geokemiRes] = allResults;
+      const [omradenRes, gvTillgangRes, jordartCql2Res, jordartBboxRes, forekomstRes, delomradeRes, jorddjupRes, , elevationRes, ytlagerRes, overstaRes, geokemiAesRes, geokemiMsRes] = allResults;
 
       if (signal.aborted) return;
 
@@ -947,51 +952,61 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
         } catch { /* ignore */ }
       }
 
-      // Geochemistry – find nearest morän ICP-AES sample (major + minor elements)
-      // ICP-AES has: Ni, Pb, Cr, Co, V, Zn, Cu, Fe₂O₃%, MnO%, CaO%, MgO%
-      // Major elements reported as oxide weight-% → convert to element mg/kg
-      if (geokemiRes.status === 'fulfilled' && geokemiRes.value.ok) {
-        try {
-          const gd = await geokemiRes.value.json();
-          let nearestDist = Infinity;
-          for (const f of gd.features ?? []) {
-            const coords = f.geometry?.coordinates;
-            if (!coords) continue;
-            const [fLon, fLat] = coords;
-            const d = haversineKm(lat, lon, fLat, fLon);
-            if (d < nearestDist) {
-              nearestDist = d;
-              const p = f.properties ?? {};
-              const num = (k: string) => { const v = p[k]; return typeof v === 'number' && v > 0 ? v : null; };
-              // Oxide % → element mg/kg conversion factors (molecular weight ratio × 10000)
-              const oxToEl = (v: number | null, factor: number) => v != null ? Math.round(v * factor * 10) / 10 : null;
-              result.geokemi = {
-                distKm: Math.round(d * 10) / 10,
-                artal: p.prov_artal ?? undefined,
-                provtyp: p.provtyp ?? undefined,
-                elements: {
-                  ni: num('ni_ppm'),
-                  pb: num('pb_ppm'),
-                  cr: num('cr_ppm'),
-                  cd: num('cd_ppm'),
-                  co: num('co_ppm'),
-                  cu: num('cu_ppm'),
-                  zn: num('zn_ppm'),
-                  v:  num('v_ppm'),
-                  mo: num('mo_ppm'),
-                  as: num('as_ppm'),
-                  u:  num('u_ppm'),
-                  // Oxides → element (factor = 10000 * elementMW / oxideMW)
-                  fe: oxToEl(num('fe2o3_proc'), 6994), // Fe₂O₃ → Fe
-                  mn: oxToEl(num('mno_proc'),   7745), // MnO   → Mn
-                  ca: oxToEl(num('cao_proc'),   7147), // CaO   → Ca
-                  mg: oxToEl(num('mgo_proc'),   6032), // MgO   → Mg
-                },
-              };
-            }
-          }
-        } catch { /* ignore */ }
-      }
+      // Geochemistry – merge nearest ICP-MS (trace metals: As,Cd,Mo,U,Cu) and
+      // ICP-AES (major + minor: Ni,Pb,Cr,Co,Zn,Fe,Mn,Ca,Mg) morän samples.
+      // ICP-MS has better geographic coverage; ICP-AES is sparse but adds Fe/Ca/Mg.
+      const findNearest = (features: any[]) => {
+        let best: { dist: number; p: any; artal?: number; provtyp?: string } | null = null;
+        for (const f of features) {
+          const coords = f.geometry?.coordinates;
+          if (!coords) continue;
+          const d = haversineKm(lat, lon, coords[1], coords[0]);
+          if (!best || d < best.dist) best = { dist: d, p: f.properties ?? {}, artal: f.properties?.prov_artal, provtyp: f.properties?.provtyp };
+        }
+        return best;
+      };
+
+      try {
+        const [msData, aesData] = await Promise.all([
+          geokemiMsRes.status  === 'fulfilled' && geokemiMsRes.value.ok  ? geokemiMsRes.value.json().catch(() => null)  : null,
+          geokemiAesRes.status === 'fulfilled' && geokemiAesRes.value.ok ? geokemiAesRes.value.json().catch(() => null) : null,
+        ]);
+
+        const ms  = findNearest(msData?.features  ?? []);
+        const aes = findNearest(aesData?.features ?? []);
+
+        if (ms || aes) {
+          const num = (p: any, k: string) => { const v = p?.[k]; return typeof v === 'number' && v > 0 ? v : null; };
+          const oxToEl = (v: number | null, factor: number) => v != null ? Math.round(v * factor * 10) / 10 : null;
+
+          result.geokemi = {
+            distKm:    Math.round((ms?.dist ?? aes!.dist) * 10) / 10,
+            distKmAes: aes ? Math.round(aes.dist * 10) / 10 : undefined,
+            artal:   ms?.artal   ?? aes?.artal,
+            provtyp: ms?.provtyp ?? aes?.provtyp,
+            elements: {
+              // ICP-MS (trace metals, aqua regia)
+              as: num(ms?.p, 'as_ppm'),
+              cd: num(ms?.p, 'cd_ppm'),
+              mo: num(ms?.p, 'mo_ppm'),
+              u:  num(ms?.p, 'u_ppm'),
+              sb: num(ms?.p, 'sb_ppm'),
+              cu: num(ms?.p, 'cu_ppm') ?? num(aes?.p, 'cu_ppm'),
+              // ICP-AES (major + minor, aqua regia)
+              ni: num(aes?.p, 'ni_ppm'),
+              pb: num(aes?.p, 'pb_ppm'),
+              cr: num(aes?.p, 'cr_ppm'),
+              co: num(aes?.p, 'co_ppm'),
+              v:  num(aes?.p, 'v_ppm'),
+              zn: num(aes?.p, 'zn_ppm'),
+              fe: oxToEl(num(aes?.p, 'fe2o3_proc'), 6994),
+              mn: oxToEl(num(aes?.p, 'mno_proc'),   7745),
+              ca: oxToEl(num(aes?.p, 'cao_proc'),   7147),
+              mg: oxToEl(num(aes?.p, 'mgo_proc'),   6032),
+            },
+          };
+        }
+      } catch { /* ignore */ }
 
       // Parse observed nivaer: for each station pick the reading closest to selectedDate.
       const nivaerTargetMs = new Date(selectedDate).getTime();
@@ -1726,8 +1741,12 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                 return (
                   <div className="mb-3">
                     <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1 flex items-center justify-between">
-                      <span>Markgeokemi morän (ICP-MS)</span>
-                      <span className="normal-case font-normal">{data.geokemi.distKm} km{data.geokemi.artal ? ` · ${data.geokemi.artal}` : ''}</span>
+                      <span>Markgeokemi morän</span>
+                      <span className="normal-case font-normal">
+                        MS {data.geokemi.distKm} km
+                        {data.geokemi.distKmAes != null ? ` · AES ${data.geokemi.distKmAes} km` : ''}
+                        {data.geokemi.artal ? ` · ${data.geokemi.artal}` : ''}
+                      </span>
                     </div>
                     {hasAny ? (
                       <div className="grid grid-cols-3 gap-x-2 gap-y-0.5">
@@ -1961,8 +1980,8 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
 
                   <SourceRow
                     label="Markgeokemi morän (mg/kg)"
-                    source="SGU Markgeokemi Regional – morän ICP-MS"
-                    note="OGC API Features – närmaste prov inom ~15 km. Kollektion: moran_0063mm_ar_icpms (kornstorleksfraktion < 0,063 mm, Aqua Regia-uppslutning, ICP-MS analys). Halter i mg/kg torrsubstans."
+                    source="SGU Markgeokemi Regional – morän ICP-MS + ICP-AES"
+                    note="OGC API Features – närmaste prov. ICP-MS (moran_0063mm_ar_icpms): spårämnen As, Cd, Mo, U, Cu, Sb. ICP-AES (moran_0063mm_ar_icpaes): Ni, Pb, Cr, Co, Zn, Fe, Mn, Ca, Mg. Aqua Regia-uppslutning, halter i mg/kg ts. Oxider (Fe₂O₃, MnO, CaO, MgO) omräknade till grundämne."
                     url="https://api.sgu.se/oppnadata/markgeokemi-regional/ogc/features/v1"
                   />
 
