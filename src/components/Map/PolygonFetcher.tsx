@@ -216,11 +216,9 @@ export const PolygonFetcher = ({ bbox, areaKm2, onClose }: PolygonFetcherProps) 
     setLinked(l => ({ ...l, nivaObs: { features: [], loading: true } }));
     try {
       const base = 'https://api.sgu.se/oppnadata/grundvattennivaer-observerade/ogc/features/v1/collections/nivaer/items?f=json';
-      const cutoff = new Date(); cutoff.setFullYear(cutoff.getFullYear() - 2);
-      const cutoffStr = cutoff.toISOString().split('T')[0];
       const features = await fetchByIdBatches(
         base,
-        batch => `platsbeteckning IN (${batch.map(id => `'${id.replace(/'/g, "''")}'`).join(',')}) AND datum >= '${cutoffStr}'`,
+        batch => `platsbeteckning IN (${batch.map(id => `'${id.replace(/'/g, "''")}'`).join(',')})`,
         ids
       );
       setLinked(l => ({ ...l, nivaObs: { features, loading: false } }));
