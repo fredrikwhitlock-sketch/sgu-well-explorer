@@ -58,6 +58,12 @@ interface ReportData {
   };
   brunnar?: BrunnInfo[];
   hypoSeries?: Array<{ datum: string; fyllnadSma: number | null; fyllnadStora: number | null; sitSma: number | null; sitStora: number | null }>;
+  geokemi?: {
+    distKm: number;
+    artal?: number;
+    provtyp?: string;
+    elements: Record<string, number | null>;
+  };
   // Nearby observed groundwater levels for calibration pool
   obsFeatures?: Array<{ djup: number; jordart?: string; aquiferGroup?: 'rock' | 'jord'; aquiferSize?: 'large' | 'small' }>;
   // Nearby observed stations sorted by distance — shown in level analysis section
@@ -731,6 +737,8 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
        }).catch(() => null);
 
       // All fetches at t=0 (brunnarChain runs concurrently as its own cascade)
+      const geokemiBboxUrl = `https://api.sgu.se/oppnadata/markgeokemi-regional/ogc/features/v1/collections/moran_0063mm_ar_icpms/items?f=json&bbox=${lon - 0.15},${lat - 0.1},${lon + 0.15},${lat + 0.1}&limit=15`;
+
       const allResults = await Promise.allSettled([
         omradenChain,
         fetch(gvTillgangUrl, { signal }),
@@ -743,8 +751,9 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
         fetch(`https://api.opentopodata.org/v1/eudem25m?locations=${lat},${lon}`, { signal }),
         fetch(ytlagerCql2Url, { signal }),
         fetch(overstaCql2Url, { signal }),
+        fetch(geokemiBboxUrl, { signal }),
       ]);
-      const [omradenRes, gvTillgangRes, jordartCql2Res, jordartBboxRes, forekomstRes, delomradeRes, jorddjupRes, , elevationRes, ytlagerRes, overstaRes] = allResults;
+      const [omradenRes, gvTillgangRes, jordartCql2Res, jordartBboxRes, forekomstRes, delomradeRes, jorddjupRes, , elevationRes, ytlagerRes, overstaRes, geokemiRes] = allResults;
 
       if (signal.aborted) return;
 
@@ -935,6 +944,38 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
           const ed = await elevationRes.value.json();
           const elev = ed.results?.[0]?.elevation;
           if (typeof elev === 'number') result.elevation = Math.round(elev);
+        } catch { /* ignore */ }
+      }
+
+      // Geochemistry – find nearest morän ICP-MS sample within bbox
+      if (geokemiRes.status === 'fulfilled' && geokemiRes.value.ok) {
+        try {
+          const gd = await geokemiRes.value.json();
+          const KEYS = ['as','pb','cd','ni','cr','u','mn','cu','zn','co','mo','v','ba','sr','fe','f','ca','mg'];
+          let nearest: typeof result.geokemi | null = null;
+          let nearestDist = Infinity;
+          for (const f of gd.features ?? []) {
+            const coords = f.geometry?.coordinates;
+            if (!coords) continue;
+            const [fLon, fLat] = coords;
+            const d = haversineKm(lat, lon, fLat, fLon);
+            if (d < nearestDist) {
+              nearestDist = d;
+              const p = f.properties ?? {};
+              const elements: Record<string, number | null> = {};
+              for (const k of KEYS) {
+                const v = p[k] ?? p[k.toUpperCase()] ?? null;
+                elements[k] = typeof v === 'number' ? v : null;
+              }
+              nearest = {
+                distKm: Math.round(d * 10) / 10,
+                artal: p.prov_artal ?? p.artal ?? undefined,
+                provtyp: p.provtyp ?? undefined,
+                elements,
+              };
+            }
+          }
+          if (nearest) result.geokemi = nearest;
         } catch { /* ignore */ }
       }
 
@@ -1640,6 +1681,67 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                 </div>
               ) : null}
 
+              {/* Geokemi – närmaste morän ICP-MS-prov */}
+              {data.geokemi && (() => {
+                const ELEMENTS: { key: string; label: string; elevated: number; high: number; note?: string }[] = [
+                  { key: 'as', label: 'As', elevated: 10,     high: 25     },
+                  { key: 'u',  label: 'U',  elevated: 5,      high: 12     },
+                  { key: 'ni', label: 'Ni', elevated: 35,     high: 80     },
+                  { key: 'pb', label: 'Pb', elevated: 35,     high: 80     },
+                  { key: 'cr', label: 'Cr', elevated: 80,     high: 200    },
+                  { key: 'cd', label: 'Cd', elevated: 0.4,    high: 1.0    },
+                  { key: 'mn', label: 'Mn', elevated: 800,    high: 2000   },
+                  { key: 'fe', label: 'Fe', elevated: 45000,  high: 80000  },
+                  { key: 'f',  label: 'F',  elevated: 600,    high: 1200   },
+                  { key: 'cu', label: 'Cu', elevated: 30,     high: 70     },
+                  { key: 'zn', label: 'Zn', elevated: 120,    high: 300    },
+                  { key: 'co', label: 'Co', elevated: 15,     high: 40     },
+                  { key: 'mo', label: 'Mo', elevated: 2,      high: 6      },
+                  { key: 'v',  label: 'V',  elevated: 60,     high: 150    },
+                  { key: 'ca', label: 'Ca', elevated: 25000,  high: 60000, note: 'buffert' },
+                  { key: 'mg', label: 'Mg', elevated: 15000,  high: 35000, note: 'buffert' },
+                ];
+                const dot = (v: number | null, elevated: number, high: number, note?: string) => {
+                  if (v == null) return <span className="text-muted-foreground/40">–</span>;
+                  const isBuf = note === 'buffert';
+                  if (v >= high) return <span className={`inline-block w-2 h-2 rounded-full mr-1 ${isBuf ? 'bg-blue-500' : 'bg-red-500'}`} />;
+                  if (v >= elevated) return <span className={`inline-block w-2 h-2 rounded-full mr-1 ${isBuf ? 'bg-blue-400' : 'bg-orange-400'}`} />;
+                  return <span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-1" />;
+                };
+                const hasAny = ELEMENTS.some(e => data.geokemi!.elements[e.key] != null);
+                return (
+                  <div className="mb-3">
+                    <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1 flex items-center justify-between">
+                      <span>Markgeokemi morän (ICP-MS)</span>
+                      <span className="normal-case font-normal">{data.geokemi.distKm} km{data.geokemi.artal ? ` · ${data.geokemi.artal}` : ''}</span>
+                    </div>
+                    {hasAny ? (
+                      <div className="grid grid-cols-3 gap-x-2 gap-y-0.5">
+                        {ELEMENTS.filter(e => data.geokemi!.elements[e.key] != null).map(e => {
+                          const v = data.geokemi!.elements[e.key]!;
+                          const isBuf = e.note === 'buffert';
+                          const isHigh = v >= e.high;
+                          const isElevated = v >= e.elevated;
+                          const labelColor = isBuf
+                            ? (isHigh || isElevated ? 'text-blue-600 dark:text-blue-400' : 'text-foreground')
+                            : (isHigh ? 'text-red-600 dark:text-red-400' : isElevated ? 'text-orange-500 dark:text-orange-400' : 'text-foreground');
+                          return (
+                            <div key={e.key} className="flex items-center text-[11px]">
+                              {dot(v, e.elevated, e.high, e.note)}
+                              <span className={`font-medium mr-1 ${labelColor}`}>{e.label}</span>
+                              <span className="text-muted-foreground truncate">{v < 1 ? v.toFixed(2) : v < 10 ? v.toFixed(1) : v < 1000 ? Math.round(v) : (v / 1000).toFixed(1) + 'k'}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">Inga elementdata i provet</p>
+                    )}
+                    <p className="text-[10px] text-muted-foreground mt-1.5">mg/kg i morän · <span className="inline-flex items-center gap-0.5"><span className="inline-block w-1.5 h-1.5 rounded-full bg-orange-400" /> förhöjd</span> · <span className="inline-flex items-center gap-0.5"><span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500" /> hög</span> · <span className="inline-flex items-center gap-0.5"><span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500" /> hög buffert</span></p>
+                  </div>
+                );
+              })()}
+
               {/* Grundvattenmagasin – card */}
               {(data.magasin || data.delomrade) && (() => {
                 const m = data.magasin;
@@ -1841,6 +1943,13 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                     source="OpenTopoData – EU-DEM 25m"
                     note="REST API – punkthöjd via EU Digital Elevation Model (25 m upplösning). Används för höjdinformation i koordinatpanelen."
                     url="https://www.opentopodata.org/datasets/eudem/"
+                  />
+
+                  <SourceRow
+                    label="Markgeokemi morän (mg/kg)"
+                    source="SGU Markgeokemi Regional – morän ICP-MS"
+                    note="OGC API Features – närmaste prov inom ~15 km. Kollektion: moran_0063mm_ar_icpms (kornstorleksfraktion < 0,063 mm, Aqua Regia-uppslutning, ICP-MS analys). Halter i mg/kg torrsubstans."
+                    url="https://api.sgu.se/oppnadata/markgeokemi-regional/ogc/features/v1"
                   />
 
                   <p className="text-muted-foreground pt-1 leading-relaxed">
