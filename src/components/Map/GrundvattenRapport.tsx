@@ -55,7 +55,7 @@ interface ReportData {
     magasinsposition?: string;
   };
   brunnar?: BrunnInfo[];
-  hypoSeries?: Array<{ datum: string; fyllnadSma: number | null; fyllnadStora: number | null }>;
+  hypoSeries?: Array<{ datum: string; fyllnadSma: number | null; fyllnadStora: number | null; sitSma: number | null; sitStora: number | null }>;
   // Nearby observed groundwater levels for calibration pool
   obsFeatures?: Array<{ djup: number; jordart?: string; aquiferGroup?: 'rock' | 'jord'; aquiferSize?: 'large' | 'small' }>;
   // Nearby observed stations sorted by distance — shown in level analysis section
@@ -776,7 +776,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
           .filter(d => d?.features?.length > 0)
           .map((d: any) => {
             const p = d.features[0].properties ?? {};
-            return { datum: String(p.datum ?? '').slice(0, 10), fyllnadSma: typeof p.fyllnadsgrad_sma === 'number' ? p.fyllnadsgrad_sma : null, fyllnadStora: typeof p.fyllnadsgrad_stora === 'number' ? p.fyllnadsgrad_stora : null };
+            return { datum: String(p.datum ?? '').slice(0, 10), fyllnadSma: typeof p.fyllnadsgrad_sma === 'number' ? p.fyllnadsgrad_sma : null, fyllnadStora: typeof p.fyllnadsgrad_stora === 'number' ? p.fyllnadsgrad_stora : null, sitSma: typeof p.grundvattensituation_sma === 'number' ? p.grundvattensituation_sma : null, sitStora: typeof p.grundvattensituation_stora === 'number' ? p.grundvattensituation_stora : null };
           })
           .filter((s: any) => s.datum)
           .sort((a: any, b: any) => a.datum.localeCompare(b.datum));
@@ -1411,6 +1411,39 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                       );
                     })}
                   </div>
+                  {/* Situation grid */}
+                  <div className="grid grid-cols-2 gap-2 mb-3">
+                    {[
+                      { label: 'Situation\nSmå magasin', val: data.sitSma },
+                      { label: 'Situation\nStora magasin', val: data.sitStora },
+                    ].map(({ label, val }) => {
+                      const isStora = label.includes('Stora');
+                      const noData = val == null || val === -1;
+                      return (
+                        <div key={label} className={`rounded-lg p-2.5 ${fyllnadBg(val)}`}>
+                          <div className="text-xs text-muted-foreground mb-1 whitespace-pre-line leading-tight">{label}</div>
+                          {!noData ? (
+                            <>
+                              <div className={`text-xl font-bold leading-none ${fyllnadColor(val)}`}>
+                                {Math.round(val)}<span className="text-xs font-normal text-muted-foreground">:e perc.</span>
+                              </div>
+                              <div className={`text-xs mt-1 font-medium ${fyllnadColor(val)}`}>{fyllnadLabel(val)}</div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="text-xs text-muted-foreground">Ingen data</div>
+                              {isStora && (
+                                <div className="text-[10px] text-muted-foreground mt-1 italic leading-tight">
+                                  Troligen inget stort magasin i området
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
                   {data.hypoSeries && data.hypoSeries.length >= 2 && (
                     <div className="mt-3 mb-3">
                       <div className="text-[10px] text-muted-foreground mb-1 uppercase tracking-wide">Trend – senaste 2 åren</div>
@@ -1424,6 +1457,14 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                             <linearGradient id="gfStora" x1="0" y1="0" x2="0" y2="1">
                               <stop offset="5%"  stopColor="#22c55e" stopOpacity={0.35} />
                               <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                            </linearGradient>
+                            <linearGradient id="gsSma" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%"  stopColor="#818cf8" stopOpacity={0.3} />
+                              <stop offset="95%" stopColor="#818cf8" stopOpacity={0} />
+                            </linearGradient>
+                            <linearGradient id="gsStora" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%"  stopColor="#4ade80" stopOpacity={0.3} />
+                              <stop offset="95%" stopColor="#4ade80" stopOpacity={0} />
                             </linearGradient>
                           </defs>
                           <XAxis dataKey="datum" tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }} tickLine={false} axisLine={false} tickFormatter={v => { const d = new Date(v); const m = d.toLocaleDateString('sv', { month: 'short' }).replace('.', ''); return d.getMonth() === 0 ? `${m} ${d.getFullYear()}` : m; }} interval={2} />
@@ -1442,13 +1483,17 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                             );
                           }} />
                           {data.hypoDate && <ReferenceLine x={data.hypoDate.slice(0, 10)} stroke="hsl(var(--foreground))" strokeDasharray="3 3" strokeWidth={1} />}
-                          <Area type="monotone" dataKey="fyllnadStora" name="Stort magasin" stroke="#22c55e" fill="url(#gfStora)" strokeWidth={1.5} dot={false} connectNulls />
-                          <Area type="monotone" dataKey="fyllnadSma" name="Litet magasin" stroke="#3b82f6" fill="url(#gfSma)" strokeWidth={1.5} dot={false} connectNulls />
+                          <Area type="monotone" dataKey="fyllnadStora" name="Fyllnad stort" stroke="#22c55e" fill="url(#gfStora)" strokeWidth={1.5} dot={false} connectNulls />
+                          <Area type="monotone" dataKey="fyllnadSma" name="Fyllnad litet" stroke="#3b82f6" fill="url(#gfSma)" strokeWidth={1.5} dot={false} connectNulls />
+                          <Area type="monotone" dataKey="sitStora" name="Situation stort" stroke="#4ade80" fill="url(#gsStora)" strokeWidth={1} strokeDasharray="4 2" dot={false} connectNulls />
+                          <Area type="monotone" dataKey="sitSma" name="Situation litet" stroke="#818cf8" fill="url(#gsSma)" strokeWidth={1} strokeDasharray="4 2" dot={false} connectNulls />
                         </AreaChart>
                       </ResponsiveContainer>
-                      <div className="flex gap-3 justify-center mt-1">
-                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground"><span className="inline-block w-3 h-0.5 rounded bg-blue-500" />Litet magasin</span>
-                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground"><span className="inline-block w-3 h-0.5 rounded bg-green-500" />Stort magasin</span>
+                      <div className="flex flex-wrap gap-x-3 gap-y-0.5 justify-center mt-1">
+                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground"><span className="inline-block w-3 h-0.5 rounded bg-blue-500" />Fyllnad litet</span>
+                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground"><span className="inline-block w-3 h-0.5 rounded bg-green-500" />Fyllnad stort</span>
+                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground"><span className="inline-block w-3 h-0.5 rounded bg-indigo-400" style={{ borderTop: '1px dashed #818cf8', background: 'none', display: 'inline-block', height: 0, width: 12 }} />Situation litet</span>
+                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground"><span className="inline-block w-3 h-0.5 rounded bg-green-400" style={{ borderTop: '1px dashed #4ade80', background: 'none', display: 'inline-block', height: 0, width: 12 }} />Situation stort</span>
                         <span className="flex items-center gap-1 text-[10px] text-muted-foreground"><span className="inline-block w-3 h-0.5 rounded" style={{ borderTop: '1px dashed currentColor', background: 'none' }} />Valt datum</span>
                       </div>
                     </div>
