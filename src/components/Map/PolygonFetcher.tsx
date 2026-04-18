@@ -135,21 +135,19 @@ export const PolygonFetcher = ({ bbox, areaKm2, onClose }: PolygonFetcherProps) 
     return all;
   };
 
-  // Fetch linked data in batches to stay within URL length limits.
+  // Fetch linked data in batches, running all batches in parallel.
   const fetchByIdBatches = async (
     baseUrl: string,
     filterFn: (ids: string[]) => string,
     ids: string[],
     batchSize = 80
   ): Promise<any[]> => {
-    const all: any[] = [];
-    for (let i = 0; i < ids.length; i += batchSize) {
-      const batch = ids.slice(i, i + batchSize);
-      const url = `${baseUrl}&filter=${encodeURIComponent(filterFn(batch))}&filter-lang=cql2-text`;
-      const features = await fetchAllPages(url);
-      all.push(...features);
-    }
-    return all;
+    const batches: string[][] = [];
+    for (let i = 0; i < ids.length; i += batchSize) batches.push(ids.slice(i, i + batchSize));
+    const results = await Promise.all(
+      batches.map(batch => fetchAllPages(`${baseUrl}&filter=${encodeURIComponent(filterFn(batch))}&filter-lang=cql2-text`))
+    );
+    return results.flat();
   };
 
   const handleFetch = async () => {
@@ -178,8 +176,9 @@ export const PolygonFetcher = ({ bbox, areaKm2, onClose }: PolygonFetcherProps) 
   const fetchAnalysresultat = async () => {
     const provplatser = results['kvalitet']?.features ?? [];
     const ids = provplatser
-      .map(f => f.properties?.nationellt_provplatsid)
-      .filter((v): v is number => typeof v === 'number');
+      .map(f => f.properties?.nationellt_provplatsid ?? f.properties?.provplatsid ?? f.id)
+      .filter((v): v is string | number => v != null && v !== '')
+      .map(String);
     if (ids.length === 0) { toast.info('Inga provplatser med ID hittades'); return; }
 
     setLinked(l => ({ ...l, analysresultat: { features: [], loading: true } }));
