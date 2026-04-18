@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { X, Droplets, Loader2, MapPin, AlertCircle, RefreshCw, Info, ChevronDown, Bot } from "lucide-react";
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, ReferenceArea } from "recharts";
 import proj4 from "proj4";
 import { getSoilTypeColor } from "../../lib/soilTypeColors";
 
@@ -1444,60 +1444,92 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                     })}
                   </div>
 
-                  {data.hypoSeries && data.hypoSeries.length >= 2 && (
-                    <div className="mt-3 mb-3">
-                      <div className="text-[10px] text-muted-foreground mb-1 uppercase tracking-wide">Trend – senaste 2 åren</div>
-                      <ResponsiveContainer width="100%" height={90}>
-                        <AreaChart data={data.hypoSeries} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
-                          <defs>
-                            <linearGradient id="gfSma" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%"  stopColor="#3b82f6" stopOpacity={0.35} />
-                              <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                            </linearGradient>
-                            <linearGradient id="gfStora" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%"  stopColor="#22c55e" stopOpacity={0.35} />
-                              <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
-                            </linearGradient>
-                            <linearGradient id="gsSma" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%"  stopColor="#818cf8" stopOpacity={0.3} />
-                              <stop offset="95%" stopColor="#818cf8" stopOpacity={0} />
-                            </linearGradient>
-                            <linearGradient id="gsStora" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%"  stopColor="#4ade80" stopOpacity={0.3} />
-                              <stop offset="95%" stopColor="#4ade80" stopOpacity={0} />
-                            </linearGradient>
-                          </defs>
-                          <XAxis dataKey="datum" tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }} tickLine={false} axisLine={false} tickFormatter={v => { const d = new Date(v); const m = d.toLocaleDateString('sv', { month: 'short' }).replace('.', ''); return d.getMonth() === 0 ? `${m} ${d.getFullYear()}` : m; }} interval={2} />
-                          <YAxis domain={[0, 100]} hide />
-                          <Tooltip content={({ active, payload, label }) => {
-                            if (!active || !payload?.length) return null;
-                            return (
-                              <div style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 6, padding: '4px 8px', fontSize: 11 }}>
-                                <div style={{ fontWeight: 600, marginBottom: 2 }}>{String(label).slice(0, 7)}</div>
-                                {payload.map(p => (
-                                  <div key={String(p.name)} style={{ color: p.color as string }}>
-                                    {p.name}: {p.value != null ? `${Math.round(Number(p.value))}:e perc.` : '–'}
-                                  </div>
-                                ))}
-                              </div>
-                            );
-                          }} />
-                          {data.hypoDate && <ReferenceLine x={data.hypoDate.slice(0, 10)} stroke="hsl(var(--foreground))" strokeDasharray="3 3" strokeWidth={1} />}
-                          <Area type="monotone" dataKey="fyllnadStora" name="Fyllnad stort" stroke="#22c55e" fill="url(#gfStora)" strokeWidth={1.5} dot={false} connectNulls />
-                          <Area type="monotone" dataKey="fyllnadSma" name="Fyllnad litet" stroke="#3b82f6" fill="url(#gfSma)" strokeWidth={1.5} dot={false} connectNulls />
-                          <Area type="monotone" dataKey="sitStora" name="Situation stort" stroke="#4ade80" fill="url(#gsStora)" strokeWidth={1} strokeDasharray="4 2" dot={false} connectNulls />
-                          <Area type="monotone" dataKey="sitSma" name="Situation litet" stroke="#818cf8" fill="url(#gsSma)" strokeWidth={1} strokeDasharray="4 2" dot={false} connectNulls />
-                        </AreaChart>
-                      </ResponsiveContainer>
-                      <div className="flex flex-wrap gap-x-3 gap-y-0.5 justify-center mt-1">
-                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground"><span className="inline-block w-3 h-0.5 rounded bg-blue-500" />Fyllnad litet</span>
-                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground"><span className="inline-block w-3 h-0.5 rounded bg-green-500" />Fyllnad stort</span>
-                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground"><span className="inline-block w-3 h-0.5 rounded bg-indigo-400" style={{ borderTop: '1px dashed #818cf8', background: 'none', display: 'inline-block', height: 0, width: 12 }} />Situation litet</span>
-                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground"><span className="inline-block w-3 h-0.5 rounded bg-green-400" style={{ borderTop: '1px dashed #4ade80', background: 'none', display: 'inline-block', height: 0, width: 12 }} />Situation stort</span>
+                  {data.hypoSeries && data.hypoSeries.length >= 2 && (() => {
+                    const xFmt = (v: string) => { const d = new Date(v); const m = d.toLocaleDateString('sv', { month: 'short' }).replace('.', ''); return d.getMonth() === 0 ? `${m} ${d.getFullYear()}` : m; };
+                    const tip = (active: boolean | undefined, payload: any, label: any) => {
+                      if (!active || !payload?.length) return null;
+                      return (
+                        <div style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 6, padding: '4px 8px', fontSize: 11 }}>
+                          <div style={{ fontWeight: 600, marginBottom: 2 }}>{String(label).slice(0, 7)}</div>
+                          {payload.map((p: any) => (
+                            <div key={String(p.name)} style={{ color: p.color as string }}>
+                              {p.name}: {p.value != null ? `${Math.round(Number(p.value))}:e perc.` : '–'}
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    };
+                    const zones = (
+                      <>
+                        <ReferenceArea y1={0}  y2={10} fill="rgba(185,28,28,0.12)"  ifOverflow="hidden" />
+                        <ReferenceArea y1={10} y2={25} fill="rgba(234,88,12,0.10)"  ifOverflow="hidden" />
+                        <ReferenceArea y1={25} y2={75} fill="rgba(161,150,50,0.08)" ifOverflow="hidden" />
+                        <ReferenceArea y1={75} y2={90} fill="rgba(22,163,74,0.10)"  ifOverflow="hidden" />
+                        <ReferenceArea y1={90} y2={100} fill="rgba(21,128,61,0.15)" ifOverflow="hidden" />
+                      </>
+                    );
+                    const legend = (
+                      <div className="flex gap-2 justify-center mt-1">
+                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground"><span className="inline-block w-3 h-0.5 rounded bg-blue-500" />Litet</span>
+                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground"><span className="inline-block w-3 h-0.5 rounded bg-green-500" />Stort</span>
                         <span className="flex items-center gap-1 text-[10px] text-muted-foreground"><span className="inline-block w-3 h-0.5 rounded" style={{ borderTop: '1px dashed currentColor', background: 'none' }} />Valt datum</span>
                       </div>
-                    </div>
-                  )}
+                    );
+                    return (
+                      <div className="space-y-3 mt-3 mb-3">
+                        <div>
+                          <div className="text-[10px] text-muted-foreground mb-1 uppercase tracking-wide">Fyllnadsgrad – senaste 2 åren</div>
+                          <ResponsiveContainer width="100%" height={85}>
+                            <AreaChart data={data.hypoSeries} margin={{ top: 2, right: 4, left: -28, bottom: 0 }}>
+                              <defs>
+                                <linearGradient id="gfSma" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%"  stopColor="#3b82f6" stopOpacity={0.5} />
+                                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                                </linearGradient>
+                                <linearGradient id="gfStora" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%"  stopColor="#22c55e" stopOpacity={0.5} />
+                                  <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                                </linearGradient>
+                              </defs>
+                              {zones}
+                              <XAxis dataKey="datum" tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }} tickLine={false} axisLine={false} tickFormatter={xFmt} interval={2} />
+                              <YAxis domain={[0, 100]} hide />
+                              <Tooltip content={({ active, payload, label }) => tip(active, payload, label)} />
+                              {data.hypoDate && <ReferenceLine x={data.hypoDate.slice(0, 10)} stroke="hsl(var(--foreground))" strokeDasharray="3 3" strokeWidth={1} />}
+                              <Area type="monotone" dataKey="fyllnadStora" name="Stort" stroke="#22c55e" fill="url(#gfStora)" strokeWidth={1.5} dot={false} connectNulls />
+                              <Area type="monotone" dataKey="fyllnadSma"   name="Litet"  stroke="#3b82f6" fill="url(#gfSma)"   strokeWidth={1.5} dot={false} connectNulls />
+                            </AreaChart>
+                          </ResponsiveContainer>
+                          {legend}
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-muted-foreground mb-1 uppercase tracking-wide">Situation – senaste 2 åren</div>
+                          <ResponsiveContainer width="100%" height={85}>
+                            <AreaChart data={data.hypoSeries} margin={{ top: 2, right: 4, left: -28, bottom: 0 }}>
+                              <defs>
+                                <linearGradient id="gsSma" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%"  stopColor="#818cf8" stopOpacity={0.5} />
+                                  <stop offset="95%" stopColor="#818cf8" stopOpacity={0} />
+                                </linearGradient>
+                                <linearGradient id="gsStora" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%"  stopColor="#4ade80" stopOpacity={0.5} />
+                                  <stop offset="95%" stopColor="#4ade80" stopOpacity={0} />
+                                </linearGradient>
+                              </defs>
+                              {zones}
+                              <XAxis dataKey="datum" tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }} tickLine={false} axisLine={false} tickFormatter={xFmt} interval={2} />
+                              <YAxis domain={[0, 100]} hide />
+                              <Tooltip content={({ active, payload, label }) => tip(active, payload, label)} />
+                              {data.hypoDate && <ReferenceLine x={data.hypoDate.slice(0, 10)} stroke="hsl(var(--foreground))" strokeDasharray="3 3" strokeWidth={1} />}
+                              <Area type="monotone" dataKey="sitStora" name="Stort" stroke="#4ade80" fill="url(#gsStora)" strokeWidth={1.5} dot={false} connectNulls />
+                              <Area type="monotone" dataKey="sitSma"   name="Litet"  stroke="#818cf8" fill="url(#gsSma)"   strokeWidth={1.5} dot={false} connectNulls />
+                            </AreaChart>
+                          </ResponsiveContainer>
+                          {legend}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </>
               ) : (
                 <div className="text-xs text-muted-foreground mb-3">Ingen HYPE-data för denna punkt</div>
