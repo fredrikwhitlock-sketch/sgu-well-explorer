@@ -19,6 +19,8 @@ interface BrunnInfo {
   jorddjup?: number;
   isBergborrad: boolean;
   distKm?: number;
+  adress?: string;
+  typKod?: string;
 }
 
 interface ReportData {
@@ -907,6 +909,8 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
               jorddjup,
               isBergborrad: totaldjup != null && (totaldjup - jorddjup) > 15,
               distKm,
+              adress: p.adress || p.plats || p.fastighetsadress || undefined,
+              typKod: p.typ_kod || p.brunnsstyp || undefined,
             };
           });
       }
@@ -1269,6 +1273,15 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                     <span className="font-medium">Bergborrade brunnar i närheten:</span>
                     <span className="ml-1 text-blue-700 dark:text-blue-400 font-semibold">{medianBergKapacitet} l/h</span>
                     <span className="text-muted-foreground ml-1">(median, {bergBrunnar.length} brunnar, ca 15 km)</span>
+                    {bergBrunnar.length <= 5 && (
+                      <ul className="mt-1 ml-2 space-y-0.5">
+                        {bergBrunnar.map(b => (
+                          <li key={b.id} className="text-muted-foreground">
+                            {b.id}{b.adress ? ` – ${b.adress}` : ''}{b.kapacitet ? `: ${b.kapacitet} l/h` : ''}{b.distKm != null ? `, ${b.distKm} km` : ''}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 )}
                 {/* Magasin tillrinning – actual mapped recharge capacity */}
@@ -1306,7 +1319,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                 )}
                 {/* Jord well median – primary for sediment aquifers, reference for morän/rock */}
                 {aquifer?.type !== 'rock' && medianJordKapacitet != null && (
-                  <div className={`text-xs mb-1.5 ${aquifer?.type === 'till' ? '' : ''}`}>
+                  <div className={`text-xs mb-1.5`}>
                     <span className={`font-medium ${aquifer?.type === 'till' ? 'text-muted-foreground' : ''}`}>
                       {aquifer?.type === 'till' ? 'Grävda/rörbrunnars kapacitet nära (referens):' : 'Grävda/rörbrunnars kapacitet nära:'}
                     </span>
@@ -1314,6 +1327,15 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                       {medianJordKapacitet} l/h
                     </span>
                     <span className="text-muted-foreground ml-1">(median, {jordBrunnar.length} brunnar)</span>
+                    {jordBrunnar.length <= 5 && (
+                      <ul className="mt-1 ml-2 space-y-0.5">
+                        {jordBrunnar.map(b => (
+                          <li key={b.id} className="text-muted-foreground">
+                            {b.id}{b.adress ? ` – ${b.adress}` : ''}{b.kapacitet ? `: ${b.kapacitet} l/h` : ''}{b.distKm != null ? `, ${b.distKm} km` : ''}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 )}
                 {/* Bedrock wells as reference for pure sediment aquifers only */}
