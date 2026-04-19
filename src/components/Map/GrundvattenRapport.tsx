@@ -452,11 +452,11 @@ const GV_BEDGR: Record<string, { thresholds: [number, number, number, number]; u
   // Sulfat: 1a <5, 1b 5–10, 2 10–25, 3 25–50, 4 50–100, 5 ≥100 mg/l
   'Sulfat (jon: SO42-)':        { thresholds: [10, 25, 50, 100],         unit: 'mg/l',  label: 'Sulfat' },
   // Nitrat: SGU <2/5/20/50 mg/l NO₃ → µg/l N (×14/62×1000)
-  'Nitrat + Nitrit, som N':     { thresholds: [500, 1100, 4500, 11000],  unit: 'µg/l',  label: 'NO₃+NO₂-N' },
+  'Nitrat + Nitrit, som N':     { thresholds: [452, 1129, 4516, 11290],  unit: 'µg/l',  label: 'NO₃+NO₂-N' },
   // Nitrit: SGU <0.01/0.05/0.1/0.5 mg/l NO₂
   'Nitrit':                     { thresholds: [0.01, 0.05, 0.1, 0.5],   unit: 'mg/l',  label: 'Nitrit' },
   // Ammonium: SGU <0.05/0.1/0.5/1.5 mg/l NH₄ → µg/l N (×14/18×1000)
-  'Ammonium, som N (NH4-N)':    { thresholds: [40, 80, 400, 1200],       unit: 'µg/l',  label: 'NH₄-N' },
+  'Ammonium, som N (NH4-N)':    { thresholds: [39, 78, 389, 1167],       unit: 'µg/l',  label: 'NH₄-N' },
   // Järn: SGU <0.1/0.2/0.5/1 mg/l → µg/l
   'Järn':                       { thresholds: [100, 200, 500, 1000],     unit: 'µg/l',  label: 'Järn' },
   // Mangan: SGU <0.05/0.1/0.3/0.4 mg/l → µg/l
