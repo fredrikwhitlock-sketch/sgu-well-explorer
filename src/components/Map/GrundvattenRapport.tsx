@@ -68,7 +68,7 @@ interface ReportData {
   gvKemi?: Array<{
     provplatsid: string;
     provplatsnamn: string;
-    distKm: number;
+    distKm?: number;
     senasteprov?: string;
     seasonalSelection: boolean;
     provplatskat?: string;
@@ -97,6 +97,7 @@ interface ReportData {
       }>;
     };
   }>;
+  gvForekomstId?: string; // EU WFD groundwater body code when point is within a body
   // Nearby observed groundwater levels for calibration pool
   obsFeatures?: Array<{ djup: number; jordart?: string; aquiferGroup?: 'rock' | 'jord'; aquiferSize?: 'large' | 'small' }>;
   // Nearby observed stations sorted by distance — shown in level analysis section
@@ -1218,32 +1219,84 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
         }
       } catch { /* ignore */ }
 
-      // GV-kemi: up to 5 nearest provplatser within 50 km, loaded in parallel
+      // GV-kemi: stations within the EU groundwater body (if in one) + bbox fallback
       try {
         if (gvKemiProvRes.status === 'fulfilled' && gvKemiProvRes.value.ok) {
           const pd = await gvKemiProvRes.value.json().catch(() => null);
-          const allProvFeatures: any[] = pd?.features ?? [];
+          const bboxFeatures: any[] = pd?.features ?? [];
 
-          // Compute distance for every station, keep those ≤50 km
-          const withDist = allProvFeatures
-            .map(f => {
-              const coords = f.geometry?.coordinates;
-              if (!coords) return null;
-              return { dist: haversineKm(lat, lon, coords[1], coords[0]), p: f.properties ?? {} };
-            })
-            .filter((x): x is { dist: number; p: any } => x !== null && x.dist <= 50);
+          // Extract EU groundwater body code from bbox stations (several possible field names)
+          let bodyId: string | null = null;
+          for (const f of bboxFeatures) {
+            const p = f.properties ?? {};
+            const v = p.eucd_gwb || p.eu_cd_gwb || p.eu_cd || p.ms_cd_gwb || null;
+            if (v && typeof v === 'string') { bodyId = v; break; }
+          }
 
-          // Prefer stations matching the aquifer type at the clicked point
-          const locAq = result.jordartKod
-            ? classifyByJg2(Number(result.jordartKod))
-            : classifyAquifer(result.jordartNamn);
-          const targetKat = aquiferToBedgrKat(locAq, result.jordartKod);
-          const aqFiltered = targetKat !== null
-            ? withDist.filter(x => x.p.provplatskat_bedgr === targetKat)
-            : [];
-          const candidates = (aqFiltered.length > 0 ? aqFiltered : withDist)
-            .sort((a, b) => a.dist - b.dist)
-            .slice(0, 5);
+          // If the point is within a mapped aquifer AND we found a body code,
+          // fetch ALL stations linked to that body (includes those without coordinates)
+          let bodyFeatures: any[] = [];
+          if (result.magasin && bodyId) {
+            const bodyUrl = `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/provplatser/items?f=json&filter=eucd_gwb='${bodyId}'&filter-lang=cql2-text&limit=100`;
+            const br = await fetch(bodyUrl, { signal }).catch(() => null);
+            if (br?.ok) {
+              const bd = await br.json().catch(() => null);
+              bodyFeatures = bd?.features ?? [];
+            }
+          }
+          if (bodyId && bodyFeatures.length > 0) result.gvForekomstId = bodyId;
+
+          // Merge bbox + body, dedup by nationellt_provplatsid
+          const seen = new Set<string>();
+          const merged: any[] = [];
+          for (const f of [...bboxFeatures, ...bodyFeatures]) {
+            const id = String(f.properties?.nationellt_provplatsid ?? '');
+            if (id && !seen.has(id)) { seen.add(id); merged.push(f); }
+          }
+
+          type Cand = { dist: number | null; p: any };
+          const bodyIds = new Set(bodyFeatures.map(f => String(f.properties?.nationellt_provplatsid ?? '')));
+
+          let candidates: Cand[];
+          if (bodyFeatures.length > 0) {
+            // Body mode: include all body stations (any distance) + bbox within 50 km,
+            // sorted by distance (null = no coordinates → shown last), capped at 20
+            candidates = merged
+              .map((f): Cand => {
+                const coords = f.geometry?.coordinates;
+                const id = String(f.properties?.nationellt_provplatsid ?? '');
+                const dist = coords ? haversineKm(lat, lon, coords[1], coords[0]) : null;
+                return { dist: bodyIds.has(id) || (dist !== null && dist <= 50) ? dist : -1, p: f.properties ?? {} };
+              })
+              .filter(x => x.dist !== -1)
+              .sort((a, b) => {
+                if (a.dist === null && b.dist === null) return 0;
+                if (a.dist === null) return 1;
+                if (b.dist === null) return -1;
+                return a.dist - b.dist;
+              })
+              .slice(0, 20);
+          } else {
+            // Bbox mode: aquifer filter + top 5 within 50 km (original behaviour)
+            const withCoords = merged
+              .map(f => {
+                const coords = f.geometry?.coordinates;
+                if (!coords) return null;
+                const dist = haversineKm(lat, lon, coords[1], coords[0]);
+                return dist <= 50 ? { dist, p: f.properties ?? {} } : null;
+              })
+              .filter((x): x is { dist: number; p: any } => x !== null);
+            const locAq = result.jordartKod
+              ? classifyByJg2(Number(result.jordartKod))
+              : classifyAquifer(result.jordartNamn);
+            const targetKat = aquiferToBedgrKat(locAq, result.jordartKod);
+            const aqFiltered = targetKat !== null
+              ? withCoords.filter(x => x.p.provplatskat_bedgr === targetKat)
+              : [];
+            candidates = (aqFiltered.length > 0 ? aqFiltered : withCoords)
+              .sort((a, b) => a.dist - b.dist)
+              .slice(0, 5);
+          }
 
           if (candidates.length > 0) {
             const analysResponses = await Promise.allSettled(
@@ -1366,7 +1419,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
               kemiStations.push({
                 provplatsid: String(cand.p.nationellt_provplatsid),
                 provplatsnamn: cand.p.provplatsnamn ?? '',
-                distKm: Math.round(cand.dist * 10) / 10,
+                distKm: cand.dist != null ? Math.round(cand.dist * 10) / 10 : undefined,
                 senasteprov: snapshotDate,
                 seasonalSelection,
                 provplatskat: cand.p.provplatskat_bedgr_tx ?? undefined,
@@ -2147,11 +2200,13 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                 );
               })()}
 
-              {/* Grundvattenkemi – up to 5 stations within 50 km */}
+              {/* Grundvattenkemi */}
               {data.gvKemi && data.gvKemi.length > 0 && (
                 <div className="mb-3">
                   <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">
-                    Grundvattenkemi · {data.gvKemi.length} station{data.gvKemi.length > 1 ? 'er' : ''} inom 50 km
+                    {data.gvForekomstId
+                      ? `Grundvattenkemi · förekomst ${data.gvForekomstId} · ${data.gvKemi.length} stationer`
+                      : `Grundvattenkemi · ${data.gvKemi.length} station${data.gvKemi.length > 1 ? 'er' : ''} inom 50 km`}
                   </div>
                   <div className="space-y-1">
                     {data.gvKemi.map((gv, i) => {
@@ -2185,7 +2240,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                               )}
                             </div>
                             <div className="flex items-center gap-2 shrink-0 text-[10px] text-muted-foreground">
-                              <span>{gv.distKm} km</span>
+                              {gv.distKm != null ? <span>{gv.distKm} km</span> : <span className="italic">pos. saknas</span>}
                               {gv.senasteprov && <span>{gv.senasteprov}</span>}
                               <ChevronDown className={`w-3 h-3 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                             </div>
