@@ -437,52 +437,65 @@ function SourceRow({ label, source, note, url }: {
 }
 
 // ── Grundvattenkemi bedömningsgrunder ────────────────────────────────────────
-// Klassgränser från SGU bedömningsgrunder för grundvatten (webbaserad handledning,
-// grundad i SGU-rapport 2013:01). Klass 1 = bakgrundsnivå, klass 5 = kraftigt avvikande.
-// Nitrat+Nitrit som N och Ammonium som N är omräknade från SGU:s jonbaserade gränser:
-//   NO₃ mg/l × (14/62) → N µg/l;  NH₄ mg/l × (14/18) → N µg/l.
+// Klassgränser från SGU tillståndsklasser 2024 (xlsx-tabell):
+//   https://www.sgu.se/globalassets/handledningar/bedomningsgrunder-for-grundvatten/tillstandsklasser_sammanstallning_2024.xlsx
+// Klass 1 = Mycket låg halt, klass 5 = Mycket hög halt.
+// Parametrar med jonbaserade enhet i SGU-tabellen omräknade till API-enhet (som N):
+//   NO₃ mg/l × (14/62) × 1000 → µg/l N;  NH₄ mg/l × (14/18) × 1000 → µg/l N.
+// Järn, Mangan, Aluminium, Koppar, Zink: SGU-tabell i mg/l → här i µg/l (×1000).
 
 const GV_BEDGR: Record<string, { thresholds: [number, number, number, number]; unit: string; label: string }> = {
-  // Konduktivitet: SGU klass 1a <10, 1b 10–25, 2 25–50, 3 50–75, 4 75–150, 5 ≥150 mS/m
-  'Konduktivitet':              { thresholds: [25, 50, 75, 150],      unit: 'mS/m',  label: 'Konduktivitet' },
-  // Klorid: SGU klass 1a <5, 1b 5–20, 2 20–50, 3 50–100, 4 100–300, 5 ≥300 mg/l
-  'Klorid (jon: Cl-)':          { thresholds: [20, 50, 100, 300],     unit: 'mg/l',  label: 'Klorid' },
-  // Sulfat: SGU klass 1a <5, 1b 5–10, 2 10–25, 3 25–50, 4 50–100, 5 ≥100 mg/l
-  'Sulfat (jon: SO42-)':        { thresholds: [10, 25, 50, 100],      unit: 'mg/l',  label: 'Sulfat' },
-  // Nitrat: SGU <2/5/20/50 mg/l NO₃ → omräknat till µg/l N (×14/62)
-  'Nitrat + Nitrit, som N':     { thresholds: [500, 1100, 4500, 11000], unit: 'µg/l', label: 'NO₃+NO₂-N' },
-  // Ammonium: SGU <0.05/0.1/0.5/1.5 mg/l NH₄ → omräknat till µg/l N (×14/18)
-  'Ammonium, som N (NH4-N)':    { thresholds: [40, 80, 400, 1200],    unit: 'µg/l',  label: 'NH₄-N' },
-  // Järn: SGU <0.1/0.2/0.5/1 mg/l Fe → µg/l
-  'Järn':                       { thresholds: [100, 200, 500, 1000],  unit: 'µg/l',  label: 'Järn' },
-  // Mangan: SGU <0.05/0.1/0.3/0.4 mg/l Mn → µg/l
-  'Mangan':                     { thresholds: [50, 100, 300, 400],    unit: 'µg/l',  label: 'Mangan' },
+  // Konduktivitet: 1a <10, 1b 10–25, 2 25–50, 3 50–75, 4 75–150, 5 ≥150 mS/m
+  'Konduktivitet':              { thresholds: [25, 50, 75, 150],         unit: 'mS/m',  label: 'Konduktivitet' },
+  // Klorid: 1a <5, 1b 5–20, 2 20–50, 3 50–100, 4 100–300, 5 ≥300 mg/l
+  'Klorid (jon: Cl-)':          { thresholds: [20, 50, 100, 300],        unit: 'mg/l',  label: 'Klorid' },
+  // Sulfat: 1a <5, 1b 5–10, 2 10–25, 3 25–50, 4 50–100, 5 ≥100 mg/l
+  'Sulfat (jon: SO42-)':        { thresholds: [10, 25, 50, 100],         unit: 'mg/l',  label: 'Sulfat' },
+  // Nitrat: SGU <2/5/20/50 mg/l NO₃ → µg/l N (×14/62×1000)
+  'Nitrat + Nitrit, som N':     { thresholds: [500, 1100, 4500, 11000],  unit: 'µg/l',  label: 'NO₃+NO₂-N' },
+  // Nitrit: SGU <0.01/0.05/0.1/0.5 mg/l NO₂
+  'Nitrit':                     { thresholds: [0.01, 0.05, 0.1, 0.5],   unit: 'mg/l',  label: 'Nitrit' },
+  // Ammonium: SGU <0.05/0.1/0.5/1.5 mg/l NH₄ → µg/l N (×14/18×1000)
+  'Ammonium, som N (NH4-N)':    { thresholds: [40, 80, 400, 1200],       unit: 'µg/l',  label: 'NH₄-N' },
+  // Järn: SGU <0.1/0.2/0.5/1 mg/l → µg/l
+  'Järn':                       { thresholds: [100, 200, 500, 1000],     unit: 'µg/l',  label: 'Järn' },
+  // Mangan: SGU <0.05/0.1/0.3/0.4 mg/l → µg/l
+  'Mangan':                     { thresholds: [50, 100, 300, 400],       unit: 'µg/l',  label: 'Mangan' },
   // Arsenik: SGU <1/2/5/10 µg/l
-  'Arsenik':                    { thresholds: [1, 2, 5, 10],          unit: 'µg/l',  label: 'Arsenik' },
+  'Arsenik':                    { thresholds: [1, 2, 5, 10],             unit: 'µg/l',  label: 'Arsenik' },
   // Bly: SGU <0.5/2/5/10 µg/l
-  'Bly':                        { thresholds: [0.5, 2, 5, 10],        unit: 'µg/l',  label: 'Bly' },
+  'Bly':                        { thresholds: [0.5, 2, 5, 10],           unit: 'µg/l',  label: 'Bly' },
   // Kadmium: SGU <0.05/0.1/0.5/1 µg/l
-  'Kadmium':                    { thresholds: [0.05, 0.1, 0.5, 1],    unit: 'µg/l',  label: 'Kadmium' },
+  'Kadmium':                    { thresholds: [0.05, 0.1, 0.5, 1],       unit: 'µg/l',  label: 'Kadmium' },
+  // Kvicksilver: SGU <0.001/0.01/0.05/0.5 µg/l (ny i 2024)
+  'Kvicksilver':                { thresholds: [0.001, 0.01, 0.05, 0.5],  unit: 'µg/l',  label: 'Kvicksilver' },
+  // Uran: SGU <5/10/15/30 µg/l (ny i 2024)
+  'Uran':                       { thresholds: [5, 10, 15, 30],           unit: 'µg/l',  label: 'Uran' },
   // Fluorid: SGU <0.4/0.8/1.5/4 mg/l
-  'Fluorid (jon: F-)':          { thresholds: [0.4, 0.8, 1.5, 4],     unit: 'mg/l',  label: 'Fluorid' },
-  // Koppar: SGU <5/10/100/500 µg/l
-  'Koppar':                     { thresholds: [5, 10, 100, 500],       unit: 'µg/l',  label: 'Koppar' },
+  'Fluorid (jon: F-)':          { thresholds: [0.4, 0.8, 1.5, 4],        unit: 'mg/l',  label: 'Fluorid' },
+  // Koppar: SGU <0.005/0.01/0.1/0.5 mg/l → µg/l
+  'Koppar':                     { thresholds: [5, 10, 100, 500],          unit: 'µg/l',  label: 'Koppar' },
   // Nickel: SGU <0.5/2/10/20 µg/l
-  'Nickel':                     { thresholds: [0.5, 2, 10, 20],        unit: 'µg/l',  label: 'Nickel' },
+  'Nickel':                     { thresholds: [0.5, 2, 10, 20],           unit: 'µg/l',  label: 'Nickel' },
   // Krom: SGU <0.5/5/10/25 µg/l
-  'Krom':                       { thresholds: [0.5, 5, 10, 25],        unit: 'µg/l',  label: 'Krom' },
-  // Aluminium: SGU <10/50/100/500 µg/l (0.01/0.05/0.1/0.5 mg/l)
-  'Aluminium':                  { thresholds: [10, 50, 100, 500],      unit: 'µg/l',  label: 'Aluminium' },
-  // TOC: SGU <0.5/2.5/5/10 mg/l
-  'Kol, totalt organiskt (TOC)':{ thresholds: [0.5, 2.5, 5, 10],      unit: 'mg/l',  label: 'TOC' },
+  'Krom':                       { thresholds: [0.5, 5, 10, 25],           unit: 'µg/l',  label: 'Krom' },
+  // Zink: SGU <0.005/0.01/0.1/0.5 mg/l → µg/l (ny i 2024)
+  'Zink':                       { thresholds: [5, 10, 100, 500],          unit: 'µg/l',  label: 'Zink' },
+  // Antimon: SGU <0.1/0.5/5/10 µg/l (ny i 2024)
+  'Antimon':                    { thresholds: [0.1, 0.5, 5, 10],          unit: 'µg/l',  label: 'Antimon' },
+  // Aluminium: SGU <0.01/0.05/0.1/0.5 mg/l → µg/l
+  'Aluminium':                  { thresholds: [10, 50, 100, 500],          unit: 'µg/l',  label: 'Aluminium' },
+  // TOC/DOC: SGU <0.5/2.5/5/10 mg/l
+  'Kol, totalt organiskt (TOC)':{ thresholds: [0.5, 2.5, 5, 10],          unit: 'mg/l',  label: 'TOC' },
 };
 
 function classifyParam(paramName: string, value: number): number {
   if (paramName === 'pH') {
-    if (value >= 6.5 && value <= 8.0) return 1;
-    if (value >= 6.0 && value <= 8.5) return 2;
-    if (value >= 5.5 && value <= 9.0) return 3;
-    if (value >= 5.0 && value <= 9.5) return 4;
+    // SGU 2024: försurningsskala – klass 1 = >8.5 (alkalint), klass 5 = ≤5.5 (starkt surt)
+    if (value > 8.5) return 1;
+    if (value > 7.5) return 2;
+    if (value > 6.5) return 3;
+    if (value > 5.5) return 4;
     return 5;
   }
   const bedgr = GV_BEDGR[paramName];
@@ -1972,7 +1985,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                       ))}
                     </div>
                     <p className="text-[10px] text-muted-foreground mt-1.5">
-                      Klass 1 (bakgrundsnivå) – 5 (kraftigt avvikande) · SGU bedömningsgrunder (rapport 2013:01)
+                      Klass 1 (Mycket låg halt) – 5 (Mycket hög halt) · SGU tillståndsklasser 2024. pH: klass 1 = alkaliskt &gt;8,5, klass 3 = neutralt 6,5–7,5 (optimalt för dricksvatten), klass 5 = starkt surt ≤5,5.
                     </p>
                   </div>
                 );
@@ -2200,9 +2213,9 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
 
                   <SourceRow
                     label="Bedömningsgrunder klass 1–5"
-                    source="SGU bedömningsgrunder för grundvatten (rapport 2013:01)"
-                    note="Definierar klassgränserna för inorganiska parametrar: pH, konduktivitet, klorid, sulfat, nitrat+nitrit som N, ammonium som N, järn, mangan, arsenik, bly, kadmium, fluorid, koppar, nickel, krom, aluminium och TOC. pH klassas efter dricksvattensoptimum (6,5–8,0 = klass 1); övriga parametrar direkt från SGU:s tabeller. Nitrat- och ammoniumgränser omräknade från jonbaserade värden till 'som N'."
-                    url="https://www.sgu.se/anvandarstod-for-geologiska-fragor/bedomningsgrunder-for-grundvatten/"
+                    source="SGU tillståndsklasser 2024"
+                    note="Klassgränser från SGU:s tillståndsklasstabell 2024. pH följer SGU:s försurningsskala (klass 1 = alkaliskt &gt;8,5 ; klass 3 = neutralt 6,5–7,5 ; klass 5 = starkt surt ≤5,5). Ny 2024: Kvicksilver, Uran, Zink, Antimon, Nitrit. Nitrat och ammonium omräknade från jonbaserade mg/l-gränser till µg/l N."
+                    url="https://www.sgu.se/globalassets/handledningar/bedomningsgrunder-for-grundvatten/tillstandsklasser_sammanstallning_2024.xlsx"
                   />
 
                   <p className="text-muted-foreground pt-1 leading-relaxed">
