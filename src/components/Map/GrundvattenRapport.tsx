@@ -65,7 +65,7 @@ interface ReportData {
     provtyp?: string;
     elements: Record<string, number | null>;
   };
-  gvKemi?: {
+  gvKemi?: Array<{
     provplatsid: string;
     provplatsnamn: string;
     distKm: number;
@@ -80,7 +80,7 @@ interface ReportData {
       klass: number;
       datum: string;
     }>;
-  };
+  }>;
   // Nearby observed groundwater levels for calibration pool
   obsFeatures?: Array<{ djup: number; jordart?: string; aquiferGroup?: 'rock' | 'jord'; aquiferSize?: 'large' | 'small' }>;
   // Nearby observed stations sorted by distance — shown in level analysis section
@@ -537,6 +537,9 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
   const [data, setData] = useState<ReportData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sourcesOpen, setSourcesOpen] = useState(false);
+  const [expandedGvKemi, setExpandedGvKemi] = useState<Set<number>>(new Set([0]));
+
+  useEffect(() => { setExpandedGvKemi(new Set([0])); }, [coordinate]);
 
   // Build a plain-text AI summary whenever analysis data changes
   useEffect(() => {
@@ -851,7 +854,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
       const geokemiBbox = `bbox=${lon - 0.5},${lat - 0.35},${lon + 0.5},${lat + 0.35}&limit=30`;
       const geokemiMsBboxUrl  = `${geokemiBase}/moran_0063mm_ar_icpms/items?f=json&${geokemiBbox}`;
       const geokemiAesBboxUrl = `${geokemiBase}/moran_0063mm_ar_icpaes/items?f=json&${geokemiBbox}`;
-      const gvKemiProvBboxUrl = `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/provplatser/items?f=json&bbox=${lon - 0.5},${lat - 0.35},${lon + 0.5},${lat + 0.35}&limit=20`;
+      const gvKemiProvBboxUrl = `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/provplatser/items?f=json&bbox=${lon - 0.6},${lat - 0.45},${lon + 0.6},${lat + 0.45}&limit=100`;
 
       // Helper: find nearest feature by haversine distance to (lat, lon)
       const findNearest = (features: any[]) => {
@@ -1120,67 +1123,91 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
         }
       } catch { /* ignore */ }
 
-      // GV-kemi: find nearest provplats, fetch & classify analysresultat
+      // GV-kemi: up to 5 nearest provplatser within 50 km, loaded in parallel
       try {
         if (gvKemiProvRes.status === 'fulfilled' && gvKemiProvRes.value.ok) {
           const pd = await gvKemiProvRes.value.json().catch(() => null);
           const allProvFeatures: any[] = pd?.features ?? [];
 
-          // Filter to stations matching the aquifer category at the clicked point
+          // Compute distance for every station, keep those ≤50 km
+          const withDist = allProvFeatures
+            .map(f => {
+              const coords = f.geometry?.coordinates;
+              if (!coords) return null;
+              return { dist: haversineKm(lat, lon, coords[1], coords[0]), p: f.properties ?? {} };
+            })
+            .filter((x): x is { dist: number; p: any } => x !== null && x.dist <= 50);
+
+          // Prefer stations matching the aquifer type at the clicked point
           const locAq = result.jordartKod
             ? classifyByJg2(Number(result.jordartKod))
             : classifyAquifer(result.jordartNamn);
           const targetKat = aquiferToBedgrKat(locAq, result.jordartKod);
-          const filteredFeatures = targetKat !== null
-            ? allProvFeatures.filter(f => f.properties?.provplatskat_bedgr === targetKat)
-            : allProvFeatures;
-          const featuresForSearch = filteredFeatures.length > 0 ? filteredFeatures : allProvFeatures;
+          const aqFiltered = targetKat !== null
+            ? withDist.filter(x => x.p.provplatskat_bedgr === targetKat)
+            : [];
+          const candidates = (aqFiltered.length > 0 ? aqFiltered : withDist)
+            .sort((a, b) => a.dist - b.dist)
+            .slice(0, 5);
 
-          const nearest = findNearest(featuresForSearch);
-          if (nearest) {
-            const pid = nearest.p.nationellt_provplatsid;
-            const analysUrl = `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/analysresultat/items?f=json&filter=nationellt_provplatsid=${pid}&filter-lang=cql2-text&sortby=-provtagningsdatum&limit=500`;
-            const aRes = await fetch(analysUrl, { signal }).catch(() => null);
-            if (aRes?.ok) {
-              const ad = await aRes.json().catch(() => null);
-              // latest value per parameter
-              const latestByParam = new Map<string, { value: number; unit: string; datum: string }>();
+          if (candidates.length > 0) {
+            const analysResponses = await Promise.allSettled(
+              candidates.map(({ p }) => {
+                const pid = p.nationellt_provplatsid;
+                const url = `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/analysresultat/items?f=json&filter=nationellt_provplatsid=${pid}&filter-lang=cql2-text&sortby=-provtagningsdatum&limit=500`;
+                return fetch(url, { signal }).catch(() => null);
+              })
+            );
+
+            const kemiStations: NonNullable<ReportData['gvKemi']> = [];
+            for (let i = 0; i < candidates.length; i++) {
+              const cand = candidates[i];
+              const res = analysResponses[i];
+              if (res.status !== 'fulfilled' || !res.value?.ok) continue;
+              const ad = await res.value.json().catch(() => null);
+
+              // Group all results by date; within a date keep the first (most recent) value per param
+              const byDate = new Map<string, Map<string, { value: number; unit: string }>>();
               for (const f of ad?.features ?? []) {
                 const p = f.properties ?? {};
                 const pname: string = p.parameternamn ?? '';
-                if (!latestByParam.has(pname)) {
-                  const rawVal = parseFloat(p.matvardetal ?? '');
-                  if (!isNaN(rawVal) && rawVal >= 0) {
-                    latestByParam.set(pname, {
-                      value: rawVal,
-                      unit: p.enhet_tx ?? p.enhet ?? '',
-                      datum: (p.provtagningsdatum ?? '').slice(0, 10),
-                    });
-                  }
-                }
+                const datum = (p.provtagningsdatum ?? '').slice(0, 10);
+                const rawVal = parseFloat(p.matvardetal ?? '');
+                if (!datum || !pname || isNaN(rawVal) || rawVal < 0) continue;
+                if (!byDate.has(datum)) byDate.set(datum, new Map());
+                if (!byDate.get(datum)!.has(pname))
+                  byDate.get(datum)!.set(pname, { value: rawVal, unit: p.enhet_tx ?? p.enhet ?? '' });
               }
-              // classify known parameters
+
+              // Use the most recent date that contains at least one classifiable parameter
+              const dates = [...byDate.keys()].sort().reverse();
+              const snapshotDate = dates.find(d => {
+                const dp = byDate.get(d)!;
+                return dp.has('pH') || dp.has('pH, mätt i fält') || [...dp.keys()].some(k => k in GV_BEDGR);
+              }) ?? dates[0];
+              if (!snapshotDate) continue;
+
+              const snapshot = byDate.get(snapshotDate)!;
               const params: Array<{ name: string; label: string; value: number; unit: string; klass: number; datum: string }> = [];
-              // pH separately
-              const phEntry = latestByParam.get('pH') ?? latestByParam.get('pH, mätt i fält');
-              if (phEntry) params.push({ name: 'pH', label: 'pH', ...phEntry, klass: classifyParam('pH', phEntry.value) });
-              // other parameters
+              const phEntry = snapshot.get('pH') ?? snapshot.get('pH, mätt i fält');
+              if (phEntry) params.push({ name: 'pH', label: 'pH', ...phEntry, datum: snapshotDate, klass: classifyParam('pH', phEntry.value) });
               for (const [pname, bedgr] of Object.entries(GV_BEDGR)) {
-                const entry = latestByParam.get(pname);
-                if (entry) params.push({ name: pname, label: bedgr.label, ...entry, klass: classifyParam(pname, entry.value) });
+                const entry = snapshot.get(pname);
+                if (entry) params.push({ name: pname, label: bedgr.label, ...entry, datum: snapshotDate, klass: classifyParam(pname, entry.value) });
               }
-              if (params.length > 0) {
-                result.gvKemi = {
-                  provplatsid: String(pid),
-                  provplatsnamn: nearest.p.provplatsnamn ?? '',
-                  distKm: Math.round(nearest.dist * 10) / 10,
-                  senasteprov: (nearest.p.senasteprov ?? '').slice(0, 10),
-                  provplatskat: nearest.p.provplatskat_bedgr_tx ?? undefined,
-                  region: nearest.p.region_bdgr_tx ?? undefined,
-                  params,
-                };
-              }
+              if (params.length === 0) continue;
+
+              kemiStations.push({
+                provplatsid: String(cand.p.nationellt_provplatsid),
+                provplatsnamn: cand.p.provplatsnamn ?? '',
+                distKm: Math.round(cand.dist * 10) / 10,
+                senasteprov: snapshotDate,
+                provplatskat: cand.p.provplatskat_bedgr_tx ?? undefined,
+                region: cand.p.region_bdgr_tx ?? undefined,
+                params,
+              });
             }
+            if (kemiStations.length > 0) result.gvKemi = kemiStations;
           }
         }
       } catch { /* ignore */ }
@@ -1952,44 +1979,78 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                 );
               })()}
 
-              {/* Grundvattenkemi – nearest provplats */}
-              {data.gvKemi && (() => {
-                const gv = data.gvKemi!;
-                // Sort worst class first (most informative), then by label
-                const sorted = [...gv.params].sort((a, b) => b.klass - a.klass || a.label.localeCompare(b.label));
-                return (
-                  <div className="mb-3">
-                    <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1 flex items-center justify-between">
-                      <span>Grundvattenkemi</span>
-                      <span className="normal-case font-normal">
-                        {gv.provplatsnamn} · {gv.distKm} km
-                        {gv.senasteprov ? ` · ${gv.senasteprov}` : ''}
-                      </span>
-                    </div>
-                    {gv.provplatskat && (
-                      <div className="text-[10px] text-muted-foreground mb-1">{gv.provplatskat}{gv.region ? ` · ${gv.region}` : ''}</div>
-                    )}
-                    <div className="space-y-0.5">
-                      {sorted.map(p => (
-                        <div key={p.name} className="flex items-center gap-1.5 text-[11px]">
-                          <span
-                            className="shrink-0 font-bold text-white text-[10px] rounded px-1 py-0.5 leading-none"
-                            style={{ backgroundColor: GV_KLASS_COLORS[p.klass] ?? '#6b7280' }}
-                          >
-                            {p.klass}
-                          </span>
-                          <span className="font-medium w-24 shrink-0">{p.label}</span>
-                          <span className="text-muted-foreground">{p.value < 1 ? p.value.toFixed(3) : p.value < 10 ? p.value.toFixed(2) : p.value < 100 ? p.value.toFixed(1) : Math.round(p.value)} {p.unit}</span>
-                          <span className="text-[10px] text-muted-foreground/60 ml-auto shrink-0">{p.datum}</span>
-                        </div>
-                      ))}
-                    </div>
-                    <p className="text-[10px] text-muted-foreground mt-1.5">
-                      Klass 1 (Mycket låg halt) – 5 (Mycket hög halt) · SGU tillståndsklasser 2024. pH: klass 1 = alkaliskt &gt;8,5, klass 3 = neutralt 6,5–7,5 (optimalt för dricksvatten), klass 5 = starkt surt ≤5,5.
-                    </p>
+              {/* Grundvattenkemi – up to 5 stations within 50 km */}
+              {data.gvKemi && data.gvKemi.length > 0 && (
+                <div className="mb-3">
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">
+                    Grundvattenkemi · {data.gvKemi.length} station{data.gvKemi.length > 1 ? 'er' : ''} inom 50 km
                   </div>
-                );
-              })()}
+                  <div className="space-y-1">
+                    {data.gvKemi.map((gv, i) => {
+                      const isOpen = expandedGvKemi.has(i);
+                      const sorted = [...gv.params].sort((a, b) => b.klass - a.klass || a.label.localeCompare(b.label));
+                      const worstKlass = sorted[0]?.klass ?? 0;
+                      return (
+                        <div key={gv.provplatsid} className="border border-border rounded overflow-hidden">
+                          <button
+                            className="w-full flex items-center justify-between gap-2 px-2 py-1.5 text-left hover:bg-secondary/50 transition-colors"
+                            onClick={() => setExpandedGvKemi(prev => {
+                              const next = new Set(prev);
+                              if (next.has(i)) next.delete(i); else next.add(i);
+                              return next;
+                            })}
+                          >
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              {worstKlass > 0 && (
+                                <span
+                                  className="shrink-0 font-bold text-white text-[10px] rounded px-1 py-0.5 leading-none"
+                                  style={{ backgroundColor: GV_KLASS_COLORS[worstKlass] ?? '#6b7280' }}
+                                >
+                                  {worstKlass}
+                                </span>
+                              )}
+                              <span className="text-[11px] font-medium truncate">{gv.provplatsnamn}</span>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0 text-[10px] text-muted-foreground">
+                              <span>{gv.distKm} km</span>
+                              {gv.senasteprov && <span>{gv.senasteprov}</span>}
+                              <ChevronDown className={`w-3 h-3 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                            </div>
+                          </button>
+                          {isOpen && (
+                            <div className="px-2 pb-2">
+                              {(gv.provplatskat || gv.region) && (
+                                <div className="text-[10px] text-muted-foreground mb-1 pt-1">
+                                  {gv.provplatskat}{gv.region ? ` · ${gv.region}` : ''}
+                                </div>
+                              )}
+                              <div className="space-y-0.5">
+                                {sorted.map(p => (
+                                  <div key={p.name} className="flex items-center gap-1.5 text-[11px]">
+                                    <span
+                                      className="shrink-0 font-bold text-white text-[10px] rounded px-1 py-0.5 leading-none"
+                                      style={{ backgroundColor: GV_KLASS_COLORS[p.klass] ?? '#6b7280' }}
+                                    >
+                                      {p.klass}
+                                    </span>
+                                    <span className="font-medium w-24 shrink-0">{p.label}</span>
+                                    <span className="text-muted-foreground">
+                                      {p.value < 1 ? p.value.toFixed(3) : p.value < 10 ? p.value.toFixed(2) : p.value < 100 ? p.value.toFixed(1) : Math.round(p.value)} {p.unit}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                              <p className="text-[10px] text-muted-foreground mt-1.5">
+                                Klass 1 (Mycket låg halt) – 5 (Mycket hög halt) · SGU tillståndsklasser 2024. pH: klass 1 = alkaliskt &gt;8,5, klass 3 = neutralt, klass 5 = starkt surt ≤5,5. Alla värden från samma provtagningstillfälle ({gv.senasteprov}).
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Grundvattenmagasin – card */}
               {(data.magasin || data.delomrade) && (() => {
