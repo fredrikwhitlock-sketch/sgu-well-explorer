@@ -437,24 +437,44 @@ function SourceRow({ label, source, note, url }: {
 }
 
 // ── Grundvattenkemi bedömningsgrunder ────────────────────────────────────────
+// Klassgränser från SGU bedömningsgrunder för grundvatten (webbaserad handledning,
+// grundad i SGU-rapport 2013:01). Klass 1 = bakgrundsnivå, klass 5 = kraftigt avvikande.
+// Nitrat+Nitrit som N och Ammonium som N är omräknade från SGU:s jonbaserade gränser:
+//   NO₃ mg/l × (14/62) → N µg/l;  NH₄ mg/l × (14/18) → N µg/l.
 
 const GV_BEDGR: Record<string, { thresholds: [number, number, number, number]; unit: string; label: string }> = {
-  'Konduktivitet':              { thresholds: [20, 30, 50, 100],      unit: 'mS/m',  label: 'Konduktivitet' },
-  'Klorid (jon: Cl-)':          { thresholds: [10, 30, 100, 300],     unit: 'mg/l',  label: 'Klorid' },
-  'Sulfat (jon: SO42-)':        { thresholds: [10, 50, 100, 200],     unit: 'mg/l',  label: 'Sulfat' },
-  'Nitrat + Nitrit, som N':     { thresholds: [100, 500, 2000, 5000], unit: 'µg/l',  label: 'NO₃+NO₂-N' },
-  'Ammonium, som N (NH4-N)':    { thresholds: [5, 10, 50, 200],       unit: 'µg/l',  label: 'NH₄-N' },
-  'Järn':                       { thresholds: [50, 100, 500, 2000],   unit: 'µg/l',  label: 'Järn' },
-  'Mangan':                     { thresholds: [5, 10, 50, 200],       unit: 'µg/l',  label: 'Mangan' },
-  'Arsenik':                    { thresholds: [0.5, 1, 5, 10],        unit: 'µg/l',  label: 'Arsenik' },
-  'Bly':                        { thresholds: [0.2, 0.5, 2, 10],      unit: 'µg/l',  label: 'Bly' },
-  'Kadmium':                    { thresholds: [0.02, 0.05, 0.1, 0.5], unit: 'µg/l',  label: 'Kadmium' },
-  'Fluorid (jon: F-)':          { thresholds: [0.2, 0.5, 1.0, 1.5],  unit: 'mg/l',  label: 'Fluorid' },
-  'Koppar':                     { thresholds: [1, 2, 10, 50],         unit: 'µg/l',  label: 'Koppar' },
-  'Nickel':                     { thresholds: [0.5, 1, 5, 20],        unit: 'µg/l',  label: 'Nickel' },
-  'Krom':                       { thresholds: [1, 2, 10, 50],         unit: 'µg/l',  label: 'Krom' },
-  'Aluminium':                  { thresholds: [10, 20, 50, 200],      unit: 'µg/l',  label: 'Aluminium' },
-  'Kol, totalt organiskt (TOC)':{ thresholds: [3, 5, 10, 20],         unit: 'mg/l',  label: 'TOC' },
+  // Konduktivitet: SGU klass 1a <10, 1b 10–25, 2 25–50, 3 50–75, 4 75–150, 5 ≥150 mS/m
+  'Konduktivitet':              { thresholds: [25, 50, 75, 150],      unit: 'mS/m',  label: 'Konduktivitet' },
+  // Klorid: SGU klass 1a <5, 1b 5–20, 2 20–50, 3 50–100, 4 100–300, 5 ≥300 mg/l
+  'Klorid (jon: Cl-)':          { thresholds: [20, 50, 100, 300],     unit: 'mg/l',  label: 'Klorid' },
+  // Sulfat: SGU klass 1a <5, 1b 5–10, 2 10–25, 3 25–50, 4 50–100, 5 ≥100 mg/l
+  'Sulfat (jon: SO42-)':        { thresholds: [10, 25, 50, 100],      unit: 'mg/l',  label: 'Sulfat' },
+  // Nitrat: SGU <2/5/20/50 mg/l NO₃ → omräknat till µg/l N (×14/62)
+  'Nitrat + Nitrit, som N':     { thresholds: [500, 1100, 4500, 11000], unit: 'µg/l', label: 'NO₃+NO₂-N' },
+  // Ammonium: SGU <0.05/0.1/0.5/1.5 mg/l NH₄ → omräknat till µg/l N (×14/18)
+  'Ammonium, som N (NH4-N)':    { thresholds: [40, 80, 400, 1200],    unit: 'µg/l',  label: 'NH₄-N' },
+  // Järn: SGU <0.1/0.2/0.5/1 mg/l Fe → µg/l
+  'Järn':                       { thresholds: [100, 200, 500, 1000],  unit: 'µg/l',  label: 'Järn' },
+  // Mangan: SGU <0.05/0.1/0.3/0.4 mg/l Mn → µg/l
+  'Mangan':                     { thresholds: [50, 100, 300, 400],    unit: 'µg/l',  label: 'Mangan' },
+  // Arsenik: SGU <1/2/5/10 µg/l
+  'Arsenik':                    { thresholds: [1, 2, 5, 10],          unit: 'µg/l',  label: 'Arsenik' },
+  // Bly: SGU <0.5/2/5/10 µg/l
+  'Bly':                        { thresholds: [0.5, 2, 5, 10],        unit: 'µg/l',  label: 'Bly' },
+  // Kadmium: SGU <0.05/0.1/0.5/1 µg/l
+  'Kadmium':                    { thresholds: [0.05, 0.1, 0.5, 1],    unit: 'µg/l',  label: 'Kadmium' },
+  // Fluorid: SGU <0.4/0.8/1.5/4 mg/l
+  'Fluorid (jon: F-)':          { thresholds: [0.4, 0.8, 1.5, 4],     unit: 'mg/l',  label: 'Fluorid' },
+  // Koppar: SGU <5/10/100/500 µg/l
+  'Koppar':                     { thresholds: [5, 10, 100, 500],       unit: 'µg/l',  label: 'Koppar' },
+  // Nickel: SGU <0.5/2/10/20 µg/l
+  'Nickel':                     { thresholds: [0.5, 2, 10, 20],        unit: 'µg/l',  label: 'Nickel' },
+  // Krom: SGU <0.5/5/10/25 µg/l
+  'Krom':                       { thresholds: [0.5, 5, 10, 25],        unit: 'µg/l',  label: 'Krom' },
+  // Aluminium: SGU <10/50/100/500 µg/l (0.01/0.05/0.1/0.5 mg/l)
+  'Aluminium':                  { thresholds: [10, 50, 100, 500],      unit: 'µg/l',  label: 'Aluminium' },
+  // TOC: SGU <0.5/2.5/5/10 mg/l
+  'Kol, totalt organiskt (TOC)':{ thresholds: [0.5, 2.5, 5, 10],      unit: 'mg/l',  label: 'TOC' },
 };
 
 function classifyParam(paramName: string, value: number): number {
@@ -1952,7 +1972,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                       ))}
                     </div>
                     <p className="text-[10px] text-muted-foreground mt-1.5">
-                      Klass 1 (bästa) – 5 (sämsta) · SGU bedömningsgrunder
+                      Klass 1 (bakgrundsnivå) – 5 (kraftigt avvikande) · SGU bedömningsgrunder (rapport 2013:01)
                     </p>
                   </div>
                 );
@@ -2104,25 +2124,25 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                   <SourceRow
                     label="Akvifer / jordart"
                     source="SGU Jordarter 1:25 000–100 000"
-                    note="OGC API Features – CQL2-punkt­selektion, bbox-fallback. Klassificering intern (classifyAquifer)."
+                    note="Identifierar jordart och akvifertyp (berg, morän, isälvssediment, lera m.fl.) vid den klickade punkten. Används för att bedöma magasinstyp, förväntade brunndjup och klassificera akvifer."
                     url="https://api.sgu.se/oppnadata/jordarter25k-100k/ogc/features/v1"
                   />
                   <SourceRow
                     label="Grundvattenmagasin"
                     source="SGU Grundvattenmagasin"
-                    note="OGC API Features – bbox mot klickad punkt. Fält: magasinsnamn, akvifertyp, genes, magasinsposition (J1/B1 etc.), geom_area (yta), grvbildningstyp, tillrinning_fran_tillrinningsomraden_l_per_s, medelmaktighet_mattad/omattad_zon."
+                    note="Karterade grundvattenmagasin. Visar om punkten ingår i ett namngivet magasin med uppgifter om akvifertyp, genestyp, position (ytlig/djup), yta, medelmäktighet och tillrinning från upptagningsområdet."
                     url="https://api.sgu.se/oppnadata/grundvattenmagasin/ogc/features/v1"
                   />
                   <SourceRow
                     label="Grundvattennivå – observerade stationer"
                     source="SGU Grundvattennivåer observerade"
-                    note="OGC API Features – stationer inom 50 km (bbox), nivaer via CQL2 IN-filter ±7 dagar. Fält: grundvattenniva_m_u_markyta, akvifer (B*=berg, J*=jord), jordart_tx, stationsnamn. Medianen skalas med HYPE-situationsfaktor."
+                    note="Fysiska mätstationer med nivåloggar. Stationer inom 50 km används som kalibreringspunkter för nivå- och djupuppskattning, matchade mot akvifertyp. Observationer inom ±7 dagar från valt datum."
                     url="https://api.sgu.se/oppnadata/grundvattennivaer-observerade/ogc/features/v1"
                   />
                   <SourceRow
                     label="Grundvattennivå – situation / fyllnadsgrad"
                     source="SGU-HYPE Grundvattennivåer"
-                    note="OGC API Features – omrade_id via bbox, sedan fyllnadsgrad_sma/stora och grundvattensituation via CQL2-filter på datum. Månadsmodell; senaste tillgänglig visas om valt datum saknar data."
+                    note="Månadsmodell (SGU-HYPE) som ger situationsklassning och fyllnadsgrad för små och stora magasin i det hydrologiska område som punkten tillhör. Om valt datum saknar data visas senaste tillgängliga."
                     url="https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1"
                   />
 
@@ -2132,47 +2152,57 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                   <SourceRow
                     label="Brunnskapacitet (l/h)"
                     source="SGU Brunnar"
-                    note="OGC API Features – brunnar inom ~15 km. Fält: kapacitet (l/h), totaldjup, jorddjup. isBergborrad = totaldjup − jorddjup > 15 m."
+                    note="Nationell brunnsdatabas med uppmätt kapacitet, totaldjup och jorddjup. Brunnar inom ~15 km används för att uppskatta sannolikt kapacitetsintervall utifrån akvifertyp."
                     url="https://api.sgu.se/oppnadata/brunnar/ogc/features/v1"
                   />
                   <SourceRow
                     label="Tillrinning till magasin (l/s)"
                     source="SGU Grundvattenmagasin"
-                    note="Fält: tillrinning_fran_tillrinningsomraden_l_per_s – karterad tillrinning till det namngivna magasinet."
+                    note="Beräknad nettotillrinning till det namngivna grundvattenmagasinet från dess upptagningsområde, i liter per sekund."
                     url="https://api.sgu.se/oppnadata/grundvattenmagasin/ogc/features/v1"
                   />
                   <SourceRow
                     label="Jordlager / jorddjup (m)"
                     source="SGU Jorddjupsmodell – WMS GetFeatureInfo"
-                    note="WMS 1.3.0 GetFeatureInfo – interpolerat 10×10 m raster (RASTER_INTERVALL), lager SE.GOV.SGU.MISC.JORDDJUPSMODELL.RASTER_INTERVALL. Ger ett enskilt interpolerat djupvärde för den klickade punkten i EPSG:3857. Via proxy (CORS)."
+                    note="Interpolerad rastermodell (10×10 m) som visar tjockleken på lösa jordlager ovanför berget. Används för att uppskatta nödvändigt borrdjup för bergborrad brunn."
                     url="https://resource.sgu.se/service/wms/130/jorddjupsmodell"
                   />
                   <SourceRow
                     label="Grundvattentillgång små magasin (l/dygn/ha)"
                     source="SGU GV-tillgång små magasin (WMS)"
-                    note="WMS GetFeatureInfo – rastervärde via proxy. Lager: grundvattentillgang-sma-magasin. Fält: Grundvattentillgang_i_sma_magasin_l_dygn_ha."
+                    note="Rastermodell med beräknad uttagningsmöjlighet ur ytliga, små magasin per hektar. Ger ett mått på kapaciteten för grävda brunnar och ytliga infiltrationsbrunnar."
                     url="https://api.sgu.se/oppnadata/grundvattentillgang-sma-magasin/wms"
                   />
 
                   <SourceRow
                     label="Terrängmodell / höjd (m ö.h.)"
                     source="OpenTopoData – EU-DEM 25m"
-                    note="REST API – punkthöjd via EU Digital Elevation Model (25 m upplösning). Används för höjdinformation i koordinatpanelen."
+                    note="EU Digital Elevation Model med 25 m upplösning. Ger terrängbaserad höjd över havet för den klickade punkten."
                     url="https://www.opentopodata.org/datasets/eudem/"
                   />
+
+                  {/* Group: Kemi */}
+                  <div className="font-semibold text-muted-foreground uppercase tracking-wide text-[10px] mb-0.5 mt-1">Kemi</div>
 
                   <SourceRow
                     label="Markgeokemi morän (mg/kg)"
                     source="SGU Markgeokemi Regional – morän ICP-MS + ICP-AES"
-                    note="OGC API Features – närmaste prov. ICP-MS (moran_0063mm_ar_icpms): spårämnen As, Cd, Mo, U, Cu, Sb. ICP-AES (moran_0063mm_ar_icpaes): Ni, Pb, Cr, Co, Zn, Fe, Mn, Ca, Mg. Aqua Regia-uppslutning, halter i mg/kg ts. Oxider (Fe₂O₃, MnO, CaO, MgO) omräknade till grundämne."
+                    note="Regionala geokemiska prover ur morän (< 63 µm-fraktion). Ger bakgrundshalter av spårämnen och tungmetaller i moränens finkorniga del – indikerar naturliga förhöjda halter som kan påverka grundvattenkvaliteten. Aqua regia-uppslutning."
                     url="https://api.sgu.se/oppnadata/markgeokemi-regional/ogc/features/v1"
                   />
 
                   <SourceRow
                     label="Grundvattenkemi (klass 1–5)"
                     source="SGU Grundvattenkvalitet – analysresultat provplatser"
-                    note="OGC API Features – närmaste provplats inom ±0,5°/0,35° bbox, sedan analysresultat via CQL2-filter på nationellt_provplatsid. Senaste värde per parameter klassas mot SGU bedömningsgrunder (klass 1–5). Fält: parameternamn, matvardetal, enhet_tx, provtagningsdatum."
+                    note="Övervakningsstationer för grundvattenkvalitet. Närmaste station med samma akvifertyp väljs. Senaste analysresultat per parameter klassas mot SGU:s bedömningsgrunder (klass 1 = bakgrundsnivå, 5 = kraftigt avvikande)."
                     url="https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1"
+                  />
+
+                  <SourceRow
+                    label="Bedömningsgrunder klass 1–5"
+                    source="SGU bedömningsgrunder för grundvatten (rapport 2013:01)"
+                    note="Definierar klassgränserna för inorganiska parametrar: pH, konduktivitet, klorid, sulfat, nitrat+nitrit som N, ammonium som N, järn, mangan, arsenik, bly, kadmium, fluorid, koppar, nickel, krom, aluminium och TOC. pH klassas efter dricksvattensoptimum (6,5–8,0 = klass 1); övriga parametrar direkt från SGU:s tabeller. Nitrat- och ammoniumgränser omräknade från jonbaserade värden till 'som N'."
+                    url="https://www.sgu.se/anvandarstod-for-geologiska-fragor/bedomningsgrunder-for-grundvatten/"
                   />
 
                   <p className="text-muted-foreground pt-1 leading-relaxed">
