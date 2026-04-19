@@ -327,16 +327,17 @@ export const MapView = () => {
     });
     sguJorddjupLayerRef.current = sguJorddjupLayer;
 
-    // Copernicus CLC 2018 – Corine Land Cover (markanvändning)
-    const eeaProxyBase = (url: string, layer: string) =>
+    // Copernicus Land Service layers – EEA WMS supports CORS (reflects Origin header)
+    const eeaWms = (url: string, layer: string) =>
       new ImageWMS({
-        url: wmsProxyUrl,
-        params: { 'url': url, 'LAYERS': layer, 'VERSION': '1.1.1', 'FORMAT': 'image/png', 'TRANSPARENT': 'TRUE', 'STYLES': '' },
+        url,
+        params: { 'LAYERS': layer, 'VERSION': '1.1.1', 'FORMAT': 'image/png', 'TRANSPARENT': 'TRUE', 'STYLES': '' },
         ratio: 1,
+        crossOrigin: 'anonymous',
       });
 
     const clcLayer = new ImageLayer({
-      source: eeaProxyBase(
+      source: eeaWms(
         'https://image.discomap.eea.europa.eu/arcgis/services/Corine/CLC2018_WM/MapServer/WmsServer',
         '12'
       ),
@@ -347,7 +348,7 @@ export const MapView = () => {
 
     // Copernicus HRL Water and Wetness 2018 – satellitbaserad jordfuktighetsindikator
     const waterWetnessLayer = new ImageLayer({
-      source: eeaProxyBase(
+      source: eeaWms(
         'https://image.discomap.eea.europa.eu/arcgis/services/GioLandPublic/HRL_WaterWetness_2018/ImageServer/WmsServer',
         'HRL_WaterWetness_2018:WAW_MosaicSymbology'
       ),
