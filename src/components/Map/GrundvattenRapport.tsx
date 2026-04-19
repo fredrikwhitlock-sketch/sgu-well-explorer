@@ -72,6 +72,7 @@ interface ReportData {
     senasteprov?: string;
     seasonalSelection: boolean;
     fromBody: boolean;
+    eucdGwb?: string;
     provplatskat?: string;
     region?: string;
     params: Array<{
@@ -1467,6 +1468,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                 senasteprov: snapshotDate,
                 seasonalSelection,
                 fromBody: bodyIds.has(String(cand.p.nationellt_provplatsid)),
+                eucdGwb: cand.p.eucd_gwb || cand.p.eu_cd_gwb || cand.p.eu_cd || undefined,
                 provplatskat: cand.p.provplatskat_bedgr_tx ?? undefined,
                 region: cand.p.region_bdgr_tx ?? undefined,
                 params,
@@ -2305,9 +2307,11 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                             };
                             return (
                               <div className="px-2 pb-2">
-                                {(gv.provplatskat || gv.region) && (
-                                  <div className="text-[10px] text-muted-foreground mb-1 pt-1">
-                                    {gv.provplatskat}{gv.region ? ` · ${gv.region}` : ''}
+                                {(gv.eucdGwb || gv.provplatskat || gv.region) && (
+                                  <div className="text-[10px] text-muted-foreground mb-1 pt-1 flex flex-wrap gap-x-2">
+                                    {gv.eucdGwb && <span className="font-mono">{gv.eucdGwb}</span>}
+                                    {gv.provplatskat && <span>{gv.provplatskat}</span>}
+                                    {gv.region && <span>{gv.region}</span>}
                                   </div>
                                 )}
 
