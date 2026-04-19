@@ -65,6 +65,22 @@ interface ReportData {
     provtyp?: string;
     elements: Record<string, number | null>;
   };
+  gvKemi?: {
+    provplatsid: string;
+    provplatsnamn: string;
+    distKm: number;
+    senasteprov?: string;
+    provplatskat?: string;
+    region?: string;
+    params: Array<{
+      name: string;
+      label: string;
+      value: number;
+      unit: string;
+      klass: number;
+      datum: string;
+    }>;
+  };
   // Nearby observed groundwater levels for calibration pool
   obsFeatures?: Array<{ djup: number; jordart?: string; aquiferGroup?: 'rock' | 'jord'; aquiferSize?: 'large' | 'small' }>;
   // Nearby observed stations sorted by distance — shown in level analysis section
@@ -420,6 +436,53 @@ function SourceRow({ label, source, note, url }: {
   );
 }
 
+// ── Grundvattenkemi bedömningsgrunder ────────────────────────────────────────
+
+const GV_BEDGR: Record<string, { thresholds: [number, number, number, number]; unit: string; label: string }> = {
+  'Konduktivitet':              { thresholds: [20, 30, 50, 100],      unit: 'mS/m',  label: 'Konduktivitet' },
+  'Klorid (jon: Cl-)':          { thresholds: [10, 30, 100, 300],     unit: 'mg/l',  label: 'Klorid' },
+  'Sulfat (jon: SO42-)':        { thresholds: [10, 50, 100, 200],     unit: 'mg/l',  label: 'Sulfat' },
+  'Nitrat + Nitrit, som N':     { thresholds: [100, 500, 2000, 5000], unit: 'µg/l',  label: 'NO₃+NO₂-N' },
+  'Ammonium, som N (NH4-N)':    { thresholds: [5, 10, 50, 200],       unit: 'µg/l',  label: 'NH₄-N' },
+  'Järn':                       { thresholds: [50, 100, 500, 2000],   unit: 'µg/l',  label: 'Järn' },
+  'Mangan':                     { thresholds: [5, 10, 50, 200],       unit: 'µg/l',  label: 'Mangan' },
+  'Arsenik':                    { thresholds: [0.5, 1, 5, 10],        unit: 'µg/l',  label: 'Arsenik' },
+  'Bly':                        { thresholds: [0.2, 0.5, 2, 10],      unit: 'µg/l',  label: 'Bly' },
+  'Kadmium':                    { thresholds: [0.02, 0.05, 0.1, 0.5], unit: 'µg/l',  label: 'Kadmium' },
+  'Fluorid (jon: F-)':          { thresholds: [0.2, 0.5, 1.0, 1.5],  unit: 'mg/l',  label: 'Fluorid' },
+  'Koppar':                     { thresholds: [1, 2, 10, 50],         unit: 'µg/l',  label: 'Koppar' },
+  'Nickel':                     { thresholds: [0.5, 1, 5, 20],        unit: 'µg/l',  label: 'Nickel' },
+  'Krom':                       { thresholds: [1, 2, 10, 50],         unit: 'µg/l',  label: 'Krom' },
+  'Aluminium':                  { thresholds: [10, 20, 50, 200],      unit: 'µg/l',  label: 'Aluminium' },
+  'Kol, totalt organiskt (TOC)':{ thresholds: [3, 5, 10, 20],         unit: 'mg/l',  label: 'TOC' },
+};
+
+function classifyParam(paramName: string, value: number): number {
+  if (paramName === 'pH') {
+    if (value >= 6.5 && value <= 8.0) return 1;
+    if (value >= 6.0 && value <= 8.5) return 2;
+    if (value >= 5.5 && value <= 9.0) return 3;
+    if (value >= 5.0 && value <= 9.5) return 4;
+    return 5;
+  }
+  const bedgr = GV_BEDGR[paramName];
+  if (!bedgr) return 0;
+  const [t1, t2, t3, t4] = bedgr.thresholds;
+  if (value <= t1) return 1;
+  if (value <= t2) return 2;
+  if (value <= t3) return 3;
+  if (value <= t4) return 4;
+  return 5;
+}
+
+const GV_KLASS_COLORS: Record<number, string> = {
+  1: '#16a34a',
+  2: '#65a30d',
+  3: '#ca8a04',
+  4: '#ea580c',
+  5: '#dc2626',
+};
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysisData, onOpenAI }: Props) => {
@@ -742,6 +805,19 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
       const geokemiBbox = `bbox=${lon - 0.5},${lat - 0.35},${lon + 0.5},${lat + 0.35}&limit=30`;
       const geokemiMsBboxUrl  = `${geokemiBase}/moran_0063mm_ar_icpms/items?f=json&${geokemiBbox}`;
       const geokemiAesBboxUrl = `${geokemiBase}/moran_0063mm_ar_icpaes/items?f=json&${geokemiBbox}`;
+      const gvKemiProvBboxUrl = `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/provplatser/items?f=json&bbox=${lon - 0.5},${lat - 0.35},${lon + 0.5},${lat + 0.35}&limit=20`;
+
+      // Helper: find nearest feature by haversine distance to (lat, lon)
+      const findNearest = (features: any[]) => {
+        let best: { dist: number; p: any; artal?: number; provtyp?: string } | null = null;
+        for (const f of features) {
+          const coords = f.geometry?.coordinates;
+          if (!coords) continue;
+          const d = haversineKm(lat, lon, coords[1], coords[0]);
+          if (!best || d < best.dist) best = { dist: d, p: f.properties ?? {}, artal: f.properties?.prov_artal, provtyp: f.properties?.provtyp };
+        }
+        return best;
+      };
 
       const allResults = await Promise.allSettled([
         omradenChain,
@@ -757,8 +833,9 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
         fetch(overstaCql2Url, { signal }),
         fetch(geokemiAesBboxUrl, { signal }),
         fetch(geokemiMsBboxUrl,  { signal }),
+        fetch(gvKemiProvBboxUrl, { signal }),
       ]);
-      const [omradenRes, gvTillgangRes, jordartCql2Res, jordartBboxRes, forekomstRes, delomradeRes, jorddjupRes, , elevationRes, ytlagerRes, overstaRes, geokemiAesRes, geokemiMsRes] = allResults;
+      const [omradenRes, gvTillgangRes, jordartCql2Res, jordartBboxRes, forekomstRes, delomradeRes, jorddjupRes, , elevationRes, ytlagerRes, overstaRes, geokemiAesRes, geokemiMsRes, gvKemiProvRes] = allResults;
 
       if (signal.aborted) return;
 
@@ -955,17 +1032,6 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
       // Geochemistry – merge nearest ICP-MS (trace metals: As,Cd,Mo,U,Cu) and
       // ICP-AES (major + minor: Ni,Pb,Cr,Co,Zn,Fe,Mn,Ca,Mg) morän samples.
       // ICP-MS has better geographic coverage; ICP-AES is sparse but adds Fe/Ca/Mg.
-      const findNearest = (features: any[]) => {
-        let best: { dist: number; p: any; artal?: number; provtyp?: string } | null = null;
-        for (const f of features) {
-          const coords = f.geometry?.coordinates;
-          if (!coords) continue;
-          const d = haversineKm(lat, lon, coords[1], coords[0]);
-          if (!best || d < best.dist) best = { dist: d, p: f.properties ?? {}, artal: f.properties?.prov_artal, provtyp: f.properties?.provtyp };
-        }
-        return best;
-      };
-
       try {
         const [msData, aesData] = await Promise.all([
           geokemiMsRes.status  === 'fulfilled' && geokemiMsRes.value.ok  ? geokemiMsRes.value.json().catch(() => null)  : null,
@@ -1005,6 +1071,59 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
               mg: oxToEl(num(aes?.p, 'mgo_proc'),   6032),
             },
           };
+        }
+      } catch { /* ignore */ }
+
+      // GV-kemi: find nearest provplats, fetch & classify analysresultat
+      try {
+        if (gvKemiProvRes.status === 'fulfilled' && gvKemiProvRes.value.ok) {
+          const pd = await gvKemiProvRes.value.json().catch(() => null);
+          const nearest = findNearest(pd?.features ?? []);
+          if (nearest) {
+            const pid = nearest.p.nationellt_provplatsid;
+            const analysUrl = `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/analysresultat/items?f=json&filter=nationellt_provplatsid=${pid}&filter-lang=cql2-text&sortby=-provtagningsdatum&limit=500`;
+            const aRes = await fetch(analysUrl, { signal }).catch(() => null);
+            if (aRes?.ok) {
+              const ad = await aRes.json().catch(() => null);
+              // latest value per parameter
+              const latestByParam = new Map<string, { value: number; unit: string; datum: string }>();
+              for (const f of ad?.features ?? []) {
+                const p = f.properties ?? {};
+                const pname: string = p.parameternamn ?? '';
+                if (!latestByParam.has(pname)) {
+                  const rawVal = parseFloat(p.matvardetal ?? '');
+                  if (!isNaN(rawVal) && rawVal >= 0) {
+                    latestByParam.set(pname, {
+                      value: rawVal,
+                      unit: p.enhet_tx ?? p.enhet ?? '',
+                      datum: (p.provtagningsdatum ?? '').slice(0, 10),
+                    });
+                  }
+                }
+              }
+              // classify known parameters
+              const params: Array<{ name: string; label: string; value: number; unit: string; klass: number; datum: string }> = [];
+              // pH separately
+              const phEntry = latestByParam.get('pH') ?? latestByParam.get('pH, mätt i fält');
+              if (phEntry) params.push({ name: 'pH', label: 'pH', ...phEntry, klass: classifyParam('pH', phEntry.value) });
+              // other parameters
+              for (const [pname, bedgr] of Object.entries(GV_BEDGR)) {
+                const entry = latestByParam.get(pname);
+                if (entry) params.push({ name: pname, label: bedgr.label, ...entry, klass: classifyParam(pname, entry.value) });
+              }
+              if (params.length > 0) {
+                result.gvKemi = {
+                  provplatsid: String(pid),
+                  provplatsnamn: nearest.p.provplatsnamn ?? '',
+                  distKm: Math.round(nearest.dist * 10) / 10,
+                  senasteprov: (nearest.p.senasteprov ?? '').slice(0, 10),
+                  provplatskat: nearest.p.provplatskat_bedgr_tx ?? undefined,
+                  region: nearest.p.region_bdgr_tx ?? undefined,
+                  params,
+                };
+              }
+            }
+          }
         }
       } catch { /* ignore */ }
 
@@ -1775,6 +1894,45 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                 );
               })()}
 
+              {/* Grundvattenkemi – nearest provplats */}
+              {data.gvKemi && (() => {
+                const gv = data.gvKemi!;
+                // Sort worst class first (most informative), then by label
+                const sorted = [...gv.params].sort((a, b) => b.klass - a.klass || a.label.localeCompare(b.label));
+                return (
+                  <div className="mb-3">
+                    <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1 flex items-center justify-between">
+                      <span>Grundvattenkemi</span>
+                      <span className="normal-case font-normal">
+                        {gv.provplatsnamn} · {gv.distKm} km
+                        {gv.senasteprov ? ` · ${gv.senasteprov}` : ''}
+                      </span>
+                    </div>
+                    {gv.provplatskat && (
+                      <div className="text-[10px] text-muted-foreground mb-1">{gv.provplatskat}{gv.region ? ` · ${gv.region}` : ''}</div>
+                    )}
+                    <div className="space-y-0.5">
+                      {sorted.map(p => (
+                        <div key={p.name} className="flex items-center gap-1.5 text-[11px]">
+                          <span
+                            className="shrink-0 font-bold text-white text-[10px] rounded px-1 py-0.5 leading-none"
+                            style={{ backgroundColor: GV_KLASS_COLORS[p.klass] ?? '#6b7280' }}
+                          >
+                            {p.klass}
+                          </span>
+                          <span className="font-medium w-24 shrink-0">{p.label}</span>
+                          <span className="text-muted-foreground">{p.value < 1 ? p.value.toFixed(3) : p.value < 10 ? p.value.toFixed(2) : p.value < 100 ? p.value.toFixed(1) : Math.round(p.value)} {p.unit}</span>
+                          <span className="text-[10px] text-muted-foreground/60 ml-auto shrink-0">{p.datum}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mt-1.5">
+                      Klass 1 (bästa) – 5 (sämsta) · SGU bedömningsgrunder
+                    </p>
+                  </div>
+                );
+              })()}
+
               {/* Grundvattenmagasin – card */}
               {(data.magasin || data.delomrade) && (() => {
                 const m = data.magasin;
@@ -1983,6 +2141,13 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                     source="SGU Markgeokemi Regional – morän ICP-MS + ICP-AES"
                     note="OGC API Features – närmaste prov. ICP-MS (moran_0063mm_ar_icpms): spårämnen As, Cd, Mo, U, Cu, Sb. ICP-AES (moran_0063mm_ar_icpaes): Ni, Pb, Cr, Co, Zn, Fe, Mn, Ca, Mg. Aqua Regia-uppslutning, halter i mg/kg ts. Oxider (Fe₂O₃, MnO, CaO, MgO) omräknade till grundämne."
                     url="https://api.sgu.se/oppnadata/markgeokemi-regional/ogc/features/v1"
+                  />
+
+                  <SourceRow
+                    label="Grundvattenkemi (klass 1–5)"
+                    source="SGU Grundvattenkvalitet – analysresultat provplatser"
+                    note="OGC API Features – närmaste provplats inom ±0,5°/0,35° bbox, sedan analysresultat via CQL2-filter på nationellt_provplatsid. Senaste värde per parameter klassas mot SGU bedömningsgrunder (klass 1–5). Fält: parameternamn, matvardetal, enhet_tx, provtagningsdatum."
+                    url="https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1"
                   />
 
                   <p className="text-muted-foreground pt-1 leading-relaxed">
