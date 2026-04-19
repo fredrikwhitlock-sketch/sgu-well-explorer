@@ -1239,15 +1239,18 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
 
           // Compute body bbox from the förekomst polygon fetched in parallel
           let bodyBbox: [number, number, number, number] | null = null;
+          let forekomstMsCd: string | null = null;
           if (gvForekomstRes.status === 'fulfilled' && gvForekomstRes.value.ok) {
             try {
               const fd = await gvForekomstRes.value.json().catch(() => null);
               const feat = fd?.features?.[0];
               if (feat) {
-                if (!bodyId) {
-                  const fp = feat.properties ?? {};
-                  bodyId = fp.eucd_gwb || fp.eu_cd_gwb || fp.eu_cd || fp.ms_cd || fp.eucd || null;
-                }
+                const fp = feat.properties ?? {};
+                // ms_cd matches eucd_gwb in provplatser (both used as waterMSCD in VISS)
+                // eu_cd is the formal EU code — try ms_cd first
+                forekomstMsCd = fp.ms_cd || fp.eucd_gwb || fp.eu_cd || fp.eucd || null;
+                if (forekomstMsCd) forekomstMsCd = String(forekomstMsCd).trim();
+                if (!bodyId && forekomstMsCd) bodyId = forekomstMsCd;
                 // Flatten polygon coordinates to get min/max lon/lat
                 const geom = feat.geometry;
                 if (geom?.type === 'Polygon' || geom?.type === 'MultiPolygon') {
@@ -1262,9 +1265,11 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
           }
 
           // Fetch all provplatser within the förekomst polygon bbox (captures stations
-          // even if they lack eucd_gwb), plus eucd_gwb filter for stations without coordinates
+          // even if they lack eucd_gwb), plus eucd_gwb filter for stations without coordinates.
+          // Trigger on förekomst OR magasin presence — förekomster can exist outside
+          // SGU-mapped magasin areas.
           let bodyFeatures: any[] = [];
-          if (result.magasin && (bodyBbox || bodyId)) {
+          if (bodyBbox || bodyId) {
             const fetches: Promise<Response | null>[] = [];
             if (bodyBbox) {
               const [bx0, by0, bx1, by1] = bodyBbox;
@@ -1272,6 +1277,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                 fetch(`https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/provplatser/items?f=json&bbox=${bx0},${by0},${bx1},${by1}&limit=200`, { signal }).catch(() => null)
               );
             }
+            // Try filtering by ms_cd (eucd_gwb in provplatser) and also by eu_cd as fallback
             if (bodyId) {
               fetches.push(
                 fetch(`https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/provplatser/items?f=json&filter=eucd_gwb='${bodyId}'&filter-lang=cql2-text&limit=100`, { signal }).catch(() => null)
