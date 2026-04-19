@@ -81,6 +81,21 @@ interface ReportData {
       klass: number;
       datum: string;
     }>;
+    trend?: {
+      yearSpan: number;
+      nDates: number;
+      params: Array<{
+        name: string;
+        label: string;
+        unit: string;
+        klass: number;
+        latestValue: number;
+        mk: { trend: 'increasing' | 'decreasing' | 'no trend'; significant: boolean; slope: number; n: number };
+        hasSeasonality: boolean;
+        seasonalAmplitudePct: number;
+        series: Array<{ datum: string; value: number }>;
+      }>;
+    };
   }>;
   // Nearby observed groundwater levels for calibration pool
   obsFeatures?: Array<{ djup: number; jordart?: string; aquiferGroup?: 'rock' | 'jord'; aquiferSize?: 'large' | 'small' }>;
@@ -528,6 +543,77 @@ function getSeason(month: number): 'winter' | 'spring' | 'summer' | 'autumn' {
   if (month <= 5) return 'spring';
   if (month <= 8) return 'summer';
   return 'autumn';
+}
+
+// Abramowitz & Stegun approximation for standard normal CDF
+function normalCdf(z: number): number {
+  const t = 1 / (1 + 0.2316419 * Math.abs(z));
+  const d = 0.3989423 * Math.exp((-z * z) / 2);
+  const p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.7814779 + t * (-1.8212560 + t * 1.3302744))));
+  return z > 0 ? 1 - p : p;
+}
+
+// Mann-Kendall non-parametric trend test with Sen's slope estimator
+function mannKendall(series: Array<{ datum: string; value: number }>): {
+  trend: 'increasing' | 'decreasing' | 'no trend';
+  significant: boolean;
+  slope: number; // Sen's slope in units per year
+  n: number;
+} {
+  const pts = [...series].sort((a, b) => a.datum.localeCompare(b.datum));
+  const n = pts.length;
+  if (n < 4) return { trend: 'no trend', significant: false, slope: 0, n };
+
+  let S = 0;
+  for (let i = 0; i < n - 1; i++)
+    for (let j = i + 1; j < n; j++) {
+      const d = pts[j].value - pts[i].value;
+      if (d > 0) S++; else if (d < 0) S--;
+    }
+
+  // Variance with tie correction
+  const counts = new Map<number, number>();
+  for (const pt of pts) counts.set(pt.value, (counts.get(pt.value) ?? 0) + 1);
+  let tieAdj = 0;
+  for (const t of counts.values()) if (t > 1) tieAdj += t * (t - 1) * (2 * t + 5);
+  const varS = (n * (n - 1) * (2 * n + 5) - tieAdj) / 18;
+
+  const z = S === 0 ? 0 : (S > 0 ? S - 1 : S + 1) / Math.sqrt(varS);
+  const p = 2 * (1 - normalCdf(Math.abs(z)));
+
+  // Sen's slope: median of all pairwise slopes
+  const slopes: number[] = [];
+  for (let i = 0; i < n - 1; i++)
+    for (let j = i + 1; j < n; j++) {
+      const dt = (new Date(pts[j].datum).getTime() - new Date(pts[i].datum).getTime()) / (365.25 * 86400e3);
+      if (dt > 0) slopes.push((pts[j].value - pts[i].value) / dt);
+    }
+  slopes.sort((a, b) => a - b);
+  const slope = slopes.length > 0 ? slopes[Math.floor(slopes.length / 2)] : 0;
+
+  return {
+    trend: S > 0 ? 'increasing' : S < 0 ? 'decreasing' : 'no trend',
+    significant: p < 0.05,
+    slope,
+    n,
+  };
+}
+
+// Relative amplitude of seasonal means — detects intra-annual variation
+function analyzeSeasonality(series: Array<{ datum: string; value: number }>): {
+  hasSeasonality: boolean;
+  relAmplitude: number;
+} {
+  const bySeason: Record<string, number[]> = { winter: [], spring: [], summer: [], autumn: [] };
+  for (const pt of series) bySeason[getSeason(parseInt(pt.datum.slice(5, 7), 10))].push(pt.value);
+  const means = Object.values(bySeason)
+    .map(v => (v.length > 0 ? v.reduce((a, b) => a + b, 0) / v.length : null))
+    .filter((v): v is number => v !== null);
+  if (means.length < 2) return { hasSeasonality: false, relAmplitude: 0 };
+  const amplitude = Math.max(...means) - Math.min(...means);
+  const overall = means.reduce((a, b) => a + b, 0) / means.length;
+  const relAmplitude = overall > 0 ? amplitude / overall : 0;
+  return { hasSeasonality: relAmplitude > 0.2 && means.length >= 3, relAmplitude };
 }
 
 const GV_KLASS_COLORS: Record<number, string> = {
@@ -1163,7 +1249,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
             const analysResponses = await Promise.allSettled(
               candidates.map(({ p }) => {
                 const pid = p.nationellt_provplatsid;
-                const url = `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/analysresultat/items?f=json&filter=nationellt_provplatsid=${pid}&filter-lang=cql2-text&sortby=-provtagningsdatum&limit=500`;
+                const url = `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/analysresultat/items?f=json&filter=nationellt_provplatsid=${pid}&filter-lang=cql2-text&sortby=-provtagningsdatum&limit=2000`;
                 return fetch(url, { signal }).catch(() => null);
               })
             );
@@ -1175,7 +1261,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
               if (res.status !== 'fulfilled' || !res.value?.ok) continue;
               const ad = await res.value.json().catch(() => null);
 
-              // Group all results by date; within a date keep the first (most recent) value per param
+              // Group all results by date; within a date keep first (API-sorted newest) value per param
               const byDate = new Map<string, Map<string, { value: number; unit: string }>>();
               for (const f of ad?.features ?? []) {
                 const p = f.properties ?? {};
@@ -1197,7 +1283,6 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
               if (classifiableDates.length === 0) continue;
 
               // Many samples (≥4 classifiable dates): prefer the most recent from the same season.
-              // Few samples: just the most recent.
               const targetSeason = getSeason(parseInt(selectedDate.slice(5, 7), 10));
               let snapshotDate: string;
               let seasonalSelection = false;
@@ -1205,12 +1290,8 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                 const sameSeason = classifiableDates.filter(
                   d => getSeason(parseInt(d.slice(5, 7), 10)) === targetSeason
                 );
-                if (sameSeason.length > 0) {
-                  snapshotDate = sameSeason[0];
-                  seasonalSelection = true;
-                } else {
-                  snapshotDate = classifiableDates[0];
-                }
+                if (sameSeason.length > 0) { snapshotDate = sameSeason[0]; seasonalSelection = true; }
+                else snapshotDate = classifiableDates[0];
               } else {
                 snapshotDate = classifiableDates[0];
               }
@@ -1225,6 +1306,63 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
               }
               if (params.length === 0) continue;
 
+              // Trend station: ≥10 classifiable dates spanning ≥5 years, OR API trendstation flag
+              const allDates = [...byDate.keys()].sort();
+              const yearSpan = allDates.length >= 2
+                ? parseInt(allDates.at(-1)!.slice(0, 4), 10) - parseInt(allDates[0].slice(0, 4), 10)
+                : 0;
+              const isTrendStation =
+                cand.p.trendstation === true ||
+                String(cand.p.stationstyp ?? '').toLowerCase().includes('trend') ||
+                (classifiableDates.length >= 10 && yearSpan >= 5);
+
+              let trend: NonNullable<ReportData['gvKemi']>[number]['trend'];
+              if (isTrendStation) {
+                // Build per-parameter time series from ALL dates
+                const allSeries = new Map<string, Array<{ datum: string; value: number }>>();
+                for (const [d, paramMap] of byDate) {
+                  for (const [pname, { value }] of paramMap) {
+                    if (!allSeries.has(pname)) allSeries.set(pname, []);
+                    allSeries.get(pname)!.push({ datum: d, value });
+                  }
+                }
+
+                const trendParams: NonNullable<typeof trend>['params'] = [];
+                const addTrend = (name: string, label: string, unit: string, series: Array<{ datum: string; value: number }>) => {
+                  if (series.length < 4) return;
+                  const mk = mannKendall(series);
+                  const { hasSeasonality, relAmplitude } = analyzeSeasonality(series);
+                  const latest = series.slice().sort((a, b) => b.datum.localeCompare(a.datum))[0].value;
+                  trendParams.push({
+                    name, label, unit,
+                    klass: classifyParam(name === 'pH' ? 'pH' : name, latest),
+                    latestValue: latest,
+                    mk,
+                    hasSeasonality,
+                    seasonalAmplitudePct: Math.round(relAmplitude * 100),
+                    series: series.slice().sort((a, b) => a.datum.localeCompare(b.datum)),
+                  });
+                };
+
+                const phSeries = allSeries.get('pH') ?? allSeries.get('pH, mätt i fält') ?? [];
+                addTrend('pH', 'pH', '', phSeries);
+                for (const [pname, bedgr] of Object.entries(GV_BEDGR)) {
+                  const s = allSeries.get(pname);
+                  if (s) addTrend(pname, bedgr.label, bedgr.unit, s);
+                }
+
+                if (trendParams.length > 0) {
+                  // Sort: significant trends first, then by |z-score| proxy (slope magnitude relative to spread)
+                  trendParams.sort((a, b) => {
+                    if (a.mk.significant !== b.mk.significant) return a.mk.significant ? -1 : 1;
+                    if (a.mk.trend === 'no trend' && b.mk.trend !== 'no trend') return 1;
+                    if (b.mk.trend === 'no trend' && a.mk.trend !== 'no trend') return -1;
+                    return Math.abs(b.mk.slope) - Math.abs(a.mk.slope);
+                  });
+                  trend = { yearSpan, nDates: classifiableDates.length, params: trendParams };
+                }
+              }
+
               kemiStations.push({
                 provplatsid: String(cand.p.nationellt_provplatsid),
                 provplatsnamn: cand.p.provplatsnamn ?? '',
@@ -1234,6 +1372,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                 provplatskat: cand.p.provplatskat_bedgr_tx ?? undefined,
                 region: cand.p.region_bdgr_tx ?? undefined,
                 params,
+                trend,
               });
             }
             if (kemiStations.length > 0) result.gvKemi = kemiStations;
@@ -2039,6 +2178,11 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                                 </span>
                               )}
                               <span className="text-[11px] font-medium truncate">{gv.provplatsnamn}</span>
+                              {gv.trend && (
+                                <span className="shrink-0 text-[9px] font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 px-1 py-0.5 rounded">
+                                  Trend
+                                </span>
+                              )}
                             </div>
                             <div className="flex items-center gap-2 shrink-0 text-[10px] text-muted-foreground">
                               <span>{gv.distKm} km</span>
@@ -2046,35 +2190,125 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                               <ChevronDown className={`w-3 h-3 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                             </div>
                           </button>
-                          {isOpen && (
-                            <div className="px-2 pb-2">
-                              {(gv.provplatskat || gv.region) && (
-                                <div className="text-[10px] text-muted-foreground mb-1 pt-1">
-                                  {gv.provplatskat}{gv.region ? ` · ${gv.region}` : ''}
-                                </div>
-                              )}
-                              <div className="space-y-0.5">
-                                {sorted.map(p => (
-                                  <div key={p.name} className="flex items-center gap-1.5 text-[11px]">
-                                    <span
-                                      className="shrink-0 font-bold text-white text-[10px] rounded px-1 py-0.5 leading-none"
-                                      style={{ backgroundColor: GV_KLASS_COLORS[p.klass] ?? '#6b7280' }}
-                                    >
-                                      {p.klass}
-                                    </span>
-                                    <span className="font-medium w-24 shrink-0">{p.label}</span>
-                                    <span className="text-muted-foreground">
-                                      {p.value < 1 ? p.value.toFixed(3) : p.value < 10 ? p.value.toFixed(2) : p.value < 100 ? p.value.toFixed(1) : Math.round(p.value)} {p.unit}
-                                    </span>
+                          {isOpen && (() => {
+                            const fmtVal = (v: number) =>
+                              v < 0.001 ? v.toExponential(1) : v < 1 ? v.toFixed(3) : v < 10 ? v.toFixed(2) : v < 100 ? v.toFixed(1) : String(Math.round(v));
+                            const fmtSlope = (s: number, unit: string) => {
+                              const abs = Math.abs(s);
+                              const str = abs < 0.001 ? s.toExponential(1) : abs < 1 ? s.toFixed(3) : abs < 10 ? s.toFixed(2) : s.toFixed(1);
+                              return `${s > 0 ? '+' : ''}${str} ${unit}/år`;
+                            };
+                            return (
+                              <div className="px-2 pb-2">
+                                {(gv.provplatskat || gv.region) && (
+                                  <div className="text-[10px] text-muted-foreground mb-1 pt-1">
+                                    {gv.provplatskat}{gv.region ? ` · ${gv.region}` : ''}
                                   </div>
-                                ))}
+                                )}
+
+                                {/* Snapshot parameter table */}
+                                <div className="space-y-0.5 mt-1">
+                                  {sorted.map(p => (
+                                    <div key={p.name} className="flex items-center gap-1.5 text-[11px]">
+                                      <span
+                                        className="shrink-0 font-bold text-white text-[10px] rounded px-1 py-0.5 leading-none"
+                                        style={{ backgroundColor: GV_KLASS_COLORS[p.klass] ?? '#6b7280' }}
+                                      >
+                                        {p.klass}
+                                      </span>
+                                      <span className="font-medium w-20 shrink-0">{p.label}</span>
+                                      <span className="text-muted-foreground">{fmtVal(p.value)} {p.unit}</span>
+                                    </div>
+                                  ))}
+                                </div>
+
+                                {/* Trend analysis section */}
+                                {gv.trend && (() => {
+                                  const tr = gv.trend!;
+                                  const mkHasAnyTrend = tr.params.some(p => p.mk.trend !== 'no trend');
+                                  const mkHasSig = tr.params.some(p => p.mk.significant);
+                                  return (
+                                    <div className="mt-2 pt-2 border-t border-border">
+                                      <div className="text-[10px] font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400 mb-1 flex items-center gap-1.5">
+                                        Trendanalys (Mann-Kendall)
+                                        <span className="font-normal normal-case text-muted-foreground">
+                                          {tr.yearSpan} år · {tr.nDates} provtillfällen
+                                        </span>
+                                      </div>
+                                      {!mkHasAnyTrend && (
+                                        <p className="text-[10px] text-muted-foreground">Ingen tydlig trend för något parameter.</p>
+                                      )}
+                                      {mkHasSig && (
+                                        <div className="space-y-0.5 mb-1">
+                                          {tr.params.filter(p => p.mk.significant).map(p => {
+                                            const up = p.mk.trend === 'increasing';
+                                            return (
+                                              <div key={p.name} className="flex items-center gap-1.5 text-[11px]">
+                                                <span className={`shrink-0 font-bold text-sm leading-none ${up ? 'text-orange-500' : 'text-blue-500'}`}>
+                                                  {up ? '↑' : '↓'}
+                                                </span>
+                                                <span
+                                                  className="shrink-0 font-bold text-white text-[10px] rounded px-1 py-0.5 leading-none"
+                                                  style={{ backgroundColor: GV_KLASS_COLORS[p.klass] ?? '#6b7280' }}
+                                                >
+                                                  {p.klass}
+                                                </span>
+                                                <span className="font-medium w-20 shrink-0">{p.label}</span>
+                                                <span className="text-muted-foreground">{fmtSlope(p.mk.slope, p.unit)}</span>
+                                                {p.hasSeasonality && (
+                                                  <span className="ml-auto text-[10px] text-emerald-600 dark:text-emerald-400 shrink-0" title={`Säsongsvariation ~${p.seasonalAmplitudePct}%`}>
+                                                    ~{p.seasonalAmplitudePct}% säsong
+                                                  </span>
+                                                )}
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      )}
+                                      {tr.params.some(p => !p.mk.significant && p.mk.trend !== 'no trend') && (
+                                        <div className="space-y-0.5">
+                                          <div className="text-[10px] text-muted-foreground mb-0.5">Ej signifikant (p≥0,05):</div>
+                                          {tr.params.filter(p => !p.mk.significant && p.mk.trend !== 'no trend').map(p => {
+                                            const up = p.mk.trend === 'increasing';
+                                            return (
+                                              <div key={p.name} className="flex items-center gap-1.5 text-[11px] opacity-70">
+                                                <span className="shrink-0 text-muted-foreground font-bold text-sm leading-none">
+                                                  {up ? '↗' : '↘'}
+                                                </span>
+                                                <span
+                                                  className="shrink-0 font-bold text-white text-[10px] rounded px-1 py-0.5 leading-none"
+                                                  style={{ backgroundColor: GV_KLASS_COLORS[p.klass] ?? '#6b7280' }}
+                                                >
+                                                  {p.klass}
+                                                </span>
+                                                <span className="font-medium w-20 shrink-0">{p.label}</span>
+                                                <span className="text-muted-foreground">{fmtSlope(p.mk.slope, p.unit)}</span>
+                                                {p.hasSeasonality && (
+                                                  <span className="ml-auto text-[10px] text-emerald-600 dark:text-emerald-400 shrink-0">
+                                                    ~{p.seasonalAmplitudePct}% säsong
+                                                  </span>
+                                                )}
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      )}
+                                      {tr.params.some(p => p.hasSeasonality) && (
+                                        <p className="text-[10px] text-muted-foreground mt-1">
+                                          Säsong = relativ amplitud mellan årstidsmedeltal (≥20% = tydlig variation).
+                                        </p>
+                                      )}
+                                    </div>
+                                  );
+                                })()}
+
+                                <p className="text-[10px] text-muted-foreground mt-1.5">
+                                  Klass 1–5 · SGU tillståndsklasser 2024 · pH: klass 1 = alkaliskt &gt;8,5, klass 5 = starkt surt ≤5,5.
+                                  {' '}{gv.senasteprov}{gv.seasonalSelection ? ' (senaste prov samma årstid)' : ' (senaste prov)'}.
+                                </p>
                               </div>
-                              <p className="text-[10px] text-muted-foreground mt-1.5">
-                                Klass 1 (Mycket låg halt) – 5 (Mycket hög halt) · SGU tillståndsklasser 2024. pH: klass 1 = alkaliskt &gt;8,5, klass 5 = starkt surt ≤5,5.
-                                {' '}Provtagningstillfälle: {gv.senasteprov}{gv.seasonalSelection ? ' (senaste prov samma årstid)' : ' (senaste prov)'}.
-                              </p>
-                            </div>
-                          )}
+                            );
+                          })()}
                         </div>
                       );
                     })}
