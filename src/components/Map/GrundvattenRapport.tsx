@@ -2143,6 +2143,13 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                     url="https://api.sgu.se/oppnadata/markgeokemi-regional/ogc/features/v1"
                   />
 
+                  <SourceRow
+                    label="Grundvattenkemi (klass 1–5)"
+                    source="SGU Grundvattenkvalitet – analysresultat provplatser"
+                    note="OGC API Features – närmaste provplats inom ±0,5°/0,35° bbox, sedan analysresultat via CQL2-filter på nationellt_provplatsid. Senaste värde per parameter klassas mot SGU bedömningsgrunder (klass 1–5). Fält: parameternamn, matvardetal, enhet_tx, provtagningsdatum."
+                    url="https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1"
+                  />
+
                   <p className="text-muted-foreground pt-1 leading-relaxed">
                     Tolkningar är uppskattningar baserade på modeller och regionala observationer. De ersätter inte platsspecifik hydrogeologisk undersökning.
                   </p>
