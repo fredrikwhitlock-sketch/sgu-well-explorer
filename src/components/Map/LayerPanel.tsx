@@ -119,6 +119,15 @@ interface LayerPanelProps {
   onHypoAreasOpacityChange: (opacity: number) => void;
   onHypoAreasDateChange: (date: string) => void;
   onClearHypoAreas?: () => void;
+  // Copernicus Land Service layers
+  clcVisible: boolean;
+  clcOpacity: number;
+  onClcVisibleChange: (v: boolean) => void;
+  onClcOpacityChange: (v: number) => void;
+  waterWetnessVisible: boolean;
+  waterWetnessOpacity: number;
+  onWaterWetnessVisibleChange: (v: boolean) => void;
+  onWaterWetnessOpacityChange: (v: number) => void;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -231,6 +240,14 @@ export const LayerPanel = ({
   onHypoAreasOpacityChange,
   onHypoAreasDateChange,
   onClearHypoAreas,
+  clcVisible,
+  clcOpacity,
+  onClcVisibleChange,
+  onClcOpacityChange,
+  waterWetnessVisible,
+  waterWetnessOpacity,
+  onWaterWetnessVisibleChange,
+  onWaterWetnessOpacityChange,
   isOpen,
   onClose,
 }: LayerPanelProps) => {
@@ -1322,6 +1339,93 @@ export const LayerPanel = ({
             </div>
           )}
         </div>
+
+        {/* Copernicus Land Service Section */}
+        <div className="pt-4 border-t-2 border-primary/30">
+          <h4 className="text-sm font-semibold text-primary mb-3">Copernicus Land Service</h4>
+        </div>
+
+        {/* CLC 2018 */}
+        <div className="space-y-3 pt-2 border-t border-border">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label htmlFor="clc-layer" className="text-sm font-medium">
+                Corine Land Cover 2018
+              </Label>
+              <p className="text-xs text-muted-foreground">Markanvändning, 100 m raster</p>
+            </div>
+            <Switch id="clc-layer" checked={clcVisible} onCheckedChange={onClcVisibleChange} />
+          </div>
+          {clcVisible && (
+            <div className="mt-3 space-y-3">
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Transparens: {Math.round(clcOpacity * 100)}%</Label>
+                <Slider min={0} max={1} step={0.1} value={[clcOpacity]}
+                  onValueChange={([v]) => onClcOpacityChange(v)} className="w-full" />
+              </div>
+              <div className="space-y-1 text-xs">
+                {[
+                  { color: '#e6004d', label: 'Artificiella ytor (bebyggelse)' },
+                  { color: '#ffffa8', label: 'Åkermark' },
+                  { color: '#80ff00', label: 'Betesmark / ängar' },
+                  { color: '#4dff00', label: 'Skog' },
+                  { color: '#ccf24d', label: 'Busk- / övergångsmark' },
+                  { color: '#00ccf2', label: 'Vattendrag / sjöar' },
+                  { color: '#a6a6ff', label: 'Våtmarker' },
+                ].map(({ color, label }) => (
+                  <div key={label} className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-sm shrink-0" style={{ backgroundColor: color, border: '1px solid rgba(0,0,0,0.2)' }} />
+                    <span className="text-muted-foreground">{label}</span>
+                  </div>
+                ))}
+              </div>
+              <a href="https://land.copernicus.eu/pan-european/corine-land-cover/clc2018"
+                target="_blank" rel="noopener noreferrer"
+                className="text-xs text-sgu-link hover:underline inline-flex items-center gap-1">
+                Produktbeskrivning <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+          )}
+        </div>
+
+        {/* HRL Water and Wetness */}
+        <div className="space-y-3 pt-4 border-t border-border">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label htmlFor="water-wetness-layer" className="text-sm font-medium">
+                Vatten och våtmark 2018
+              </Label>
+              <p className="text-xs text-muted-foreground">HRL – markfuktighet från satellit, 10 m</p>
+            </div>
+            <Switch id="water-wetness-layer" checked={waterWetnessVisible} onCheckedChange={onWaterWetnessVisibleChange} />
+          </div>
+          {waterWetnessVisible && (
+            <div className="mt-3 space-y-3">
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Transparens: {Math.round(waterWetnessOpacity * 100)}%</Label>
+                <Slider min={0} max={1} step={0.1} value={[waterWetnessOpacity]}
+                  onValueChange={([v]) => onWaterWetnessOpacityChange(v)} className="w-full" />
+              </div>
+              <div className="space-y-1 text-xs">
+                {[
+                  { color: '#0070ff', label: 'Permanent vatten/våtmark' },
+                  { color: '#00c5ff', label: 'Tillfällig vatten/våtmark' },
+                ].map(({ color, label }) => (
+                  <div key={label} className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-sm shrink-0" style={{ backgroundColor: color, border: '1px solid rgba(0,0,0,0.2)' }} />
+                    <span className="text-muted-foreground">{label}</span>
+                  </div>
+                ))}
+              </div>
+              <a href="https://land.copernicus.eu/pan-european/high-resolution-layers/water-wetness"
+                target="_blank" rel="noopener noreferrer"
+                className="text-xs text-sgu-link hover:underline inline-flex items-center gap-1">
+                Produktbeskrivning <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+          )}
+        </div>
+
       </div>
 
       <div className="p-3 border-t border-border bg-muted/50">
@@ -1330,22 +1434,30 @@ export const LayerPanel = ({
         </p>
         <p className="text-xs text-muted-foreground mt-1">
           Data:{" "}
-          <a 
-            href="https://www.sgu.se" 
-            target="_blank" 
+          <a
+            href="https://www.sgu.se"
+            target="_blank"
             rel="noopener noreferrer"
             className="text-sgu-link hover:underline"
           >
             SGU
           </a>
           {" / "}
-          <a 
-            href="https://www.lantmateriet.se" 
-            target="_blank" 
+          <a
+            href="https://www.lantmateriet.se"
+            target="_blank"
             rel="noopener noreferrer"
             className="text-sgu-link hover:underline"
           >
             Lantmäteriet
+          </a>
+          {" / "}
+          <a
+            href="https://land.copernicus.eu"
+            target="_blank" rel="noopener noreferrer"
+            className="text-sgu-link hover:underline"
+          >
+            Copernicus
           </a>
         </p>
       </div>

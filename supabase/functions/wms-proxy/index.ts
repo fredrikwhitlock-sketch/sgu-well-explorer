@@ -23,8 +23,8 @@ serve(async (req) => {
       );
     }
 
-    // Only allow SGU WMS URLs for security
-    const allowedHosts = ['resource.sgu.se', 'maps3.sgu.se', 'api.sgu.se'];
+    // Only allow trusted WMS hosts
+    const allowedHosts = ['resource.sgu.se', 'maps3.sgu.se', 'api.sgu.se', 'image.discomap.eea.europa.eu'];
     const targetUrl = new URL(baseUrl);
 
     if (!allowedHosts.some((host) => targetUrl.hostname.includes(host))) {

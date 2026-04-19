@@ -76,6 +76,11 @@ export const MapView = () => {
   const [sguGvTillgangOpacity, setSguGvTillgangOpacity] = useState(0.7);
   const [sguJorddjupVisible, setSguJorddjupVisible] = useState(false);
   const [sguJorddjupOpacity, setSguJorddjupOpacity] = useState(0.7);
+  // Copernicus Land Service layers
+  const [clcVisible, setClcVisible] = useState(false);
+  const [clcOpacity, setClcOpacity] = useState(0.7);
+  const [waterWetnessVisible, setWaterWetnessVisible] = useState(false);
+  const [waterWetnessOpacity, setWaterWetnessOpacity] = useState(0.7);
   const [coordinates, setCoordinates] = useState<[number, number] | null>(null);
   const [selectedFeatures, setSelectedFeatures] = useState<{ properties: Record<string, any>; type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType' | 'gvTillgang' | 'observation' | 'hypoArea' | 'jorddjupObs' | 'jorddjupKartor' | 'jorddjupSprick'; analysisResults?: any[] }[]>([]);
   const [selectedFeatureIndex, setSelectedFeatureIndex] = useState(0);
@@ -157,6 +162,8 @@ export const MapView = () => {
   const sguJordarter25kLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
   const sguGvTillgangLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
   const sguJorddjupLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
+  const clcLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
+  const waterWetnessLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
   const geolocationLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const geolocationWatchRef = useRef<number | null>(null);
   const [isTracking, setIsTracking] = useState(false);
@@ -319,6 +326,35 @@ export const MapView = () => {
       opacity: sguJorddjupOpacity,
     });
     sguJorddjupLayerRef.current = sguJorddjupLayer;
+
+    // Copernicus CLC 2018 – Corine Land Cover (markanvändning)
+    const eeaProxyBase = (url: string, layer: string) =>
+      new ImageWMS({
+        url: wmsProxyUrl,
+        params: { 'url': url, 'LAYERS': layer, 'VERSION': '1.1.1', 'FORMAT': 'image/png', 'TRANSPARENT': 'TRUE', 'STYLES': '' },
+        ratio: 1,
+      });
+
+    const clcLayer = new ImageLayer({
+      source: eeaProxyBase(
+        'https://image.discomap.eea.europa.eu/arcgis/services/Corine/CLC2018_WM/MapServer/WmsServer',
+        '12'
+      ),
+      visible: clcVisible,
+      opacity: clcOpacity,
+    });
+    clcLayerRef.current = clcLayer;
+
+    // Copernicus HRL Water and Wetness 2018 – satellitbaserad jordfuktighetsindikator
+    const waterWetnessLayer = new ImageLayer({
+      source: eeaProxyBase(
+        'https://image.discomap.eea.europa.eu/arcgis/services/GioLandPublic/HRL_WaterWetness_2018/ImageServer/WmsServer',
+        'HRL_WaterWetness_2018:WAW_MosaicSymbology'
+      ),
+      visible: waterWetnessVisible,
+      opacity: waterWetnessOpacity,
+    });
+    waterWetnessLayerRef.current = waterWetnessLayer;
 
     // OGC API Features layer for Källor (sources) - bbox-based loading
     const sourcesSource = new VectorSource({ format: new GeoJSON() });
@@ -1368,6 +1404,8 @@ export const MapView = () => {
         sguJordarter25kLayer,
         sguGvTillgangLayer,
         sguJorddjupLayer,
+        clcLayer,
+        waterWetnessLayer,
         // Vector layers on top
         jorddjupKartorLayer,
         jorddjupSprickLayer,
@@ -1885,6 +1923,11 @@ export const MapView = () => {
     }
   }, [sguJorddjupOpacity]);
 
+  useEffect(() => { clcLayerRef.current?.setVisible(clcVisible); }, [clcVisible]);
+  useEffect(() => { clcLayerRef.current?.setOpacity(clcOpacity); }, [clcOpacity]);
+  useEffect(() => { waterWetnessLayerRef.current?.setVisible(waterWetnessVisible); }, [waterWetnessVisible]);
+  useEffect(() => { waterWetnessLayerRef.current?.setOpacity(waterWetnessOpacity); }, [waterWetnessOpacity]);
+
   // Jorddjupsmodell – extent-based loading (minzoom 12), same pattern as brunnar
   useEffect(() => {
     if (jorddjupObsLayerRef.current) {
@@ -2179,6 +2222,14 @@ export const MapView = () => {
         sguJorddjupOpacity={sguJorddjupOpacity}
         onSguJorddjupVisibleChange={setSguJorddjupVisible}
         onSguJorddjupOpacityChange={setSguJorddjupOpacity}
+        clcVisible={clcVisible}
+        clcOpacity={clcOpacity}
+        onClcVisibleChange={setClcVisible}
+        onClcOpacityChange={setClcOpacity}
+        waterWetnessVisible={waterWetnessVisible}
+        waterWetnessOpacity={waterWetnessOpacity}
+        onWaterWetnessVisibleChange={setWaterWetnessVisible}
+        onWaterWetnessOpacityChange={setWaterWetnessOpacity}
         onDownloadGvTillgangGeoTiff={() => {
           if (!mapInstanceRef.current) return;
           const extent = mapInstanceRef.current.getView().calculateExtent();
