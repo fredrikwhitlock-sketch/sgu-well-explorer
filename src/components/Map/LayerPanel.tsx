@@ -552,6 +552,7 @@ export const LayerPanel = ({
               <p className="text-xs text-muted-foreground">
                 Vattenförvaltning {waterBodiesLoaded > 0 && `(${waterBodiesLoaded})`}
               </p>
+              <p className="text-[10px] text-muted-foreground">Laddas per vy (zoom ≥ 7)</p>
             </div>
             <Switch
               id="waterbodies-layer"

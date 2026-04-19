@@ -139,6 +139,7 @@ export const MapView = () => {
   const jorddjupSprickLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const loadWellsForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
   const loadSoilTypesForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
+  const loadWaterBodiesForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
   const loadAquifersForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
   const loadSourcesForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
   const loadJorddjupObsForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
@@ -820,49 +821,68 @@ export const MapView = () => {
     });
     soilTypesLayerRef.current = soilTypesLayer;
 
-    // OGC API Features layer for Grundvattenförekomster (water bodies) - No limit
+    // OGC API Features layer for Grundvattenförekomster (water bodies) - bbox per viewport
     const waterBodiesSource = new VectorSource({
       format: new GeoJSON(),
-      loader: async () => {
-        try {
-          setLoadingWaterBodies(true);
-          setWaterBodiesLoaded(0);
-          console.log("Loading all water bodies from OGC API...");
-          
-          const allFeatures = await fetchAllPages(
-            `https://api.sgu.se/oppnadata/grundvattenforekomster/ogc/features/v1/collections/grundvattenforekomster/items?f=json`,
-            (count) => setWaterBodiesLoaded(count)
-          );
-          
-          console.log(`Received ${allFeatures.length} water bodies total`);
-          
-          if (allFeatures.length > 0) {
-            const features = new GeoJSON().readFeatures(
-              { type: "FeatureCollection", features: allFeatures },
-              {
-                dataProjection: "EPSG:4326",
-                featureProjection: "EPSG:3857",
-              }
-            );
-            
-            waterBodiesSource.addFeatures(features);
-            setWaterBodiesLoaded(features.length);
-            
-            if (waterBodiesLayerRef.current) {
-              waterBodiesLayerRef.current.setVisible(true);
-              waterBodiesLayerRef.current.changed();
-            }
-            
-            toast.success(`Laddade ${features.length} grundvattenförekomster`);
-          }
-        } catch (error) {
-          console.error("Error loading water bodies:", error);
-          toast.error("Kunde inte ladda grundvattenförekomster");
-        } finally {
-          setLoadingWaterBodies(false);
-        }
-      },
     });
+
+    const loadedWaterBodyExtentsRef: string[] = [];
+    const MIN_ZOOM_FOR_WATER_BODIES = 7;
+
+    const loadWaterBodiesForExtent = async (extent: number[]) => {
+      try {
+        const currentZoom = mapInstanceRef.current?.getView().getZoom() || 0;
+        if (currentZoom < MIN_ZOOM_FOR_WATER_BODIES) return;
+
+        const gridKey = extentToGridKey(extent);
+        if (loadedWaterBodyExtentsRef.includes(gridKey)) return;
+        loadedWaterBodyExtentsRef.push(gridKey);
+
+        setLoadingWaterBodies(true);
+
+        const [minX, minY, maxX, maxY] = extent;
+        const toWgs84 = (x: number, y: number) => {
+          const lon = (x / 20037508.34) * 180;
+          const lat = (Math.atan(Math.exp((y / 20037508.34) * Math.PI)) * 360) / Math.PI - 90;
+          return [lon, lat];
+        };
+        const [w, s] = toWgs84(minX, minY);
+        const [e, n] = toWgs84(maxX, maxY);
+        const bbox = `${w},${s},${e},${n}`;
+
+        const allFeatures = await fetchAllPages(
+          `https://api.sgu.se/oppnadata/grundvattenforekomster/ogc/features/v1/collections/grundvattenforekomster/items?f=json&bbox=${bbox}`,
+          (count) => setWaterBodiesLoaded(prev => waterBodiesSource.getFeatures().length + count)
+        );
+
+        if (allFeatures.length > 0) {
+          // Deduplicate by eucd
+          const existingIds = new (globalThis.Map as typeof Map)<string, boolean>();
+          for (const f of waterBodiesSource.getFeatures()) {
+            const id = f.get('eucd') || f.get('eu_cd') || f.get('ms_cd');
+            if (id) existingIds.set(String(id), true);
+          }
+          const newFeatures = allFeatures.filter(f => {
+            const id = f.properties?.eucd || f.properties?.eu_cd || f.properties?.ms_cd;
+            return !id || !existingIds.has(String(id));
+          });
+          if (newFeatures.length > 0) {
+            const features = new GeoJSON().readFeatures(
+              { type: "FeatureCollection", features: newFeatures },
+              { dataProjection: "EPSG:4326", featureProjection: "EPSG:3857" }
+            );
+            waterBodiesSource.addFeatures(features);
+          }
+          setWaterBodiesLoaded(waterBodiesSource.getFeatures().length);
+        }
+      } catch (error) {
+        console.error("Error loading water bodies:", error);
+        toast.error("Kunde inte ladda grundvattenförekomster");
+      } finally {
+        setLoadingWaterBodies(false);
+      }
+    };
+    loadWaterBodiesForExtentRef.current = loadWaterBodiesForExtent;
 
     const waterBodiesLayer = new VectorLayer({
       source: waterBodiesSource,
@@ -1580,6 +1600,11 @@ export const MapView = () => {
       const zoom = map.getView().getZoom() || 0;
       const extent = map.getView().calculateExtent();
 
+      // Water bodies load at zoom >= 7
+      if (zoom >= 7 && waterBodiesLayerRef.current?.getVisible() && loadWaterBodiesForExtentRef.current) {
+        loadWaterBodiesForExtentRef.current(extent);
+      }
+
       // Aquifers load at zoom >= 9
       if (zoom >= 9 && aquifersLayerRef.current?.getVisible() && loadAquifersForExtentRef.current) {
         loadAquifersForExtentRef.current(extent);
@@ -1759,14 +1784,14 @@ export const MapView = () => {
   // Update Water Bodies visibility and load data when enabled
   useEffect(() => {
     if (waterBodiesLayerRef.current) {
-      if (waterBodiesVisible && waterBodiesLayerRef.current.getSource()?.getFeatures().length === 0) {
-        waterBodiesLayerRef.current.getSource()?.loadFeatures(
-          waterBodiesLayerRef.current.getSource()!.getExtent(),
-          1,
-          waterBodiesLayerRef.current.getSource()!.getProjection()
-        );
-      }
       waterBodiesLayerRef.current.setVisible(waterBodiesVisible);
+      if (waterBodiesVisible && mapInstanceRef.current) {
+        const zoom = mapInstanceRef.current.getView().getZoom() || 0;
+        if (zoom >= 7 && loadWaterBodiesForExtentRef.current) {
+          const extent = mapInstanceRef.current.getView().calculateExtent();
+          loadWaterBodiesForExtentRef.current(extent);
+        }
+      }
     }
   }, [waterBodiesVisible]);
 
