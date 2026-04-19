@@ -952,6 +952,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
       const geokemiMsBboxUrl  = `${geokemiBase}/moran_0063mm_ar_icpms/items?f=json&${geokemiBbox}`;
       const geokemiAesBboxUrl = `${geokemiBase}/moran_0063mm_ar_icpaes/items?f=json&${geokemiBbox}`;
       const gvKemiProvBboxUrl = `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/provplatser/items?f=json&bbox=${lon - 0.6},${lat - 0.45},${lon + 0.6},${lat + 0.45}&limit=100`;
+      const gvForekomstUrl = `https://api.sgu.se/oppnadata/grundvattenforekomster/ogc/features/v1/collections/grundvattenforekomster/items?f=json&filter=S_INTERSECTS(geom,POINT(${lon}%20${lat}))&filter-lang=cql2-text&limit=1`;
 
       // Helper: find nearest feature by haversine distance to (lat, lon)
       const findNearest = (features: any[]) => {
@@ -980,8 +981,9 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
         fetch(geokemiAesBboxUrl, { signal }),
         fetch(geokemiMsBboxUrl,  { signal }),
         fetch(gvKemiProvBboxUrl, { signal }),
+        fetch(gvForekomstUrl,    { signal }),
       ]);
-      const [omradenRes, gvTillgangRes, jordartCql2Res, jordartBboxRes, forekomstRes, delomradeRes, jorddjupRes, , elevationRes, ytlagerRes, overstaRes, geokemiAesRes, geokemiMsRes, gvKemiProvRes] = allResults;
+      const [omradenRes, gvTillgangRes, jordartCql2Res, jordartBboxRes, forekomstRes, delomradeRes, jorddjupRes, , elevationRes, ytlagerRes, overstaRes, geokemiAesRes, geokemiMsRes, gvKemiProvRes, gvForekomstRes] = allResults;
 
       if (signal.aborted) return;
 
@@ -1226,7 +1228,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
           const pd = await gvKemiProvRes.value.json().catch(() => null);
           const bboxFeatures: any[] = pd?.features ?? [];
 
-          // Extract EU groundwater body code from bbox stations (several possible field names)
+          // Extract EU groundwater body code from bbox stations (fallback for no-coord stations)
           let bodyId: string | null = null;
           for (const f of bboxFeatures) {
             const p = f.properties ?? {};
@@ -1234,18 +1236,59 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
             if (v && typeof v === 'string') { bodyId = v; break; }
           }
 
-          // If the point is within a mapped aquifer AND we found a body code,
-          // fetch ALL stations linked to that body (includes those without coordinates)
+          // Compute body bbox from the förekomst polygon fetched in parallel
+          let bodyBbox: [number, number, number, number] | null = null;
+          if (gvForekomstRes.status === 'fulfilled' && gvForekomstRes.value.ok) {
+            try {
+              const fd = await gvForekomstRes.value.json().catch(() => null);
+              const feat = fd?.features?.[0];
+              if (feat) {
+                if (!bodyId) {
+                  const fp = feat.properties ?? {};
+                  bodyId = fp.eucd_gwb || fp.eu_cd_gwb || fp.eu_cd || fp.ms_cd || fp.eucd || null;
+                }
+                // Flatten polygon coordinates to get min/max lon/lat
+                const geom = feat.geometry;
+                if (geom?.type === 'Polygon' || geom?.type === 'MultiPolygon') {
+                  const rings: number[][][] = geom.type === 'Polygon' ? geom.coordinates : geom.coordinates.flat(1);
+                  const pts: number[][] = rings.flat();
+                  const lons = pts.map((c: number[]) => c[0]);
+                  const lats = pts.map((c: number[]) => c[1]);
+                  bodyBbox = [Math.min(...lons), Math.min(...lats), Math.max(...lons), Math.max(...lats)];
+                }
+              }
+            } catch { /* ignore */ }
+          }
+
+          // Fetch all provplatser within the förekomst polygon bbox (captures stations
+          // even if they lack eucd_gwb), plus eucd_gwb filter for stations without coordinates
           let bodyFeatures: any[] = [];
-          if (result.magasin && bodyId) {
-            const bodyUrl = `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/provplatser/items?f=json&filter=eucd_gwb='${bodyId}'&filter-lang=cql2-text&limit=100`;
-            const br = await fetch(bodyUrl, { signal }).catch(() => null);
-            if (br?.ok) {
-              const bd = await br.json().catch(() => null);
-              bodyFeatures = bd?.features ?? [];
+          if (result.magasin && (bodyBbox || bodyId)) {
+            const fetches: Promise<Response | null>[] = [];
+            if (bodyBbox) {
+              const [bx0, by0, bx1, by1] = bodyBbox;
+              fetches.push(
+                fetch(`https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/provplatser/items?f=json&bbox=${bx0},${by0},${bx1},${by1}&limit=200`, { signal }).catch(() => null)
+              );
+            }
+            if (bodyId) {
+              fetches.push(
+                fetch(`https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/provplatser/items?f=json&filter=eucd_gwb='${bodyId}'&filter-lang=cql2-text&limit=100`, { signal }).catch(() => null)
+              );
+            }
+            const bodyResponses = await Promise.allSettled(fetches);
+            for (const r of bodyResponses) {
+              if (r.status === 'fulfilled' && r.value?.ok) {
+                const bd = await r.value.json().catch(() => null);
+                bodyFeatures.push(...(bd?.features ?? []));
+              }
             }
           }
-          if (bodyId && bodyFeatures.length > 0) result.gvForekomstId = bodyId;
+          if (bodyId && bodyFeatures.length > 0) {
+            result.gvForekomstId = bodyId;
+          } else if (bodyBbox && bodyFeatures.length > 0) {
+            result.gvForekomstId = '(förekomst)';
+          }
 
           // Merge bbox + body, dedup by nationellt_provplatsid
           const seen = new Set<string>();
