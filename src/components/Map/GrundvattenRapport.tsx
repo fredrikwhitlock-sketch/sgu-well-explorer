@@ -71,6 +71,7 @@ interface ReportData {
     distKm?: number;
     senasteprov?: string;
     seasonalSelection: boolean;
+    fromBody: boolean;
     provplatskat?: string;
     region?: string;
     params: Array<{
@@ -1422,6 +1423,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                 distKm: cand.dist != null ? Math.round(cand.dist * 10) / 10 : undefined,
                 senasteprov: snapshotDate,
                 seasonalSelection,
+                fromBody: bodyIds.has(String(cand.p.nationellt_provplatsid)),
                 provplatskat: cand.p.provplatskat_bedgr_tx ?? undefined,
                 region: cand.p.region_bdgr_tx ?? undefined,
                 params,
@@ -2233,6 +2235,11 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                                 </span>
                               )}
                               <span className="text-[11px] font-medium truncate">{gv.provplatsnamn}</span>
+                              {gv.fromBody && (
+                                <span className="shrink-0 text-[9px] font-semibold uppercase tracking-wide text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/50 px-1 py-0.5 rounded">
+                                  Förekomst
+                                </span>
+                              )}
                               {gv.trend && (
                                 <span className="shrink-0 text-[9px] font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 px-1 py-0.5 rounded">
                                   Trend
