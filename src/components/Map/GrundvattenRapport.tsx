@@ -475,6 +475,19 @@ function classifyParam(paramName: string, value: number): number {
   return 5;
 }
 
+// Maps the classified aquifer type at the clicked point to provplatskat_bedgr (1–5).
+// Returns null when there is no clear match (no category filter applied).
+function aquiferToBedgrKat(aq: AquiferClass, jordartKod?: string): number | null {
+  if (aq.type === 'rock') {
+    const jg2 = Number(jordartKod ?? 0);
+    return (jg2 === 849 || jg2 === 850 || aq.label.toLowerCase().includes('sedimentärt') || aq.label.toLowerCase().includes('kalk')) ? 2 : 1;
+  }
+  if (aq.type === 'till') return 3;
+  if (aq.type === 'porous-coarse') return 4;
+  if (aq.type === 'confining') return 5;
+  return null;
+}
+
 const GV_KLASS_COLORS: Record<number, string> = {
   1: '#16a34a',
   2: '#65a30d',
@@ -1078,7 +1091,19 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
       try {
         if (gvKemiProvRes.status === 'fulfilled' && gvKemiProvRes.value.ok) {
           const pd = await gvKemiProvRes.value.json().catch(() => null);
-          const nearest = findNearest(pd?.features ?? []);
+          const allProvFeatures: any[] = pd?.features ?? [];
+
+          // Filter to stations matching the aquifer category at the clicked point
+          const locAq = result.jordartKod
+            ? classifyByJg2(Number(result.jordartKod))
+            : classifyAquifer(result.jordartNamn);
+          const targetKat = aquiferToBedgrKat(locAq, result.jordartKod);
+          const filteredFeatures = targetKat !== null
+            ? allProvFeatures.filter(f => f.properties?.provplatskat_bedgr === targetKat)
+            : allProvFeatures;
+          const featuresForSearch = filteredFeatures.length > 0 ? filteredFeatures : allProvFeatures;
+
+          const nearest = findNearest(featuresForSearch);
           if (nearest) {
             const pid = nearest.p.nationellt_provplatsid;
             const analysUrl = `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/analysresultat/items?f=json&filter=nationellt_provplatsid=${pid}&filter-lang=cql2-text&sortby=-provtagningsdatum&limit=500`;
