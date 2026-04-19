@@ -953,7 +953,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
       const geokemiMsBboxUrl  = `${geokemiBase}/moran_0063mm_ar_icpms/items?f=json&${geokemiBbox}`;
       const geokemiAesBboxUrl = `${geokemiBase}/moran_0063mm_ar_icpaes/items?f=json&${geokemiBbox}`;
       const gvKemiProvBboxUrl = `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/provplatser/items?f=json&bbox=${lon - 0.6},${lat - 0.45},${lon + 0.6},${lat + 0.45}&limit=100`;
-      const gvForekomstUrl = `https://api.sgu.se/oppnadata/grundvattenforekomster/ogc/features/v1/collections/grundvattenforekomster/items?f=json&filter=S_INTERSECTS(geom,POINT(${lon}%20${lat}))&filter-lang=cql2-text&limit=1`;
+      const gvForekomstUrl = `https://api.sgu.se/oppnadata/grundvattenforekomster/ogc/features/v1/collections/grundvattenforekomster/items?f=json&filter=S_INTERSECTS(geom,POINT(${lon}%20${lat}))%20AND%20ms_cd%20LIKE%20'WA%25'&filter-lang=cql2-text&limit=1`;
 
       // Helper: find nearest feature by haversine distance to (lat, lon)
       const findNearest = (features: any[]) => {
