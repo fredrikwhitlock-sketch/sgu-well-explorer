@@ -70,6 +70,7 @@ interface ReportData {
     provplatsnamn: string;
     distKm: number;
     senasteprov?: string;
+    seasonalSelection: boolean;
     provplatskat?: string;
     region?: string;
     params: Array<{
@@ -519,6 +520,14 @@ function aquiferToBedgrKat(aq: AquiferClass, jordartKod?: string): number | null
   if (aq.type === 'porous-coarse') return 4;
   if (aq.type === 'confining') return 5;
   return null;
+}
+
+// Meteorological seasons: winter=Dec–Feb, spring=Mar–May, summer=Jun–Aug, autumn=Sep–Nov
+function getSeason(month: number): 'winter' | 'spring' | 'summer' | 'autumn' {
+  if (month === 12 || month <= 2) return 'winter';
+  if (month <= 5) return 'spring';
+  if (month <= 8) return 'summer';
+  return 'autumn';
 }
 
 const GV_KLASS_COLORS: Record<number, string> = {
@@ -1179,13 +1188,32 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                   byDate.get(datum)!.set(pname, { value: rawVal, unit: p.enhet_tx ?? p.enhet ?? '' });
               }
 
-              // Use the most recent date that contains at least one classifiable parameter
+              // Dates sorted newest first; keep only those with at least one classifiable parameter
               const dates = [...byDate.keys()].sort().reverse();
-              const snapshotDate = dates.find(d => {
+              const classifiableDates = dates.filter(d => {
                 const dp = byDate.get(d)!;
                 return dp.has('pH') || dp.has('pH, mätt i fält') || [...dp.keys()].some(k => k in GV_BEDGR);
-              }) ?? dates[0];
-              if (!snapshotDate) continue;
+              });
+              if (classifiableDates.length === 0) continue;
+
+              // Many samples (≥4 classifiable dates): prefer the most recent from the same season.
+              // Few samples: just the most recent.
+              const targetSeason = getSeason(parseInt(selectedDate.slice(5, 7), 10));
+              let snapshotDate: string;
+              let seasonalSelection = false;
+              if (classifiableDates.length >= 4) {
+                const sameSeason = classifiableDates.filter(
+                  d => getSeason(parseInt(d.slice(5, 7), 10)) === targetSeason
+                );
+                if (sameSeason.length > 0) {
+                  snapshotDate = sameSeason[0];
+                  seasonalSelection = true;
+                } else {
+                  snapshotDate = classifiableDates[0];
+                }
+              } else {
+                snapshotDate = classifiableDates[0];
+              }
 
               const snapshot = byDate.get(snapshotDate)!;
               const params: Array<{ name: string; label: string; value: number; unit: string; klass: number; datum: string }> = [];
@@ -1202,6 +1230,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                 provplatsnamn: cand.p.provplatsnamn ?? '',
                 distKm: Math.round(cand.dist * 10) / 10,
                 senasteprov: snapshotDate,
+                seasonalSelection,
                 provplatskat: cand.p.provplatskat_bedgr_tx ?? undefined,
                 region: cand.p.region_bdgr_tx ?? undefined,
                 params,
@@ -2041,7 +2070,8 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                                 ))}
                               </div>
                               <p className="text-[10px] text-muted-foreground mt-1.5">
-                                Klass 1 (Mycket låg halt) – 5 (Mycket hög halt) · SGU tillståndsklasser 2024. pH: klass 1 = alkaliskt &gt;8,5, klass 3 = neutralt, klass 5 = starkt surt ≤5,5. Alla värden från samma provtagningstillfälle ({gv.senasteprov}).
+                                Klass 1 (Mycket låg halt) – 5 (Mycket hög halt) · SGU tillståndsklasser 2024. pH: klass 1 = alkaliskt &gt;8,5, klass 5 = starkt surt ≤5,5.
+                                {' '}Provtagningstillfälle: {gv.senasteprov}{gv.seasonalSelection ? ' (senaste prov samma årstid)' : ' (senaste prov)'}.
                               </p>
                             </div>
                           )}
