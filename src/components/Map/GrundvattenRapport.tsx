@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from "react";
-import { X, Droplets, Loader2, MapPin, AlertCircle, RefreshCw, Info, ChevronDown, Bot } from "lucide-react";
+import { X, Droplets, Loader2, MapPin, AlertCircle, RefreshCw, Info, ChevronDown, Bot, Download } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, ReferenceArea } from "recharts";
 import proj4 from "proj4";
 import { getSoilTypeColor } from "../../lib/soilTypeColors";
@@ -1676,6 +1676,191 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
   const medianBergKapacitet = medianOf(bergBrunnar);
   const medianJordKapacitet = medianOf(jordBrunnar);
 
+  // ── Export ────────────────────────────────────────────────────────────────
+  const exportReport = useCallback(() => {
+    if (!data) return;
+    const today = new Date().toISOString().split('T')[0];
+    const kCol = (k: number) => GV_KLASS_COLORS[k] ?? '#6b7280';
+    const sitLabel: Record<number, string> = { 1: 'Mycket lågt', 2: 'Lågt', 3: 'Normalt', 4: 'Högt', 5: 'Mycket högt' };
+
+    let html = `<!DOCTYPE html>
+<html lang="sv">
+<head><meta charset="UTF-8">
+<title>Grundvattenanalys – ${data.lat.toFixed(5)}°N ${data.lon.toFixed(5)}°E</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,sans-serif;font-size:13px;color:#1a1a1a;background:#fff;padding:32px;max-width:900px;margin:0 auto}
+h1{font-size:20px;color:#6b0f1a;margin-bottom:4px}
+.sub{color:#6b7280;font-size:12px;margin-bottom:24px}
+h2{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;margin:20px 0 8px;border-bottom:1px solid #e5e7eb;padding-bottom:4px}
+.row{display:flex;justify-content:space-between;align-items:baseline;padding:2px 0;gap:16px}
+.lbl{color:#6b7280;white-space:nowrap}
+.val{font-weight:500;text-align:right}
+table{width:100%;border-collapse:collapse;margin:8px 0;font-size:12px}
+th{background:#f3f4f6;padding:5px 8px;text-align:left;font-weight:600;border:1px solid #e5e7eb}
+td{padding:4px 8px;border:1px solid #e5e7eb}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;vertical-align:middle}
+.sh{background:#f9fafb;padding:8px 12px;margin-top:14px;border-radius:6px 6px 0 0;border:1px solid #e5e7eb;border-bottom:none;font-weight:600}
+.sb{border:1px solid #e5e7eb;border-radius:0 0 6px 6px;overflow:hidden;margin-bottom:4px}
+.badge{font-size:10px;padding:1px 6px;border-radius:4px;font-weight:500;margin-left:4px}
+.bb{background:#dbeafe;color:#1d4ed8}
+.ba{background:#fef3c7;color:#92400e}
+.note{color:#9ca3af;font-size:11px;margin-top:4px;font-style:italic}
+.pbtn{position:fixed;bottom:24px;right:24px;background:#6b0f1a;color:#fff;border:none;padding:10px 20px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;box-shadow:0 4px 12px rgba(0,0,0,.2)}
+@media print{.pbtn{display:none}body{padding:16px}}
+</style>
+</head>
+<body>
+<button class="pbtn" onclick="window.print()">Skriv ut / Spara PDF</button>
+<h1>Grundvattenanalys</h1>
+<div class="sub">Genererad ${today} · Analyserat datum: ${selectedDate}</div>`;
+
+    // Coordinates
+    html += `<h2>Koordinater</h2>
+<div class="row"><span class="lbl">WGS84</span><span class="val">${data.lat.toFixed(5)}°N, ${data.lon.toFixed(5)}°E</span></div>
+<div class="row"><span class="lbl">SWEREF99 TM</span><span class="val">${Math.round(data.sweref[0])} E, ${Math.round(data.sweref[1])} N</span></div>
+${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-DEM 25m)</span><span class="val">${data.elevation} m</span></div>` : ''}`;
+
+    // Jordart & akvifer
+    if (data.jordartNamn || (aquifer && aquifer.type !== 'unknown')) {
+      html += `<h2>Jordart & Akvifer</h2>`;
+      if (data.jordartNamn) html += `<div class="row"><span class="lbl">Jordart${data.jordartKalla && data.jordartKalla !== 'grundlager' ? ` (${data.jordartKalla})` : ''}</span><span class="val">${data.jordartNamn}</span></div>`;
+      if (data.jorddjup) html += `<div class="row"><span class="lbl">Jorddjup (10×10 m raster)</span><span class="val">${data.jorddjup.djup.toFixed(1)} m</span></div>`;
+      if (aquifer && aquifer.type !== 'unknown') html += `<div class="row"><span class="lbl">Akvifertyp (yta)</span><span class="val">${aquifer.label}</span></div>`;
+      if (effectiveAquifer && effectiveAquifer !== aquifer) html += `<div class="row"><span class="lbl">Effektiv akvifer (under täcklager)</span><span class="val">${effectiveAquifer.label}</span></div>`;
+    }
+
+    // Magasin
+    if (data.magasin) {
+      const m = data.magasin;
+      html += `<h2>Grundvattenmagasin</h2>`;
+      html += `<div class="row"><span class="lbl">Namn</span><span class="val">${m.namn}</span></div>`;
+      if (m.akvifertyp) html += `<div class="row"><span class="lbl">Akvifertyp</span><span class="val">${m.akvifertyp}</span></div>`;
+      if (m.genes) html += `<div class="row"><span class="lbl">Genesis</span><span class="val">${m.genes}</span></div>`;
+      if (m.geomAreaKm2) html += `<div class="row"><span class="lbl">Area</span><span class="val">${m.geomAreaKm2.toFixed(1)} km²</span></div>`;
+      if (m.tillrinningLs != null) html += `<div class="row"><span class="lbl">Tillrinning</span><span class="val">${m.tillrinningLs} l/s</span></div>`;
+      if (m.medelmaktighetMattad) html += `<div class="row"><span class="lbl">Medelm. mättad zon</span><span class="val">${m.medelmaktighetMattad}</span></div>`;
+      if (m.medelmaktighetOmattad) html += `<div class="row"><span class="lbl">Medelm. omättad zon</span><span class="val">${m.medelmaktighetOmattad}</span></div>`;
+      if (m.magasinsposition) html += `<div class="row"><span class="lbl">Position</span><span class="val">${m.magasinsposition}</span></div>`;
+    }
+
+    // Delomrade
+    if (data.delomrade) {
+      const d2 = data.delomrade;
+      html += `<h2>Magasinsdelområde</h2>`;
+      if (d2.namn) html += `<div class="row"><span class="lbl">Delområde</span><span class="val">${d2.namn}</span></div>`;
+      if (d2.magasinsnamn) html += `<div class="row"><span class="lbl">Magasin</span><span class="val">${d2.magasinsnamn}</span></div>`;
+      if (d2.uttagsmojligheter) html += `<div class="row"><span class="lbl">Uttagsmöjligheter</span><span class="val">${d2.uttagsmojligheter}</span></div>`;
+      if (d2.kornstorlek) html += `<div class="row"><span class="lbl">Kornstorlek</span><span class="val">${d2.kornstorlek}</span></div>`;
+      if (d2.artesiskt) html += `<div class="row"><span class="lbl">Artesiskt</span><span class="val">${d2.artesiskt}</span></div>`;
+      if (d2.nivaforhallande) html += `<div class="row"><span class="lbl">Nivåförhållande</span><span class="val">${d2.nivaforhallande}</span></div>`;
+      if (d2.vattenkemi) html += `<div class="row"><span class="lbl">Vattenkemi</span><span class="val">${d2.vattenkemi}</span></div>`;
+    }
+
+    // HYPE nivå
+    if (data.fyllnadsgradSma != null || data.fyllnadsgradStora != null) {
+      html += `<h2>Grundvattennivå (HYPE-modell)</h2>`;
+      if (data.hypoDate) html += `<div class="row"><span class="lbl">Modelldata${data.hypoDateIsFallback ? ' (närmaste tillgängliga)' : ''}</span><span class="val">${data.hypoDate}</span></div>`;
+      if (data.fyllnadsgradSma != null) html += `<div class="row"><span class="lbl">Fyllnadsgrad, små magasin</span><span class="val">${Math.round(data.fyllnadsgradSma * 100)}%</span></div>`;
+      if (data.fyllnadsgradStora != null) html += `<div class="row"><span class="lbl">Fyllnadsgrad, stora magasin</span><span class="val">${Math.round(data.fyllnadsgradStora * 100)}%</span></div>`;
+      if (data.sitSma != null) html += `<div class="row"><span class="lbl">Situation, små magasin</span><span class="val">${sitLabel[data.sitSma] ?? `Klass ${data.sitSma}`}</span></div>`;
+      if (data.sitStora != null) html += `<div class="row"><span class="lbl">Situation, stora magasin</span><span class="val">${sitLabel[data.sitStora] ?? `Klass ${data.sitStora}`}</span></div>`;
+    }
+
+    // Depth
+    if (depth && effectiveAquifer?.type !== 'unknown' && !(aquifer?.type === 'confining' && effectiveAquifer === aquifer)) {
+      html += `<h2>Grundvattennivå – uppskattad</h2>`;
+      if (calibratedDepth) {
+        html += `<div class="row"><span class="lbl">Kalibrerad uppskattning</span><span class="val" style="font-size:16px;font-weight:700">${calibratedDepth.lo}–${calibratedDepth.hi} m u. markytan</span></div>`;
+        html += `<div class="row"><span class="lbl">Observerat median</span><span class="val">${obsKalibr!.medianDjup.toFixed(1)} m</span></div>`;
+        html += `<div class="row"><span class="lbl">Kvartilar P25–P75</span><span class="val">${obsKalibr!.p25.toFixed(1)}–${obsKalibr!.p75.toFixed(1)} m</span></div>`;
+        html += `<div class="row"><span class="lbl">Stationer</span><span class="val">${obsKalibr!.antal} st · ${obsKalibr!.matchLabel}</span></div>`;
+        html += `<div class="row"><span class="lbl">HYPE-situationsfaktor</span><span class="val">${depth.adj.factor}× · ${depth.adj.label}</span></div>`;
+      } else {
+        html += `<div class="row"><span class="lbl">Uppskattning (ej kalibrerad)</span><span class="val" style="font-size:16px;font-weight:700">${depth.lo}–${depth.hi} m u. markytan</span></div>`;
+        html += `<p class="note">Baserat på akvifertyp + HYPE-nivå – inga observationsstationer för kalibrering</p>`;
+      }
+      if (jorddjupCapInfo) html += `<p class="note" style="color:#c2410c">${jorddjupCapInfo.likelyBedrock ? `Jorddjup (${jorddjupCapInfo.soilDepth.toFixed(1)} m) grundare än uppskattning – grundvatten troligen i berg` : `Övre gräns når nära jorddjup (${jorddjupCapInfo.soilDepth.toFixed(1)} m)`}</p>`;
+    }
+
+    // Capacity
+    if (medianBergKapacitet != null || medianJordKapacitet != null || data.gvTillgangLdha != null) {
+      html += `<h2>Kapacitet</h2>`;
+      if (aquifer && aquifer.type !== 'unknown') html += `<div class="row"><span class="lbl">Typisk (${aquifer.label.split('–')[0].trim()})</span><span class="val">${aquifer.capacityLabel}</span></div>`;
+      if (medianBergKapacitet != null) html += `<div class="row"><span class="lbl">Bergborrade brunnar nära (median, ${bergBrunnar.length} st)</span><span class="val">${medianBergKapacitet} l/h</span></div>`;
+      if (medianJordKapacitet != null) html += `<div class="row"><span class="lbl">Grävda/rörbrunnars kapacitet nära (median, ${jordBrunnar.length} st)</span><span class="val">${medianJordKapacitet} l/h</span></div>`;
+      if (data.gvTillgangLdha != null) html += `<div class="row"><span class="lbl">Grundvattentillgång, små magasin</span><span class="val">${Math.round(data.gvTillgangLdha)} l/dygn/ha</span></div>`;
+    }
+
+    // Geokemi
+    if (data.geokemi) {
+      html += `<h2>Markgeokemi (morän)</h2>`;
+      html += `<div class="row"><span class="lbl">Avstånd</span><span class="val">MS ${data.geokemi.distKm} km${data.geokemi.distKmAes != null ? ` · AES ${data.geokemi.distKmAes} km` : ''}${data.geokemi.artal ? ` · ${data.geokemi.artal}` : ''}</span></div>`;
+      const GEO_KEYS = ['as','u','ni','pb','cr','cd','mn','fe','f','cu','zn','co','mo','v','ca','mg'];
+      const GEO_LBL: Record<string,string> = {as:'As',u:'U',ni:'Ni',pb:'Pb',cr:'Cr',cd:'Cd',mn:'Mn',fe:'Fe',f:'F',cu:'Cu',zn:'Zn',co:'Co',mo:'Mo',v:'V',ca:'Ca',mg:'Mg'};
+      const geoPresent = GEO_KEYS.filter(k => data.geokemi!.elements[k] != null);
+      if (geoPresent.length > 0) {
+        html += `<table><tr>${geoPresent.map(k => `<th>${GEO_LBL[k]}</th>`).join('')}</tr>`;
+        html += `<tr>${geoPresent.map(k => { const v = data.geokemi!.elements[k]!; return `<td>${v < 1 ? v.toFixed(2) : v < 10 ? v.toFixed(1) : v < 1000 ? Math.round(v) : (v/1000).toFixed(1)+'k'}</td>`; }).join('')}</tr></table>`;
+      }
+    }
+
+    // Förekomst
+    if (data.gvForekomstId) {
+      html += `<h2>Grundvattenförekomst (WFD)</h2>`;
+      html += `<div class="row"><span class="lbl">Nationell kod</span><span class="val">${data.gvForekomstId}</span></div>`;
+    }
+
+    // GV Kemi
+    if (data.gvKemi && data.gvKemi.length > 0) {
+      html += `<h2>Grundvattenkemi</h2>`;
+      for (const st of data.gvKemi) {
+        const badges = [
+          st.fromBody ? '<span class="badge bb">Förekomst</span>' : '',
+          st.trend ? '<span class="badge ba">Trendstation</span>' : '',
+        ].join('');
+        const meta = [
+          st.distKm != null ? `${st.distKm} km` : '',
+          st.senasteprov ? `${st.senasteprov}${st.seasonalSelection ? ' (årstidsval)' : ''}` : '',
+        ].filter(Boolean).join(' · ');
+        html += `<div class="sh">${st.provplatsnamn} <span style="font-weight:400;font-size:11px;color:#6b7280">(ID: ${st.provplatsid})</span>${badges}${meta ? `<span style="font-weight:400;font-size:11px;color:#9ca3af;margin-left:8px">${meta}</span>` : ''}</div>`;
+        html += `<div class="sb">`;
+        if (st.params.length > 0) {
+          html += `<table><tr><th>Parameter</th><th>Värde</th><th>Enhet</th><th>Klass</th><th>Datum</th></tr>`;
+          for (const p of st.params) {
+            html += `<tr><td>${p.label || p.name}</td><td>${p.value}</td><td>${p.unit}</td><td><span class="dot" style="background:${kCol(p.klass)}"></span>${p.klass}</td><td>${p.datum}</td></tr>`;
+          }
+          html += `</table>`;
+        }
+        if (st.trend) {
+          const t = st.trend;
+          html += `<div style="padding:8px 12px;border-top:1px solid #e5e7eb"><div style="font-size:11px;font-weight:600;color:#6b7280;margin-bottom:6px">TRENDANALYS (Mann-Kendall) · ${t.yearSpan} år · ${t.nDates} mättillfällen</div>`;
+          html += `<table><tr><th>Parameter</th><th>Senaste</th><th>Trend</th><th>Sign.</th><th>Förändring/år</th><th>Säsongsvar.</th></tr>`;
+          for (const tp of t.params) {
+            const tLbl = tp.mk.trend === 'increasing' ? '↑ Ökande' : tp.mk.trend === 'decreasing' ? '↓ Minskande' : '→ Ingen';
+            const tCol = tp.mk.trend === 'increasing' ? '#dc2626' : tp.mk.trend === 'decreasing' ? '#2563eb' : '#6b7280';
+            html += `<tr><td>${tp.label || tp.name}</td><td>${tp.latestValue} ${tp.unit}</td><td style="color:${tCol};font-weight:600">${tLbl}</td><td>${tp.mk.significant ? 'Ja (p<0.05)' : 'Nej'}</td><td>${tp.mk.slope >= 0 ? '+' : ''}${tp.mk.slope.toFixed(4)} ${tp.unit}/år</td><td>${tp.hasSeasonality ? `Ja (${Math.round(tp.seasonalAmplitudePct)}%)` : 'Nej'}</td></tr>`;
+          }
+          html += `</table></div>`;
+        }
+        const stMeta = [st.eucdGwb ? `Förekomst: ${st.eucdGwb}` : '', st.provplatskat ? `Kategori: ${st.provplatskat}` : '', st.region ? `Region: ${st.region}` : ''].filter(Boolean);
+        if (stMeta.length > 0) html += `<div style="padding:4px 12px 8px;font-size:11px;color:#9ca3af">${stMeta.join(' · ')}</div>`;
+        html += `</div>`;
+      }
+    }
+
+    // Footer
+    html += `<div style="margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af">
+<p>Tolkningar är uppskattningar baserade på modeller och regionala observationer. De ersätter inte platsspecifik hydrogeologisk undersökning.</p>
+<p style="margin-top:4px">Datakällor: SGU OGC API, HYPE-modellen (SGU), EU-DEM 25m (OpenTopoData)</p>
+</div>
+</body></html>`;
+
+    const w = window.open('', '_blank');
+    if (w) { w.document.write(html); w.document.close(); }
+  }, [data, aquifer, effectiveAquifer, depth, calibratedDepth, obsKalibr, bergBrunnar, jordBrunnar,
+      medianBergKapacitet, medianJordKapacitet, jorddjupCapInfo, selectedDate]);
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div
@@ -1728,6 +1913,14 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
           title="Uppdatera"
         >
           <RefreshCw className={`w-3.5 h-3.5 text-muted-foreground ${loading ? 'animate-spin' : ''}`} />
+        </button>
+        <button
+          onClick={exportReport}
+          disabled={!data || loading}
+          className="shrink-0 p-1.5 rounded hover:bg-secondary transition-colors disabled:opacity-50"
+          title="Exportera rapport"
+        >
+          <Download className="w-3.5 h-3.5 text-muted-foreground" />
         </button>
       </div>
 
