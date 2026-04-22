@@ -228,10 +228,10 @@ export const WellPopup = ({
 
   const getSituationLabel = (value: number | undefined): string => {
     if (value === undefined || value === null) return "Ej angivet";
-    if (value < 10) return "Mycket under normal";
-    if (value < 25) return "Under normal";
-    if (value < 75) return "Nära normal";
-    if (value < 90) return "Över normal";
+    if (value <= 14) return "Mycket under normal";
+    if (value <= 34) return "Under normal";
+    if (value <= 65) return "Nära normal";
+    if (value <= 85) return "Över normal";
     return "Mycket över normal";
   };
 
