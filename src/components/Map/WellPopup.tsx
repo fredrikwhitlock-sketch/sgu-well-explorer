@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { X, ExternalLink, Download, BarChart3, PlusCircle, ChevronLeft, ChevronRight, GripHorizontal, Layers, Loader2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import { HypoTimeSeriesChart } from "./HypoTimeSeriesChart";
 
 interface LagerItem {
   lagernr: number;
