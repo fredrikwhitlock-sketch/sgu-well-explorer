@@ -1303,26 +1303,28 @@ export const MapView = () => {
     // grundvattensituation_*: kategorisk klass 1–5 (1=mycket under, 5=mycket över)
     const makeHypoStyle = (field: string) => (feature: any) => {
       const v = feature.get(field);
-      let fillColor = 'rgba(200, 200, 200, 0.4)'; // grå – ingen data
-      if (v !== null && v !== undefined && v !== -1) {
+      let fillColor = 'rgba(200, 200, 200, 0.25)'; // grå – ingen data
+      // SGU sentinel-värden för "ingen data": null, -1, 99
+      const hasData = v !== null && v !== undefined && v !== -1 && v !== 99;
+      if (hasData) {
         if (field.startsWith('grundvattensituation')) {
-          // Klassvärden 1..5
-          if      (v <= 1) fillColor = 'rgba(165, 0, 38, 0.75)';
-          else if (v <= 2) fillColor = 'rgba(215, 90, 40, 0.75)';
-          else if (v <= 3) fillColor = 'rgba(254, 224, 70, 0.75)';
-          else if (v <= 4) fillColor = 'rgba(90, 174, 97, 0.75)';
-          else             fillColor = 'rgba(0, 104, 55, 0.75)';
+          // Klassvärden 1..5 (1 = mycket under normalt, 5 = mycket över normalt)
+          if      (v <= 1) fillColor = 'rgba(165, 0, 38, 0.8)';
+          else if (v <= 2) fillColor = 'rgba(215, 90, 40, 0.8)';
+          else if (v <= 3) fillColor = 'rgba(254, 224, 70, 0.8)';
+          else if (v <= 4) fillColor = 'rgba(90, 174, 97, 0.8)';
+          else             fillColor = 'rgba(0, 104, 55, 0.8)';
         } else {
           // Percentil 0..100
-          if      (v < 10) fillColor = 'rgba(165, 0, 38, 0.75)';
-          else if (v < 25) fillColor = 'rgba(215, 90, 40, 0.75)';
-          else if (v < 75) fillColor = 'rgba(254, 224, 70, 0.75)';
-          else if (v < 90) fillColor = 'rgba(90, 174, 97, 0.75)';
-          else             fillColor = 'rgba(0, 104, 55, 0.75)';
+          if      (v < 10) fillColor = 'rgba(165, 0, 38, 0.8)';
+          else if (v < 25) fillColor = 'rgba(215, 90, 40, 0.8)';
+          else if (v < 75) fillColor = 'rgba(254, 224, 70, 0.8)';
+          else if (v < 90) fillColor = 'rgba(90, 174, 97, 0.8)';
+          else             fillColor = 'rgba(0, 104, 55, 0.8)';
         }
       }
       return new Style({
-        stroke: new Stroke({ color: 'rgba(0,0,0,0.2)', width: 0.5 }),
+        stroke: new Stroke({ color: 'rgba(0,0,0,0.25)', width: 0.5 }),
         fill: new Fill({ color: fillColor }),
       });
     };
