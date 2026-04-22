@@ -1412,8 +1412,8 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
 
               // Trend station: ≥10 classifiable dates spanning ≥5 years, OR API trendstation flag
               const allDates = [...byDate.keys()].sort();
-              const yearSpan = allDates.length >= 2
-                ? parseInt(allDates.at(-1)!.slice(0, 4), 10) - parseInt(allDates[0].slice(0, 4), 10)
+      const yearSpan = allDates.length >= 2
+                ? parseInt(allDates[allDates.length - 1].slice(0, 4), 10) - parseInt(allDates[0].slice(0, 4), 10)
                 : 0;
               const isTrendStation =
                 cand.p.trendstation === true ||
