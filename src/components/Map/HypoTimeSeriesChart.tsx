@@ -204,17 +204,16 @@ export const HypoTimeSeriesChart = ({ omradeId, hasStora, years = 3 }: Props) =>
         </div>
       )}
 
-      {/* Chart 2 – Grundvattensituation (klass 1–5) */}
+      {/* Chart 2 – Grundvattensituation (percentil 0–100) */}
       {(hasSitSma || hasSitStora) && (
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">
-            Grundvattensituation (klass)
+            Grundvattensituation (percentil)
           </p>
           <div className="w-full h-40">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={data} margin={{ top: 6, right: 8, bottom: 4, left: -16 }}>
+              <LineChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <ReferenceArea y1={2.5} y2={3.5} fill="rgba(254,224,70,0.15)" stroke="none" />
                 <XAxis
                   dataKey="ts"
                   type="number"
@@ -224,8 +223,7 @@ export const HypoTimeSeriesChart = ({ omradeId, hasStora, years = 3 }: Props) =>
                   scale="time"
                 />
                 <YAxis
-                  domain={[1, 5]}
-                  ticks={[1, 2, 3, 4, 5]}
+                  domain={[0, 100]}
                   tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
                 />
                 <Tooltip
