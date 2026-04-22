@@ -24,9 +24,18 @@ interface Point {
   ts: number;
   fyllnadsgrad_sma: number | null;
   fyllnadsgrad_stora: number | null;
+  grundvattensituation_sma: number | null;
+  grundvattensituation_stora: number | null;
 }
 
 const PAGE_LIMIT = 1000;
+// SGU sentinel values for "no data": -1, 99
+const cleanNum = (x: any): number | null => {
+  if (x === null || x === undefined) return null;
+  const n = Number(x);
+  if (!Number.isFinite(n) || n === -1 || n === 99) return null;
+  return n;
+};
 
 async function fetchAllForOmrade(omradeId: number, fromDate: string): Promise<any[]> {
   const base = `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/grundvattennivaer-tidigare/items?f=json&limit=${PAGE_LIMIT}`;
@@ -71,14 +80,10 @@ export const HypoTimeSeriesChart = ({ omradeId, hasStora, years = 3 }: Props) =>
             return {
               datum,
               ts: new Date(datum).getTime(),
-              fyllnadsgrad_sma:
-                p.fyllnadsgrad_sma === -1 || p.fyllnadsgrad_sma == null
-                  ? null
-                  : Number(p.fyllnadsgrad_sma),
-              fyllnadsgrad_stora:
-                p.fyllnadsgrad_stora === -1 || p.fyllnadsgrad_stora == null
-                  ? null
-                  : Number(p.fyllnadsgrad_stora),
+              fyllnadsgrad_sma: cleanNum(p.fyllnadsgrad_sma),
+              fyllnadsgrad_stora: cleanNum(p.fyllnadsgrad_stora),
+              grundvattensituation_sma: cleanNum(p.grundvattensituation_sma),
+              grundvattensituation_stora: cleanNum(p.grundvattensituation_stora),
             } as Point;
           })
           .filter((x): x is Point => x !== null)
@@ -114,74 +119,162 @@ export const HypoTimeSeriesChart = ({ omradeId, hasStora, years = 3 }: Props) =>
     return <div className="text-xs text-muted-foreground">Ingen tidsseriedata.</div>;
   }
 
+  // Detect which series actually have data
+  const hasFyllSma = data.some((d) => d.fyllnadsgrad_sma !== null);
+  const hasFyllStora = data.some((d) => d.fyllnadsgrad_stora !== null);
+  const hasSitSma = data.some((d) => d.grundvattensituation_sma !== null);
+  const hasSitStora = data.some((d) => d.grundvattensituation_stora !== null);
+
   const tickFmt = (ts: number) => {
     const d = new Date(ts);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   };
 
+  // Color per series (semantic-ish; HYPE has its own palette so use literal CSS vars where possible)
+  const COLORS = {
+    fyllSma: "hsl(var(--primary))",
+    fyllStora: "rgb(0,104,160)",
+    sitSma: "rgb(180,120,40)",
+    sitStora: "rgb(120,40,140)",
+  };
+
   return (
-    <div className="w-full h-56">
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data} margin={{ top: 8, right: 8, bottom: 4, left: -16 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-          {/* Normal-band 25–75 percentil */}
-          <ReferenceArea y1={25} y2={75} fill="rgba(254,224,70,0.15)" stroke="none" />
-          <XAxis
-            dataKey="ts"
-            type="number"
-            domain={["dataMin", "dataMax"]}
-            tickFormatter={tickFmt}
-            tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-            scale="time"
-          />
-          <YAxis
-            domain={[0, 100]}
-            tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-            label={{
-              value: "Percentil",
-              angle: -90,
-              position: "insideLeft",
-              offset: 20,
-              style: { fontSize: 10, fill: "hsl(var(--muted-foreground))" },
-            }}
-          />
-          <Tooltip
-            labelFormatter={(ts: any) =>
-              new Date(Number(ts)).toISOString().slice(0, 10)
-            }
-            formatter={(v: any, name: any) => [v == null ? "—" : `${v}%`, name]}
-            contentStyle={{
-              backgroundColor: "hsl(var(--popover))",
-              border: "1px solid hsl(var(--border))",
-              borderRadius: 6,
-              fontSize: 11,
-            }}
-          />
-          <Legend wrapperStyle={{ fontSize: 10 }} />
-          <Line
-            type="monotone"
-            dataKey="fyllnadsgrad_sma"
-            name="Små magasin"
-            stroke="hsl(var(--primary))"
-            strokeWidth={1.5}
-            dot={false}
-            connectNulls
-            isAnimationActive={false}
-          />
-          {hasStora && (
-            <Line
-              type="monotone"
-              dataKey="fyllnadsgrad_stora"
-              name="Stora magasin"
-              stroke="rgb(0,104,160)"
-              strokeWidth={1.5}
-              dot={false}
-              connectNulls
-              isAnimationActive={false}
-            />
-          )}
-        </LineChart>
-      </ResponsiveContainer>
+    <div className="space-y-3">
+      {/* Chart 1 – Fyllnadsgrad (percentil 0–100) */}
+      {(hasFyllSma || hasFyllStora) && (
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">
+            Fyllnadsgrad (percentil)
+          </p>
+          <div className="w-full h-44">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={data} margin={{ top: 6, right: 8, bottom: 4, left: -16 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <ReferenceArea y1={25} y2={75} fill="rgba(254,224,70,0.15)" stroke="none" />
+                <XAxis
+                  dataKey="ts"
+                  type="number"
+                  domain={["dataMin", "dataMax"]}
+                  tickFormatter={tickFmt}
+                  tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                  scale="time"
+                />
+                <YAxis
+                  domain={[0, 100]}
+                  tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                />
+                <Tooltip
+                  labelFormatter={(ts: any) => new Date(Number(ts)).toISOString().slice(0, 10)}
+                  formatter={(v: any, name: any) => [v == null ? "—" : `${v}%`, name]}
+                  contentStyle={{
+                    backgroundColor: "hsl(var(--popover))",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: 6,
+                    fontSize: 11,
+                  }}
+                />
+                <Legend wrapperStyle={{ fontSize: 10 }} />
+                {hasFyllSma && (
+                  <Line
+                    type="monotone"
+                    dataKey="fyllnadsgrad_sma"
+                    name="Små magasin"
+                    stroke={COLORS.fyllSma}
+                    strokeWidth={1.5}
+                    dot={false}
+                    connectNulls
+                    isAnimationActive={false}
+                  />
+                )}
+                {hasFyllStora && (
+                  <Line
+                    type="monotone"
+                    dataKey="fyllnadsgrad_stora"
+                    name="Stora magasin"
+                    stroke={COLORS.fyllStora}
+                    strokeWidth={1.5}
+                    dot={false}
+                    connectNulls
+                    isAnimationActive={false}
+                  />
+                )}
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {/* Chart 2 – Grundvattensituation (klass 1–5) */}
+      {(hasSitSma || hasSitStora) && (
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">
+            Grundvattensituation (klass)
+          </p>
+          <div className="w-full h-40">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={data} margin={{ top: 6, right: 8, bottom: 4, left: -16 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <ReferenceArea y1={2.5} y2={3.5} fill="rgba(254,224,70,0.15)" stroke="none" />
+                <XAxis
+                  dataKey="ts"
+                  type="number"
+                  domain={["dataMin", "dataMax"]}
+                  tickFormatter={tickFmt}
+                  tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                  scale="time"
+                />
+                <YAxis
+                  domain={[1, 5]}
+                  ticks={[1, 2, 3, 4, 5]}
+                  tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                />
+                <Tooltip
+                  labelFormatter={(ts: any) => new Date(Number(ts)).toISOString().slice(0, 10)}
+                  formatter={(v: any, name: any) => [v == null ? "—" : `Klass ${v}`, name]}
+                  contentStyle={{
+                    backgroundColor: "hsl(var(--popover))",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: 6,
+                    fontSize: 11,
+                  }}
+                />
+                <Legend wrapperStyle={{ fontSize: 10 }} />
+                {hasSitSma && (
+                  <Line
+                    type="monotone"
+                    dataKey="grundvattensituation_sma"
+                    name="Små magasin"
+                    stroke={COLORS.sitSma}
+                    strokeWidth={1.5}
+                    dot={false}
+                    connectNulls
+                    isAnimationActive={false}
+                  />
+                )}
+                {hasSitStora && (
+                  <Line
+                    type="monotone"
+                    dataKey="grundvattensituation_stora"
+                    name="Stora magasin"
+                    stroke={COLORS.sitStora}
+                    strokeWidth={1.5}
+                    dot={false}
+                    connectNulls
+                    isAnimationActive={false}
+                  />
+                )}
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+          <p className="text-[9px] text-muted-foreground mt-0.5">
+            1 = mycket under normalt · 3 = normalt · 5 = mycket över normalt
+          </p>
+        </div>
+      )}
+
+      {!hasFyllSma && !hasFyllStora && !hasSitSma && !hasSitStora && (
+        <div className="text-xs text-muted-foreground">Ingen användbar tidsseriedata.</div>
+      )}
     </div>
   );
 };
