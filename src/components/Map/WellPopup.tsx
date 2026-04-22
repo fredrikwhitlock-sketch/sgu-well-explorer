@@ -1370,7 +1370,7 @@ export const WellPopup = ({
             {/* Små magasin */}
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Små magasin</p>
 
-            {properties.fyllnadsgrad_sma !== undefined && properties.fyllnadsgrad_sma !== null && properties.fyllnadsgrad_sma !== -1 && (
+            {properties.fyllnadsgrad_sma !== undefined && properties.fyllnadsgrad_sma !== null && properties.fyllnadsgrad_sma !== -1 && properties.fyllnadsgrad_sma !== 99 && (
               <div>
                 <dt className="text-xs font-medium text-muted-foreground">Fyllnadsgrad (percentil)</dt>
                 <dd className="text-sm text-foreground mt-1 font-semibold">
@@ -1387,7 +1387,7 @@ export const WellPopup = ({
               </div>
             )}
 
-            {properties.grundvattensituation_sma !== undefined && properties.grundvattensituation_sma !== null && properties.grundvattensituation_sma !== -1 && (
+            {properties.grundvattensituation_sma !== undefined && properties.grundvattensituation_sma !== null && properties.grundvattensituation_sma !== -1 && properties.grundvattensituation_sma !== 99 && (
               <div>
                 <dt className="text-xs font-medium text-muted-foreground">Grundvattensituation</dt>
                 <dd className="text-sm text-foreground mt-1">
@@ -1405,13 +1405,13 @@ export const WellPopup = ({
             )}
 
             {/* Stora magasin */}
-            {((properties.fyllnadsgrad_stora !== undefined && properties.fyllnadsgrad_stora !== -1) ||
-              (properties.grundvattensituation_stora !== undefined && properties.grundvattensituation_stora !== -1)) && (
+            {((properties.fyllnadsgrad_stora !== undefined && properties.fyllnadsgrad_stora !== -1 && properties.fyllnadsgrad_stora !== 99) ||
+              (properties.grundvattensituation_stora !== undefined && properties.grundvattensituation_stora !== -1 && properties.grundvattensituation_stora !== 99)) && (
               <>
                 <Separator className="my-3" />
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Stora magasin</p>
 
-                {properties.fyllnadsgrad_stora !== undefined && properties.fyllnadsgrad_stora !== null && properties.fyllnadsgrad_stora !== -1 && (
+                {properties.fyllnadsgrad_stora !== undefined && properties.fyllnadsgrad_stora !== null && properties.fyllnadsgrad_stora !== -1 && properties.fyllnadsgrad_stora !== 99 && (
                   <div>
                     <dt className="text-xs font-medium text-muted-foreground">Fyllnadsgrad (percentil)</dt>
                     <dd className="text-sm text-foreground mt-1 font-semibold">
@@ -1428,7 +1428,7 @@ export const WellPopup = ({
                   </div>
                 )}
 
-                {properties.grundvattensituation_stora !== undefined && properties.grundvattensituation_stora !== null && properties.grundvattensituation_stora !== -1 && (
+                {properties.grundvattensituation_stora !== undefined && properties.grundvattensituation_stora !== null && properties.grundvattensituation_stora !== -1 && properties.grundvattensituation_stora !== 99 && (
                   <div>
                     <dt className="text-xs font-medium text-muted-foreground">Grundvattensituation</dt>
                     <dd className="text-sm text-foreground mt-1">
@@ -1447,23 +1447,22 @@ export const WellPopup = ({
               </>
             )}
 
-            {/* Tidsseriediagram */}
+            {/* Tidsseriediagram – fyllnadsgrad + situation, små + stora */}
             {properties.omrade_id !== undefined && properties.omrade_id !== null && (
               <>
                 <Separator className="my-3" />
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-                  Fyllnadsgrad – senaste 3 åren
+                  Tidsserier – senaste 3 åren
                 </p>
                 <HypoTimeSeriesChart
                   omradeId={Number(properties.omrade_id)}
                   hasStora={
-                    properties.fyllnadsgrad_stora !== undefined &&
-                    properties.fyllnadsgrad_stora !== null &&
-                    properties.fyllnadsgrad_stora !== -1
+                    (properties.fyllnadsgrad_stora !== undefined && properties.fyllnadsgrad_stora !== null && properties.fyllnadsgrad_stora !== -1 && properties.fyllnadsgrad_stora !== 99) ||
+                    (properties.grundvattensituation_stora !== undefined && properties.grundvattensituation_stora !== null && properties.grundvattensituation_stora !== -1 && properties.grundvattensituation_stora !== 99)
                   }
                 />
                 <p className="text-[10px] text-muted-foreground mt-1">
-                  Gult band = normalintervall (25–75:e percentilen).
+                  Gult band = normalintervall (25–75:e percentilen / klass 3).
                 </p>
               </>
             )}
