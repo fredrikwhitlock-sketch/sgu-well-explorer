@@ -1298,16 +1298,28 @@ export const MapView = () => {
     });
     hypoAreasSourceRef.current = hypoAreasSource;
 
-    // Shared style factory – colors by percentile breaks (10 / 25 / 75 / 90)
+    // Shared style factory – picks correct scale based on field
+    // fyllnadsgrad_*: percentil 0–100, breaks 10/25/75/90
+    // grundvattensituation_*: kategorisk klass 1–5 (1=mycket under, 5=mycket över)
     const makeHypoStyle = (field: string) => (feature: any) => {
       const v = feature.get(field);
       let fillColor = 'rgba(200, 200, 200, 0.4)'; // grå – ingen data
       if (v !== null && v !== undefined && v !== -1) {
-        if      (v < 10) fillColor = 'rgba(165, 0, 38, 0.75)';
-        else if (v < 25) fillColor = 'rgba(215, 90, 40, 0.75)';
-        else if (v < 75) fillColor = 'rgba(254, 224, 70, 0.75)';
-        else if (v < 90) fillColor = 'rgba(90, 174, 97, 0.75)';
-        else             fillColor = 'rgba(0, 104, 55, 0.75)';
+        if (field.startsWith('grundvattensituation')) {
+          // Klassvärden 1..5
+          if      (v <= 1) fillColor = 'rgba(165, 0, 38, 0.75)';
+          else if (v <= 2) fillColor = 'rgba(215, 90, 40, 0.75)';
+          else if (v <= 3) fillColor = 'rgba(254, 224, 70, 0.75)';
+          else if (v <= 4) fillColor = 'rgba(90, 174, 97, 0.75)';
+          else             fillColor = 'rgba(0, 104, 55, 0.75)';
+        } else {
+          // Percentil 0..100
+          if      (v < 10) fillColor = 'rgba(165, 0, 38, 0.75)';
+          else if (v < 25) fillColor = 'rgba(215, 90, 40, 0.75)';
+          else if (v < 75) fillColor = 'rgba(254, 224, 70, 0.75)';
+          else if (v < 90) fillColor = 'rgba(90, 174, 97, 0.75)';
+          else             fillColor = 'rgba(0, 104, 55, 0.75)';
+        }
       }
       return new Style({
         stroke: new Stroke({ color: 'rgba(0,0,0,0.2)', width: 0.5 }),
