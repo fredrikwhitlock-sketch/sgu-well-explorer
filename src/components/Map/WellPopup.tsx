@@ -1377,10 +1377,10 @@ export const WellPopup = ({
                   {properties.fyllnadsgrad_sma}%
                   {' '}
                   <span className="font-normal text-muted-foreground">
-                    {properties.fyllnadsgrad_sma < 10 ? '— Mycket under normalt' :
-                     properties.fyllnadsgrad_sma < 25 ? '— Under normalt' :
-                     properties.fyllnadsgrad_sma < 75 ? '— Normalt' :
-                     properties.fyllnadsgrad_sma < 90 ? '— Över normalt' :
+                    {properties.fyllnadsgrad_sma <= 14 ? '— Mycket under normalt' :
+                     properties.fyllnadsgrad_sma <= 34 ? '— Under normalt' :
+                     properties.fyllnadsgrad_sma <= 65 ? '— Normalt' :
+                     properties.fyllnadsgrad_sma <= 85 ? '— Över normalt' :
                      '— Mycket över normalt'}
                   </span>
                 </dd>
@@ -1391,13 +1391,13 @@ export const WellPopup = ({
               <div>
                 <dt className="text-xs font-medium text-muted-foreground">Grundvattensituation</dt>
                 <dd className="text-sm text-foreground mt-1">
-                  Klass {properties.grundvattensituation_sma}
+                  {properties.grundvattensituation_sma}
                   {' '}
                   <span className="font-normal text-muted-foreground">
-                    {properties.grundvattensituation_sma <= 1 ? '— Mycket under normalt' :
-                     properties.grundvattensituation_sma <= 2 ? '— Under normalt' :
-                     properties.grundvattensituation_sma <= 3 ? '— Normalt' :
-                     properties.grundvattensituation_sma <= 4 ? '— Över normalt' :
+                    {properties.grundvattensituation_sma <= 14 ? '— Mycket under normalt' :
+                     properties.grundvattensituation_sma <= 34 ? '— Under normalt' :
+                     properties.grundvattensituation_sma <= 65 ? '— Normalt' :
+                     properties.grundvattensituation_sma <= 85 ? '— Över normalt' :
                      '— Mycket över normalt'}
                   </span>
                 </dd>
