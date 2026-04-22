@@ -228,10 +228,10 @@ export const WellPopup = ({
 
   const getSituationLabel = (value: number | undefined): string => {
     if (value === undefined || value === null) return "Ej angivet";
-    if (value < 10) return "Mycket under normal";
-    if (value < 25) return "Under normal";
-    if (value < 75) return "Nära normal";
-    if (value < 90) return "Över normal";
+    if (value <= 14) return "Mycket under normal";
+    if (value <= 34) return "Under normal";
+    if (value <= 65) return "Nära normal";
+    if (value <= 85) return "Över normal";
     return "Mycket över normal";
   };
 
@@ -1377,10 +1377,10 @@ export const WellPopup = ({
                   {properties.fyllnadsgrad_sma}%
                   {' '}
                   <span className="font-normal text-muted-foreground">
-                    {properties.fyllnadsgrad_sma < 10 ? '— Mycket under normalt' :
-                     properties.fyllnadsgrad_sma < 25 ? '— Under normalt' :
-                     properties.fyllnadsgrad_sma < 75 ? '— Normalt' :
-                     properties.fyllnadsgrad_sma < 90 ? '— Över normalt' :
+                    {properties.fyllnadsgrad_sma <= 14 ? '— Mycket under normalt' :
+                     properties.fyllnadsgrad_sma <= 34 ? '— Under normalt' :
+                     properties.fyllnadsgrad_sma <= 65 ? '— Normalt' :
+                     properties.fyllnadsgrad_sma <= 85 ? '— Över normalt' :
                      '— Mycket över normalt'}
                   </span>
                 </dd>
@@ -1391,13 +1391,13 @@ export const WellPopup = ({
               <div>
                 <dt className="text-xs font-medium text-muted-foreground">Grundvattensituation</dt>
                 <dd className="text-sm text-foreground mt-1">
-                  Klass {properties.grundvattensituation_sma}
+                  {properties.grundvattensituation_sma}
                   {' '}
                   <span className="font-normal text-muted-foreground">
-                    {properties.grundvattensituation_sma <= 1 ? '— Mycket under normalt' :
-                     properties.grundvattensituation_sma <= 2 ? '— Under normalt' :
-                     properties.grundvattensituation_sma <= 3 ? '— Normalt' :
-                     properties.grundvattensituation_sma <= 4 ? '— Över normalt' :
+                    {properties.grundvattensituation_sma <= 14 ? '— Mycket under normalt' :
+                     properties.grundvattensituation_sma <= 34 ? '— Under normalt' :
+                     properties.grundvattensituation_sma <= 65 ? '— Normalt' :
+                     properties.grundvattensituation_sma <= 85 ? '— Över normalt' :
                      '— Mycket över normalt'}
                   </span>
                 </dd>
@@ -1418,10 +1418,10 @@ export const WellPopup = ({
                       {properties.fyllnadsgrad_stora}%
                       {' '}
                       <span className="font-normal text-muted-foreground">
-                        {properties.fyllnadsgrad_stora < 10 ? '— Mycket under normalt' :
-                         properties.fyllnadsgrad_stora < 25 ? '— Under normalt' :
-                         properties.fyllnadsgrad_stora < 75 ? '— Normalt' :
-                         properties.fyllnadsgrad_stora < 90 ? '— Över normalt' :
+                        {properties.fyllnadsgrad_stora <= 14 ? '— Mycket under normalt' :
+                         properties.fyllnadsgrad_stora <= 34 ? '— Under normalt' :
+                         properties.fyllnadsgrad_stora <= 65 ? '— Normalt' :
+                         properties.fyllnadsgrad_stora <= 85 ? '— Över normalt' :
                          '— Mycket över normalt'}
                       </span>
                     </dd>
@@ -1432,13 +1432,13 @@ export const WellPopup = ({
                   <div>
                     <dt className="text-xs font-medium text-muted-foreground">Grundvattensituation</dt>
                     <dd className="text-sm text-foreground mt-1">
-                      Klass {properties.grundvattensituation_stora}
+                      {properties.grundvattensituation_stora}
                       {' '}
                       <span className="font-normal text-muted-foreground">
-                        {properties.grundvattensituation_stora <= 1 ? '— Mycket under normalt' :
-                         properties.grundvattensituation_stora <= 2 ? '— Under normalt' :
-                         properties.grundvattensituation_stora <= 3 ? '— Normalt' :
-                         properties.grundvattensituation_stora <= 4 ? '— Över normalt' :
+                        {properties.grundvattensituation_stora <= 14 ? '— Mycket under normalt' :
+                         properties.grundvattensituation_stora <= 34 ? '— Under normalt' :
+                         properties.grundvattensituation_stora <= 65 ? '— Normalt' :
+                         properties.grundvattensituation_stora <= 85 ? '— Över normalt' :
                          '— Mycket över normalt'}
                       </span>
                     </dd>

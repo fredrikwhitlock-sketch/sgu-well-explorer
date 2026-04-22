@@ -1298,30 +1298,24 @@ export const MapView = () => {
     });
     hypoAreasSourceRef.current = hypoAreasSource;
 
-    // Shared style factory – picks correct scale based on field
-    // fyllnadsgrad_*: percentil 0–100, breaks 10/25/75/90
-    // grundvattensituation_*: kategorisk klass 1–5 (1=mycket under, 5=mycket över)
+    // Shared style factory – SGU färgskala (percentil 0–100) för både
+    // fyllnadsgrad_* och grundvattensituation_* enligt SGU:s officiella legend:
+    //   0–14   mörkt orange (mycket under normalt)
+    //   15–34  ljust orange (under normalt)
+    //   35–65  ljusgul     (normalt)
+    //   66–85  ljusblå     (över normalt)
+    //   86–100 mörkblå     (mycket över normalt)
     const makeHypoStyle = (field: string) => (feature: any) => {
       const v = feature.get(field);
       let fillColor = 'rgba(200, 200, 200, 0.25)'; // grå – ingen data
       // SGU sentinel-värden för "ingen data": null, -1, 99
       const hasData = v !== null && v !== undefined && v !== -1 && v !== 99;
       if (hasData) {
-        if (field.startsWith('grundvattensituation')) {
-          // Klassvärden 1..5 (1 = mycket under normalt, 5 = mycket över normalt)
-          if      (v <= 1) fillColor = 'rgba(165, 0, 38, 0.8)';
-          else if (v <= 2) fillColor = 'rgba(215, 90, 40, 0.8)';
-          else if (v <= 3) fillColor = 'rgba(254, 224, 70, 0.8)';
-          else if (v <= 4) fillColor = 'rgba(90, 174, 97, 0.8)';
-          else             fillColor = 'rgba(0, 104, 55, 0.8)';
-        } else {
-          // Percentil 0..100
-          if      (v < 10) fillColor = 'rgba(165, 0, 38, 0.8)';
-          else if (v < 25) fillColor = 'rgba(215, 90, 40, 0.8)';
-          else if (v < 75) fillColor = 'rgba(254, 224, 70, 0.8)';
-          else if (v < 90) fillColor = 'rgba(90, 174, 97, 0.8)';
-          else             fillColor = 'rgba(0, 104, 55, 0.8)';
-        }
+        if      (v <= 14) fillColor = 'rgba(217, 95, 14, 0.8)';   // mörkt orange
+        else if (v <= 34) fillColor = 'rgba(253, 174, 97, 0.8)';  // ljust orange
+        else if (v <= 65) fillColor = 'rgba(255, 237, 160, 0.8)'; // ljusgul
+        else if (v <= 85) fillColor = 'rgba(158, 202, 225, 0.8)'; // ljusblå
+        else              fillColor = 'rgba(49, 130, 189, 0.8)';  // mörkblå
       }
       return new Style({
         stroke: new Stroke({ color: 'rgba(0,0,0,0.25)', width: 0.5 }),
