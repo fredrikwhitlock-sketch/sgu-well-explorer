@@ -2125,6 +2125,21 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
                       +{data.obsStationer.length - 10} stationer till
                     </div>
                   )}
+
+                  {/* Time-series: observed levels (last 2 years) + matching HYPE percentile */}
+                  <div className="mt-2 mb-4 rounded-md border border-border bg-background/40 p-2">
+                    <ObsHypoTimeSeriesChart
+                      stations={data.obsStationer.map(st => ({
+                        id: st.id,
+                        namn: st.namn,
+                        distKm: st.distKm,
+                      }))}
+                      omradeId={data.omradeId}
+                      useStora={!!(effectiveAquifer?.useStoraMagasin)}
+                      years={2}
+                      maxStations={5}
+                    />
+                  </div>
                 </>
               ) : (
                 <div className="text-xs text-muted-foreground mb-3">
