@@ -632,6 +632,7 @@ const GV_KLASS_COLORS: Record<number, string> = {
 
 export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysisData, onOpenAI }: Props) => {
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [expandedObsStation, setExpandedObsStation] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<ReportData | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -2101,45 +2102,54 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
               {data.obsStationer && data.obsStationer.length > 0 ? (
                 <>
                   <div className="text-xs text-muted-foreground mb-2">
-                    {data.obsStationer.length} stationer med observationer ±7 dagar från {selectedDate}
+                    {data.obsStationer.length} stationer med nivåobservationer ±7 dagar från {selectedDate}. Klicka på en station för att visa nivådiagram för senaste 2 åren.
                   </div>
                   <div className="space-y-1.5 mb-3">
-                    {data.obsStationer.slice(0, 10).map(st => (
-                      <div key={st.id} className="flex items-center justify-between bg-secondary/30 rounded px-2.5 py-1.5 text-xs">
-                        <div className="min-w-0 flex-1">
-                          <span className="font-medium">{st.namn || st.id}</span>
-                          <span className="text-muted-foreground ml-1.5">{st.distKm.toFixed(1)} km fr. punkten</span>
-                          {st.jordart && (
-                            <span className="text-muted-foreground ml-1.5 truncate">{st.jordart}</span>
+                    {data.obsStationer.slice(0, 10).map(st => {
+                      const isOpen = expandedObsStation === st.id;
+                      return (
+                        <div key={st.id} className="rounded bg-secondary/30 overflow-hidden">
+                          <button
+                            type="button"
+                            onClick={() => setExpandedObsStation(isOpen ? null : st.id)}
+                            className="w-full flex items-center justify-between px-2.5 py-1.5 text-xs text-left hover:bg-secondary/50 transition-colors"
+                            aria-expanded={isOpen}
+                          >
+                            <div className="min-w-0 flex-1 flex items-center">
+                              <ChevronDown
+                                className={`w-3.5 h-3.5 mr-1.5 shrink-0 transition-transform ${isOpen ? "" : "-rotate-90"}`}
+                              />
+                              <span className="font-medium">{st.namn || st.id}</span>
+                              <span className="text-muted-foreground ml-1.5">{st.distKm.toFixed(1)} km fr. punkten</span>
+                              {st.jordart && (
+                                <span className="text-muted-foreground ml-1.5 truncate">{st.jordart}</span>
+                              )}
+                            </div>
+                            <div className="text-right shrink-0 ml-2">
+                              <span className="font-semibold text-blue-700 dark:text-blue-400">{st.djup.toFixed(1)} m</span>
+                              <div className="text-[10px] text-muted-foreground">{st.obsdatum.slice(0, 10)}</div>
+                            </div>
+                          </button>
+                          {isOpen && (
+                            <div className="border-t border-border bg-background/40 p-2">
+                              <ObsHypoTimeSeriesChart
+                                stations={[{ id: st.id, namn: st.namn, distKm: st.distKm }]}
+                                omradeId={data.omradeId}
+                                useStora={!!(effectiveAquifer?.useStoraMagasin)}
+                                years={2}
+                                maxStations={1}
+                              />
+                            </div>
                           )}
                         </div>
-                        <div className="text-right shrink-0 ml-2">
-                          <span className="font-semibold text-blue-700 dark:text-blue-400">{st.djup.toFixed(1)} m</span>
-                          <div className="text-[10px] text-muted-foreground">{st.obsdatum.slice(0, 10)}</div>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                   {data.obsStationer.length > 10 && (
                     <div className="text-[10px] text-muted-foreground mb-3 text-right">
                       +{data.obsStationer.length - 10} stationer till
                     </div>
                   )}
-
-                  {/* Time-series: observed levels (last 2 years) + matching HYPE percentile */}
-                  <div className="mt-2 mb-4 rounded-md border border-border bg-background/40 p-2">
-                    <ObsHypoTimeSeriesChart
-                      stations={data.obsStationer.map(st => ({
-                        id: st.id,
-                        namn: st.namn,
-                        distKm: st.distKm,
-                      }))}
-                      omradeId={data.omradeId}
-                      useStora={!!(effectiveAquifer?.useStoraMagasin)}
-                      years={2}
-                      maxStations={5}
-                    />
-                  </div>
                 </>
               ) : (
                 <div className="text-xs text-muted-foreground mb-3">
