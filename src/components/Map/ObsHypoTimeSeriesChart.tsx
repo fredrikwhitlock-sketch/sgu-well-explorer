@@ -70,7 +70,7 @@ async function fetchNivaerForStations(ids: string[], fromDate: string, signal?: 
       const p = f.properties ?? {};
       const id = String(p.platsbeteckning ?? "");
       const datum = String(p.obsdatum ?? "").slice(0, 10);
-      const djup = cleanNum(p.grundvattenniva_m_under_markyta);
+      const djup = cleanNum(p.grundvattenniva_m_u_markyta ?? p.grundvattenniva_m_urok);
       if (!id || !datum || djup == null) continue;
       const ts = new Date(datum).getTime();
       if (!Number.isFinite(ts)) continue;
