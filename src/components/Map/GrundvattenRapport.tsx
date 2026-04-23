@@ -2116,7 +2116,7 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
                           )}
                         </div>
                         <div className="text-right shrink-0 ml-2">
-                          <span className="font-semibold text-blue-700 dark:text-blue-400">{st.djup.toFixed(1)} m</span>
+                          <span className="font-semibold text-blue-700 dark:text-blue-400">{parseFloat(st.djup.toPrecision(3))} m</span>
                           <div className="text-[10px] text-muted-foreground">{st.obsdatum.slice(0, 10)}</div>
                         </div>
                       </div>
@@ -2212,6 +2212,15 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
 
                   {data.hypoSeries && data.hypoSeries.length >= 2 && (() => {
                     const xFmt = (v: string) => { const d = new Date(v); const m = d.toLocaleDateString('sv', { month: 'short' }).replace('.', ''); return d.getMonth() === 0 ? `${m} ${d.getFullYear()}` : m; };
+                    // Show ~one tick per quarter – pick the first datum of each quarter (Jan/Apr/Jul/Oct)
+                    const quarterTicks = data.hypoSeries!
+                      .map(d => d.datum)
+                      .filter(d => [0, 3, 6, 9].includes(new Date(d).getMonth()))
+                      .reduce<string[]>((acc, d) => {
+                        const key = d.slice(0, 7); // YYYY-MM
+                        if (!acc.some(x => x.slice(0, 7) === key)) acc.push(d);
+                        return acc;
+                      }, []);
                     const tip = (active: boolean | undefined, payload: any, label: any) => {
                       if (!active || !payload?.length) return null;
                       return (
@@ -2246,7 +2255,7 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
                               </linearGradient>
                             </defs>
                             {zones}
-                            <XAxis dataKey="datum" tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }} tickLine={false} axisLine={false} tickFormatter={xFmt} interval="preserveStartEnd" />
+                            <XAxis dataKey="datum" tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }} tickLine={false} axisLine={false} tickFormatter={xFmt} ticks={quarterTicks} />
                             <YAxis domain={[0, 100]} hide />
                             <Tooltip content={({ active, payload, label: l }) => tip(active, payload, l)} />
                             {data.hypoDate && <ReferenceLine x={data.hypoDate.slice(0, 10)} stroke="hsl(var(--foreground))" strokeDasharray="3 3" strokeWidth={1} />}
