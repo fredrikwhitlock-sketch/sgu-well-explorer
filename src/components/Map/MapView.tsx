@@ -1344,13 +1344,29 @@ export const MapView = () => {
 
     // Fetch and join level data – uses fetchAllPages for full pagination
     const fetchAndJoinHypoLevels = async (date: string) => {
-      const apiDate = date;
       try {
-        const baseUrl = `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/grundvattennivaer-tidigare/items?f=json&filter=${encodeURIComponent(`datum='${apiDate}'`)}`;
-        const allLevelFeatures = await fetchAllPages(baseUrl);
+        const baseUrl = `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/grundvattennivaer-tidigare/items?f=json&filter=${encodeURIComponent(`datum='${date}'`)}`;
+        let allLevelFeatures = await fetchAllPages(baseUrl);
+
+        // If no data for the requested date, find the latest available date
+        if (allLevelFeatures.length === 0) {
+          const latestResp = await fetch(
+            `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/grundvattennivaer-tidigare/items?f=json&sortby=-datum&limit=1`
+          );
+          if (latestResp.ok) {
+            const latestData = await latestResp.json().catch(() => null);
+            const latestDate = String(latestData?.features?.[0]?.properties?.datum ?? '').split('T')[0];
+            if (latestDate) {
+              const latestUrl = `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/grundvattennivaer-tidigare/items?f=json&filter=${encodeURIComponent(`datum='${latestDate}'`)}`;
+              allLevelFeatures = await fetchAllPages(latestUrl);
+              setHypoAreasDate(latestDate);
+              hypoAreasDateRef.current = latestDate;
+            }
+          }
+        }
 
         if (allLevelFeatures.length === 0) {
-          toast.info(`Ingen data tillgänglig för ${date}`);
+          toast.info(`Ingen data tillgänglig`);
           return;
         }
 
