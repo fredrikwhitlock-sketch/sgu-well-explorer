@@ -478,93 +478,102 @@ export const MapView = () => {
       format: new GeoJSON(),
     });
     
-    const loadWellsForExtent = async (extent: number[]) => {
+    // Load a single ~5km grid cell of wells. Returns number of features added.
+    const WELL_GRID_SIZE = 5000; // meters in EPSG:3857
+    const loadWellsForCell = async (cellX: number, cellY: number) => {
+      const cellKey = `${cellX},${cellY}`;
+      if (loadedWellExtentsRef.includes(cellKey)) return 0;
+      // Mark immediately to prevent duplicate concurrent fetches
+      loadedWellExtentsRef.push(cellKey);
+
+      const minX = cellX * WELL_GRID_SIZE;
+      const minY = cellY * WELL_GRID_SIZE;
+      const maxX = minX + WELL_GRID_SIZE;
+      const maxY = minY + WELL_GRID_SIZE;
+
+      const minLon = (minX / 20037508.34) * 180;
+      const maxLon = (maxX / 20037508.34) * 180;
+      const minLat = (Math.atan(Math.exp((minY / 20037508.34) * Math.PI)) * 360 / Math.PI) - 90;
+      const maxLat = (Math.atan(Math.exp((maxY / 20037508.34) * Math.PI)) * 360 / Math.PI) - 90;
+
       try {
-        // Check zoom level before loading
-        const currentZoom = mapInstanceRef.current?.getView().getZoom() || 0;
-        if (currentZoom < MIN_ZOOM_FOR_WELLS) {
-          console.log(`Zoom level ${currentZoom} is too low for wells (min: ${MIN_ZOOM_FOR_WELLS})`);
-          return;
-        }
-        
-        // Check if this extent area has already been loaded
-        const gridKey = extentToGridKey(extent);
-        if (loadedWellExtentsRef.includes(gridKey)) {
-          console.log(`Wells for extent ${gridKey} already loaded, skipping`);
-          return;
-        }
-        
-        setLoadingWells(true);
-        
-        // Convert Web Mercator extent to WGS84 bbox
-        const [minX, minY, maxX, maxY] = extent;
-        const minLon = (minX / 20037508.34) * 180;
-        const maxLon = (maxX / 20037508.34) * 180;
-        const minLat = (Math.atan(Math.exp((minY / 20037508.34) * Math.PI)) * 360 / Math.PI) - 90;
-        const maxLat = (Math.atan(Math.exp((maxY / 20037508.34) * Math.PI)) * 360 / Math.PI) - 90;
-        
-        // Load from database cache via edge function (bypasses 1000 row limit)
         const wellsQueryUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wells-query?minLon=${minLon}&maxLon=${maxLon}&minLat=${minLat}&maxLat=${maxLat}&limit=50000`;
-        
         const cacheResponse = await fetch(wellsQueryUrl);
         const cacheData = cacheResponse.ok ? await cacheResponse.json() : null;
-        
+
+        let geojsonFeatures: any[] = [];
         if (cacheData && cacheData.wells && cacheData.wells.length > 0) {
-          console.log(`Loaded ${cacheData.wells.length} wells from database cache`);
-          
-          const geojsonFeatures = cacheData.wells.map((w: any) => ({
+          geojsonFeatures = cacheData.wells.map((w: any) => ({
             type: "Feature",
             geometry: { type: "Point", coordinates: [w.lon, w.lat] },
             properties: { ...w.properties, brunnsid: w.brunnsid, obsplatsid: w.obsplatsid },
           }));
-          
-          const features = new GeoJSON().readFeatures(
-            { type: "FeatureCollection", features: geojsonFeatures },
-            { dataProjection: "EPSG:4326", featureProjection: "EPSG:3857" }
-          );
-          
-          const existingIds = new Set(wellsSource.getFeatures().map(f => f.get('brunnsid')));
-          const newFeatures = features.filter(f => !existingIds.has(f.get('brunnsid')));
-          
-          if (newFeatures.length > 0) {
-            wellsSource.addFeatures(newFeatures);
-          }
-          
-          setWellsLoaded(wellsSource.getFeatures().length);
-          loadedWellExtentsRef.push(gridKey);
         } else {
-          // Fallback to SGU API if database is empty
-          console.log("Database cache empty, falling back to SGU API...");
+          // Fallback to SGU API
           const bbox = `${minLon},${minLat},${maxLon},${maxLat}`;
           const url = `https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar/items?f=json&bbox=${bbox}&limit=50000`;
-          
           const response = await fetch(url);
-          if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-          
+          if (!response.ok) return 0;
           const data = await response.json();
-          
-          if (data.features && data.features.length > 0) {
-            const features = new GeoJSON().readFeatures(
-              { type: "FeatureCollection", features: data.features },
-              { dataProjection: "EPSG:4326", featureProjection: "EPSG:3857" }
-            );
-            
-            const existingIds = new Set(wellsSource.getFeatures().map(f => f.get('brunnsid')));
-            const newFeatures = features.filter(f => !existingIds.has(f.get('brunnsid')));
-            
-            if (newFeatures.length > 0) {
-              wellsSource.addFeatures(newFeatures);
-            }
-            
-            setWellsLoaded(wellsSource.getFeatures().length);
-            loadedWellExtentsRef.push(gridKey);
-          } else {
-            loadedWellExtentsRef.push(gridKey);
-          }
+          geojsonFeatures = data.features || [];
         }
-      } catch (error) {
-        console.error("Error loading wells:", error);
-        toast.error("Kunde inte ladda brunnar");
+
+        if (geojsonFeatures.length === 0) return 0;
+
+        const features = new GeoJSON().readFeatures(
+          { type: "FeatureCollection", features: geojsonFeatures },
+          { dataProjection: "EPSG:4326", featureProjection: "EPSG:3857" }
+        );
+        const existingIds = new Set(wellsSource.getFeatures().map(f => f.get('brunnsid')));
+        const newFeatures = features.filter(f => !existingIds.has(f.get('brunnsid')));
+        if (newFeatures.length > 0) wellsSource.addFeatures(newFeatures);
+        return newFeatures.length;
+      } catch (err) {
+        console.error(`Error loading wells for cell ${cellKey}:`, err);
+        // Allow retry by removing the key
+        const idx = loadedWellExtentsRef.indexOf(cellKey);
+        if (idx >= 0) loadedWellExtentsRef.splice(idx, 1);
+        return 0;
+      }
+    };
+
+    const loadWellsForExtent = async (extent: number[]) => {
+      const currentZoom = mapInstanceRef.current?.getView().getZoom() || 0;
+      if (currentZoom < MIN_ZOOM_FOR_WELLS) {
+        console.log(`Zoom level ${currentZoom} is too low for wells (min: ${MIN_ZOOM_FOR_WELLS})`);
+        return;
+      }
+
+      // Iterate over all grid cells intersecting the viewport so the entire visible
+      // area is loaded — important on wide desktop viewports where a single bbox
+      // query could exceed the row limit and leave parts of the screen empty.
+      const minCellX = Math.floor(extent[0] / WELL_GRID_SIZE);
+      const minCellY = Math.floor(extent[1] / WELL_GRID_SIZE);
+      const maxCellX = Math.floor(extent[2] / WELL_GRID_SIZE);
+      const maxCellY = Math.floor(extent[3] / WELL_GRID_SIZE);
+
+      const cells: Array<[number, number]> = [];
+      for (let x = minCellX; x <= maxCellX; x++) {
+        for (let y = minCellY; y <= maxCellY; y++) {
+          if (!loadedWellExtentsRef.includes(`${x},${y}`)) cells.push([x, y]);
+        }
+      }
+      if (cells.length === 0) return;
+
+      setLoadingWells(true);
+      try {
+        // Limit concurrency to avoid hammering the edge function
+        const CONCURRENCY = 6;
+        let cursor = 0;
+        const workers = Array.from({ length: Math.min(CONCURRENCY, cells.length) }, async () => {
+          while (cursor < cells.length) {
+            const i = cursor++;
+            const [cx, cy] = cells[i];
+            await loadWellsForCell(cx, cy);
+          }
+        });
+        await Promise.all(workers);
+        setWellsLoaded(wellsSource.getFeatures().length);
       } finally {
         setLoadingWells(false);
       }
@@ -1302,19 +1311,27 @@ export const MapView = () => {
     });
     hypoAreasSourceRef.current = hypoAreasSource;
 
-    // Shared style factory – colors by percentile breaks (10 / 25 / 75 / 90)
+    // Shared style factory – SGU färgskala (percentil 0–100) för både
+    // fyllnadsgrad_* och grundvattensituation_* enligt SGU:s officiella legend:
+    //   0–14   mörkt orange (mycket under normalt)
+    //   15–34  ljust orange (under normalt)
+    //   35–65  ljusgul     (normalt)
+    //   66–85  ljusblå     (över normalt)
+    //   86–100 mörkblå     (mycket över normalt)
     const makeHypoStyle = (field: string) => (feature: any) => {
       const v = feature.get(field);
-      let fillColor = 'rgba(200, 200, 200, 0.4)'; // grå – ingen data
-      if (v !== null && v !== undefined && v !== -1) {
-        if      (v < 10) fillColor = 'rgba(165, 0, 38, 0.75)';
-        else if (v < 25) fillColor = 'rgba(215, 90, 40, 0.75)';
-        else if (v < 75) fillColor = 'rgba(254, 224, 70, 0.75)';
-        else if (v < 90) fillColor = 'rgba(90, 174, 97, 0.75)';
-        else             fillColor = 'rgba(0, 104, 55, 0.75)';
+      let fillColor = 'rgba(200, 200, 200, 0.25)'; // grå – ingen data
+      // SGU sentinel-värden för "ingen data": null, -1, 99
+      const hasData = v !== null && v !== undefined && v !== -1 && v !== 99;
+      if (hasData) {
+        if      (v <= 14) fillColor = 'rgba(217, 95, 14, 0.8)';   // mörkt orange
+        else if (v <= 34) fillColor = 'rgba(253, 174, 97, 0.8)';  // ljust orange
+        else if (v <= 65) fillColor = 'rgba(255, 237, 160, 0.8)'; // ljusgul
+        else if (v <= 85) fillColor = 'rgba(158, 202, 225, 0.8)'; // ljusblå
+        else              fillColor = 'rgba(49, 130, 189, 0.8)';  // mörkblå
       }
       return new Style({
-        stroke: new Stroke({ color: 'rgba(0,0,0,0.2)', width: 0.5 }),
+        stroke: new Stroke({ color: 'rgba(0,0,0,0.25)', width: 0.5 }),
         fill: new Fill({ color: fillColor }),
       });
     };

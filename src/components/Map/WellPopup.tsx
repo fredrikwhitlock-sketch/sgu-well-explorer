@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { X, ExternalLink, Download, BarChart3, PlusCircle, ChevronLeft, ChevronRight, GripHorizontal, Layers, Loader2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import { HypoTimeSeriesChart } from "./HypoTimeSeriesChart";
 
 interface LagerItem {
   lagernr: number;
@@ -227,10 +228,10 @@ export const WellPopup = ({
 
   const getSituationLabel = (value: number | undefined): string => {
     if (value === undefined || value === null) return "Ej angivet";
-    if (value < 10) return "Mycket under normal";
-    if (value < 25) return "Under normal";
-    if (value < 75) return "Nära normal";
-    if (value < 90) return "Över normal";
+    if (value <= 14) return "Mycket under normal";
+    if (value <= 34) return "Under normal";
+    if (value <= 65) return "Nära normal";
+    if (value <= 85) return "Över normal";
     return "Mycket över normal";
   };
 
@@ -1369,59 +1370,100 @@ export const WellPopup = ({
             {/* Små magasin */}
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Små magasin</p>
 
-            {properties.fyllnadsgrad_sma !== undefined && properties.fyllnadsgrad_sma !== null && properties.fyllnadsgrad_sma !== -1 && (
+            {properties.fyllnadsgrad_sma !== undefined && properties.fyllnadsgrad_sma !== null && properties.fyllnadsgrad_sma !== -1 && properties.fyllnadsgrad_sma !== 99 && (
               <div>
                 <dt className="text-xs font-medium text-muted-foreground">Fyllnadsgrad (percentil)</dt>
                 <dd className="text-sm text-foreground mt-1 font-semibold">
                   {properties.fyllnadsgrad_sma}%
                   {' '}
                   <span className="font-normal text-muted-foreground">
-                    {properties.fyllnadsgrad_sma < 10 ? '— Mycket under normalt' :
-                     properties.fyllnadsgrad_sma < 25 ? '— Under normalt' :
-                     properties.fyllnadsgrad_sma < 75 ? '— Normalt' :
-                     properties.fyllnadsgrad_sma < 90 ? '— Över normalt' :
+                    {properties.fyllnadsgrad_sma <= 14 ? '— Mycket under normalt' :
+                     properties.fyllnadsgrad_sma <= 34 ? '— Under normalt' :
+                     properties.fyllnadsgrad_sma <= 65 ? '— Normalt' :
+                     properties.fyllnadsgrad_sma <= 85 ? '— Över normalt' :
                      '— Mycket över normalt'}
                   </span>
                 </dd>
               </div>
             )}
 
-            {properties.grundvattensituation_sma !== undefined && properties.grundvattensituation_sma !== null && properties.grundvattensituation_sma !== -1 && (
+            {properties.grundvattensituation_sma !== undefined && properties.grundvattensituation_sma !== null && properties.grundvattensituation_sma !== -1 && properties.grundvattensituation_sma !== 99 && (
               <div>
                 <dt className="text-xs font-medium text-muted-foreground">Grundvattensituation</dt>
-                <dd className="text-sm text-foreground mt-1">{properties.grundvattensituation_sma}</dd>
+                <dd className="text-sm text-foreground mt-1">
+                  {properties.grundvattensituation_sma}
+                  {' '}
+                  <span className="font-normal text-muted-foreground">
+                    {properties.grundvattensituation_sma <= 14 ? '— Mycket under normalt' :
+                     properties.grundvattensituation_sma <= 34 ? '— Under normalt' :
+                     properties.grundvattensituation_sma <= 65 ? '— Normalt' :
+                     properties.grundvattensituation_sma <= 85 ? '— Över normalt' :
+                     '— Mycket över normalt'}
+                  </span>
+                </dd>
               </div>
             )}
 
             {/* Stora magasin */}
-            {(properties.fyllnadsgrad_stora !== undefined && properties.fyllnadsgrad_stora !== -1) && (
+            {((properties.fyllnadsgrad_stora !== undefined && properties.fyllnadsgrad_stora !== -1 && properties.fyllnadsgrad_stora !== 99) ||
+              (properties.grundvattensituation_stora !== undefined && properties.grundvattensituation_stora !== -1 && properties.grundvattensituation_stora !== 99)) && (
               <>
                 <Separator className="my-3" />
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Stora magasin</p>
 
-                {properties.fyllnadsgrad_stora !== -1 && (
+                {properties.fyllnadsgrad_stora !== undefined && properties.fyllnadsgrad_stora !== null && properties.fyllnadsgrad_stora !== -1 && properties.fyllnadsgrad_stora !== 99 && (
                   <div>
                     <dt className="text-xs font-medium text-muted-foreground">Fyllnadsgrad (percentil)</dt>
                     <dd className="text-sm text-foreground mt-1 font-semibold">
                       {properties.fyllnadsgrad_stora}%
                       {' '}
                       <span className="font-normal text-muted-foreground">
-                        {properties.fyllnadsgrad_stora < 10 ? '— Mycket under normalt' :
-                         properties.fyllnadsgrad_stora < 25 ? '— Under normalt' :
-                         properties.fyllnadsgrad_stora < 75 ? '— Normalt' :
-                         properties.fyllnadsgrad_stora < 90 ? '— Över normalt' :
+                        {properties.fyllnadsgrad_stora <= 14 ? '— Mycket under normalt' :
+                         properties.fyllnadsgrad_stora <= 34 ? '— Under normalt' :
+                         properties.fyllnadsgrad_stora <= 65 ? '— Normalt' :
+                         properties.fyllnadsgrad_stora <= 85 ? '— Över normalt' :
                          '— Mycket över normalt'}
                       </span>
                     </dd>
                   </div>
                 )}
 
-                {properties.grundvattensituation_stora !== undefined && properties.grundvattensituation_stora !== -1 && (
+                {properties.grundvattensituation_stora !== undefined && properties.grundvattensituation_stora !== null && properties.grundvattensituation_stora !== -1 && properties.grundvattensituation_stora !== 99 && (
                   <div>
                     <dt className="text-xs font-medium text-muted-foreground">Grundvattensituation</dt>
-                    <dd className="text-sm text-foreground mt-1">{properties.grundvattensituation_stora}</dd>
+                    <dd className="text-sm text-foreground mt-1">
+                      {properties.grundvattensituation_stora}
+                      {' '}
+                      <span className="font-normal text-muted-foreground">
+                        {properties.grundvattensituation_stora <= 14 ? '— Mycket under normalt' :
+                         properties.grundvattensituation_stora <= 34 ? '— Under normalt' :
+                         properties.grundvattensituation_stora <= 65 ? '— Normalt' :
+                         properties.grundvattensituation_stora <= 85 ? '— Över normalt' :
+                         '— Mycket över normalt'}
+                      </span>
+                    </dd>
                   </div>
                 )}
+              </>
+            )}
+
+            {/* Tidsseriediagram – fyllnadsgrad + situation, små + stora */}
+            {properties.omrade_id !== undefined && properties.omrade_id !== null && (
+              <>
+                <Separator className="my-3" />
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                  Tidsserier – senaste 3 åren
+                </p>
+                <HypoTimeSeriesChart
+                  omradeId={Number(properties.omrade_id)}
+                  hasStora={
+                    (properties.fyllnadsgrad_stora !== undefined && properties.fyllnadsgrad_stora !== null && properties.fyllnadsgrad_stora !== -1 && properties.fyllnadsgrad_stora !== 99) ||
+                    (properties.grundvattensituation_stora !== undefined && properties.grundvattensituation_stora !== null && properties.grundvattensituation_stora !== -1 && properties.grundvattensituation_stora !== 99)
+                  }
+                />
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Gult band = normalintervall (25–75:e percentilen / klass 3).
+                </p>
               </>
             )}
 
@@ -1616,22 +1658,24 @@ export const WellPopup = ({
             )}
           </>
         ) : (
+          <>
+            <Separator className="my-2" />
 
-        <Separator className="my-2" />
-        
-        <div className="pt-2">
-          <p className="text-xs text-muted-foreground">
-            Källa:{" "}
-            <a 
-              href="https://www.sgu.se" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="text-sgu-link hover:underline"
-            >
-              Sveriges geologiska undersökning (SGU)
-            </a>
-          </p>
-        </div>
+            <div className="pt-2">
+              <p className="text-xs text-muted-foreground">
+                Källa:{" "}
+                <a
+                  href="https://www.sgu.se"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sgu-link hover:underline"
+                >
+                  Sveriges geologiska undersökning (SGU)
+                </a>
+              </p>
+            </div>
+          </>
+        )}
       </div>
     </Card>
   );
