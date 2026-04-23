@@ -877,7 +877,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
              fetch(`${levelBase}&filter=${encodeURIComponent(`omrade_id=${id}`)}&sortby=-datum&limit=1`, { signal }).then(safeJson).catch(() => null),
            ]);
            seriesPromise = fetch(
-             `${levelBase}&filter=${encodeURIComponent(`omrade_id=${id}`)}&sortby=-datum&limit=26`,
+             `${levelBase}&filter=${encodeURIComponent(`omrade_id=${id}`)}&sortby=-datum&limit=600`,
              { signal }
            ).then(safeJson).catch(() => null);
          }
@@ -2107,6 +2107,22 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
                   <div className="text-xs text-muted-foreground mb-2">
                     {data.obsStationer.length} stationer med nivåobservationer ±7 dagar från {selectedDate}. Klicka på en station för att visa nivådiagram för senaste 2 åren.
                   </div>
+                  {/* Fyllnadsgrad context for observed levels */}
+                  {(data.fyllnadsgradSma != null || data.fyllnadsgradStora != null) && (
+                    <div className="flex gap-2 mb-2">
+                      {[
+                        { label: 'Fyllnadsgrad små magasin', val: data.fyllnadsgradSma },
+                        { label: 'Fyllnadsgrad stora magasin', val: data.fyllnadsgradStora },
+                      ].map(({ label, val }) => (
+                        <div key={label} className={`flex-1 rounded px-2 py-1.5 text-xs ${fyllnadBg(val)}`}>
+                          <div className="text-[10px] text-muted-foreground leading-tight mb-0.5">{label}</div>
+                          {val != null && val !== -1
+                            ? <span className={`font-semibold ${fyllnadColor(val)}`}>{Math.round(val)}:e perc. · {fyllnadLabel(val)}</span>
+                            : <span className="text-muted-foreground italic text-[10px]">Ingen data</span>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <div className="space-y-1.5 mb-3">
                     {data.obsStationer.slice(0, 10).map(st => {
                       const isOpen = expandedObsStation === st.id;
