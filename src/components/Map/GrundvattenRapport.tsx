@@ -632,6 +632,7 @@ const GV_KLASS_COLORS: Record<number, string> = {
 
 export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysisData, onOpenAI }: Props) => {
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [expandedObsStation, setExpandedObsStation] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<ReportData | null>(null);
   const [error, setError] = useState<string | null>(null);
