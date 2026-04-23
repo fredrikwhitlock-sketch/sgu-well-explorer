@@ -695,7 +695,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
 
     const lines: string[] = [
       `## Grundvattenanalys – ${data.lat.toFixed(5)}°N, ${data.lon.toFixed(5)}°E`,
-      `**Datum (HYPE):** ${data.hypoDate ?? 'okänt'}${data.hypoDateIsFallback ? ' (senaste tillgängliga)' : ''}`,
+      `**HYPE-data (senaste):** ${data.hypoDate ?? 'okänt'}`,
       `**SWEREF99 TM:** E ${Math.round(data.sweref[0])}, N ${Math.round(data.sweref[1])}`,
       ...(data.elevation != null ? [`**Höjd:** ${data.elevation} m ö.h. (EU-DEM 25m)`] : []),
       '',
@@ -873,7 +873,6 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
            omradeIdCapture = id;
            const safeJson = (r: Response) => r.ok ? r.json().catch(() => null) : null;
            levelsPromise = Promise.all([
-             fetch(`${levelBase}&filter=${encodeURIComponent(`omrade_id=${id} AND datum='${selectedDate}'`)}&limit=1`, { signal }).then(safeJson).catch(() => null),
              fetch(`${levelBase}&filter=${encodeURIComponent(`omrade_id=${id}`)}&sortby=-datum&limit=1`, { signal }).then(safeJson).catch(() => null),
            ]);
            const monthUrls: string[] = [];
@@ -990,8 +989,8 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
 
       if (signal.aborted) return;
 
-      const [[dateResult, latestResult], seriesData, nivaerData, brunnarData] = await Promise.all([
-        levelsPromise ?? Promise.resolve([null, null]),
+      const [[latestResult], seriesData, nivaerData, brunnarData] = await Promise.all([
+        levelsPromise ?? Promise.resolve([null]),
         seriesPromise ?? Promise.resolve(null),
         nivaerPromise ?? Promise.resolve(null),
         brunnarChain,
@@ -1004,12 +1003,11 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
       if (omradenRes.status === 'fulfilled' && omradeIdCapture !== undefined) {
         result.omradeId = omradeIdCapture;
       }
-      const usedLatest = !(dateResult?.features?.length > 0);
-      const levelFeature = (usedLatest ? latestResult : dateResult)?.features?.[0];
+      const levelFeature = latestResult?.features?.[0];
       if (levelFeature) {
         const p = levelFeature.properties;
         result.hypoDate = p.datum;
-        result.hypoDateIsFallback = usedLatest;
+        result.hypoDateIsFallback = false;
         result.fyllnadsgradSma = p.fyllnadsgrad_sma;
         result.fyllnadsgradStora = p.fyllnadsgrad_stora;
         result.sitSma = p.grundvattensituation_sma;
@@ -1897,7 +1895,7 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
 
       {/* Date picker */}
       <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-secondary/30 shrink-0">
-        <span className="text-xs text-muted-foreground whitespace-nowrap">Datum (HYPE):</span>
+        <span className="text-xs text-muted-foreground whitespace-nowrap">Datum:</span>
         <input
           type="date"
           value={selectedDate}
@@ -2171,10 +2169,7 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
                   <div className="text-xs text-muted-foreground mb-2">
                     SGU-HYPE område {data.omradeId}
                     {data.hypoDate && (
-                      <span>
-                        {' · '}{data.hypoDate.replace(/Z$/, '')}
-                        {data.hypoDateIsFallback && <span className="italic"> (senaste tillgängliga)</span>}
-                      </span>
+                      <span>{' · '}{data.hypoDate.replace(/Z$/, '')} <span className="italic">(senaste)</span></span>
                     )}
                   </div>
                   <div className="grid grid-cols-2 gap-2 mb-3">
@@ -2822,7 +2817,7 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
                   <SourceRow
                     label="Grundvattennivå – situation / fyllnadsgrad"
                     source="SGU-HYPE Grundvattennivåer"
-                    note="Månadsmodell (SGU-HYPE) som ger situationsklassning och fyllnadsgrad för små och stora magasin i det hydrologiska område som punkten tillhör. Om valt datum saknar data visas senaste tillgängliga."
+                    note="Månadsmodell (SGU-HYPE) som ger situationsklassning och fyllnadsgrad för små och stora magasin i det hydrologiska område som punkten tillhör. Visar alltid senaste tillgängliga datum."
                     url="https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1"
                   />
 
