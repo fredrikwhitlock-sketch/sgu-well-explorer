@@ -2107,22 +2107,6 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
                   <div className="text-xs text-muted-foreground mb-2">
                     {data.obsStationer.length} stationer med nivåobservationer ±7 dagar från {selectedDate}. Klicka på en station för att visa nivådiagram för senaste 2 åren.
                   </div>
-                  {/* Fyllnadsgrad context for observed levels */}
-                  {(data.fyllnadsgradSma != null || data.fyllnadsgradStora != null) && (
-                    <div className="flex gap-2 mb-2">
-                      {[
-                        { label: 'Fyllnadsgrad små magasin', val: data.fyllnadsgradSma },
-                        { label: 'Fyllnadsgrad stora magasin', val: data.fyllnadsgradStora },
-                      ].map(({ label, val }) => (
-                        <div key={label} className={`flex-1 rounded px-2 py-1.5 text-xs ${fyllnadBg(val)}`}>
-                          <div className="text-[10px] text-muted-foreground leading-tight mb-0.5">{label}</div>
-                          {val != null && val !== -1
-                            ? <span className={`font-semibold ${fyllnadColor(val)}`}>{Math.round(val)}:e perc. · {fyllnadLabel(val)}</span>
-                            : <span className="text-muted-foreground italic text-[10px]">Ingen data</span>}
-                        </div>
-                      ))}
-                    </div>
-                  )}
                   <div className="space-y-1.5 mb-3">
                     {data.obsStationer.slice(0, 10).map(st => {
                       const isOpen = expandedObsStation === st.id;
@@ -2161,8 +2145,12 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
                             </div>
                           )}
                         </div>
-                      );
-                    })}
+                        <div className="text-right shrink-0 ml-2">
+                          <span className="font-semibold text-blue-700 dark:text-blue-400">{parseFloat(st.djup.toPrecision(3))} m</span>
+                          <div className="text-[10px] text-muted-foreground">{st.obsdatum.slice(0, 10)}</div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                   {data.obsStationer.length > 10 && (
                     <div className="text-[10px] text-muted-foreground mb-3 text-right">
@@ -2254,6 +2242,15 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
 
                   {data.hypoSeries && data.hypoSeries.length >= 2 && (() => {
                     const xFmt = (v: string) => { const d = new Date(v); const m = d.toLocaleDateString('sv', { month: 'short' }).replace('.', ''); return d.getMonth() === 0 ? `${m} ${d.getFullYear()}` : m; };
+                    // Show ~one tick per quarter – pick the first datum of each quarter (Jan/Apr/Jul/Oct)
+                    const quarterTicks = data.hypoSeries!
+                      .map(d => d.datum)
+                      .filter(d => [0, 3, 6, 9].includes(new Date(d).getMonth()))
+                      .reduce<string[]>((acc, d) => {
+                        const key = d.slice(0, 7); // YYYY-MM
+                        if (!acc.some(x => x.slice(0, 7) === key)) acc.push(d);
+                        return acc;
+                      }, []);
                     const tip = (active: boolean | undefined, payload: any, label: any) => {
                       if (!active || !payload?.length) return null;
                       return (
@@ -2276,65 +2273,31 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
                         <ReferenceArea y1={90} y2={100} fill="rgba(21,128,61,0.15)" ifOverflow="hidden" />
                       </>
                     );
-                    const legend = (
-                      <div className="flex gap-2 justify-center mt-1">
-                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground"><span className="inline-block w-3 h-0.5 rounded bg-blue-500" />Litet</span>
-                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground"><span className="inline-block w-3 h-0.5 rounded bg-green-500" />Stort</span>
-                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground"><span className="inline-block w-3 h-0.5 rounded" style={{ borderTop: '1px dashed currentColor', background: 'none' }} />Valt datum</span>
+                    const singleChart = (key: 'fyllnadSma' | 'fyllnadStora', label: string, color: string, gradId: string) => (
+                      <div>
+                        <div className="text-[10px] text-muted-foreground mb-1 uppercase tracking-wide">{label}</div>
+                        <ResponsiveContainer width="100%" height={80}>
+                          <AreaChart data={data.hypoSeries} margin={{ top: 2, right: 4, left: -28, bottom: 0 }}>
+                            <defs>
+                              <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%"  stopColor={color} stopOpacity={0.5} />
+                                <stop offset="95%" stopColor={color} stopOpacity={0} />
+                              </linearGradient>
+                            </defs>
+                            {zones}
+                            <XAxis dataKey="datum" tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }} tickLine={false} axisLine={false} tickFormatter={xFmt} ticks={quarterTicks} />
+                            <YAxis domain={[0, 100]} hide />
+                            <Tooltip content={({ active, payload, label: l }) => tip(active, payload, l)} />
+                            {data.hypoDate && <ReferenceLine x={data.hypoDate.slice(0, 10)} stroke="hsl(var(--foreground))" strokeDasharray="3 3" strokeWidth={1} />}
+                            <Area type="monotone" dataKey={key} name={label} stroke={color} fill={`url(#${gradId})`} strokeWidth={1.5} dot={false} connectNulls />
+                          </AreaChart>
+                        </ResponsiveContainer>
                       </div>
                     );
                     return (
                       <div className="space-y-3 mt-3 mb-3">
-                        <div>
-                          <div className="text-[10px] text-muted-foreground mb-1 uppercase tracking-wide">Fyllnadsgrad – senaste 2 åren</div>
-                          <ResponsiveContainer width="100%" height={85}>
-                            <AreaChart data={data.hypoSeries} margin={{ top: 2, right: 4, left: -28, bottom: 0 }}>
-                              <defs>
-                                <linearGradient id="gfSma" x1="0" y1="0" x2="0" y2="1">
-                                  <stop offset="5%"  stopColor="#3b82f6" stopOpacity={0.5} />
-                                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                                </linearGradient>
-                                <linearGradient id="gfStora" x1="0" y1="0" x2="0" y2="1">
-                                  <stop offset="5%"  stopColor="#22c55e" stopOpacity={0.5} />
-                                  <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
-                                </linearGradient>
-                              </defs>
-                              {zones}
-                              <XAxis dataKey="datum" tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }} tickLine={false} axisLine={false} tickFormatter={xFmt} interval={2} />
-                              <YAxis domain={[0, 100]} hide />
-                              <Tooltip content={({ active, payload, label }) => tip(active, payload, label)} />
-                              {data.hypoDate && <ReferenceLine x={data.hypoDate.slice(0, 10)} stroke="hsl(var(--foreground))" strokeDasharray="3 3" strokeWidth={1} />}
-                              <Area type="monotone" dataKey="fyllnadStora" name="Stort" stroke="#22c55e" fill="url(#gfStora)" strokeWidth={1.5} dot={false} connectNulls />
-                              <Area type="monotone" dataKey="fyllnadSma"   name="Litet"  stroke="#3b82f6" fill="url(#gfSma)"   strokeWidth={1.5} dot={false} connectNulls />
-                            </AreaChart>
-                          </ResponsiveContainer>
-                          {legend}
-                        </div>
-                        <div>
-                          <div className="text-[10px] text-muted-foreground mb-1 uppercase tracking-wide">Situation – senaste 2 åren</div>
-                          <ResponsiveContainer width="100%" height={85}>
-                            <AreaChart data={data.hypoSeries} margin={{ top: 2, right: 4, left: -28, bottom: 0 }}>
-                              <defs>
-                                <linearGradient id="gsSma" x1="0" y1="0" x2="0" y2="1">
-                                  <stop offset="5%"  stopColor="#818cf8" stopOpacity={0.5} />
-                                  <stop offset="95%" stopColor="#818cf8" stopOpacity={0} />
-                                </linearGradient>
-                                <linearGradient id="gsStora" x1="0" y1="0" x2="0" y2="1">
-                                  <stop offset="5%"  stopColor="#4ade80" stopOpacity={0.5} />
-                                  <stop offset="95%" stopColor="#4ade80" stopOpacity={0} />
-                                </linearGradient>
-                              </defs>
-                              {zones}
-                              <XAxis dataKey="datum" tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }} tickLine={false} axisLine={false} tickFormatter={xFmt} interval={2} />
-                              <YAxis domain={[0, 100]} hide />
-                              <Tooltip content={({ active, payload, label }) => tip(active, payload, label)} />
-                              {data.hypoDate && <ReferenceLine x={data.hypoDate.slice(0, 10)} stroke="hsl(var(--foreground))" strokeDasharray="3 3" strokeWidth={1} />}
-                              <Area type="monotone" dataKey="sitStora" name="Stort" stroke="#4ade80" fill="url(#gsStora)" strokeWidth={1.5} dot={false} connectNulls />
-                              <Area type="monotone" dataKey="sitSma"   name="Litet"  stroke="#818cf8" fill="url(#gsSma)"   strokeWidth={1.5} dot={false} connectNulls />
-                            </AreaChart>
-                          </ResponsiveContainer>
-                          {legend}
-                        </div>
+                        {singleChart('fyllnadSma',   'Fyllnadsgrad – Små magasin',   '#3b82f6', 'gfSma')}
+                        {singleChart('fyllnadStora', 'Fyllnadsgrad – Stora magasin', '#22c55e', 'gfStora')}
                       </div>
                     );
                   })()}
