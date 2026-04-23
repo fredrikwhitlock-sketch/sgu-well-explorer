@@ -3,6 +3,7 @@ import { X, Droplets, Loader2, MapPin, AlertCircle, RefreshCw, Info, ChevronDown
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, ReferenceArea } from "recharts";
 import proj4 from "proj4";
 import { getSoilTypeColor } from "../../lib/soilTypeColors";
+import { ObsHypoTimeSeriesChart } from "./ObsHypoTimeSeriesChart";
 
 interface Props {
   coordinate: [number, number]; // Web Mercator EPSG:3857
