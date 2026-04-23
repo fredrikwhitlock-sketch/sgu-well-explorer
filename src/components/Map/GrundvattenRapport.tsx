@@ -2780,9 +2780,9 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
                     url="https://api.sgu.se/oppnadata/grundvattenmagasin/ogc/features/v1"
                   />
                   <SourceRow
-                    label="Grundvattennivå – observerade stationer"
+                    label="Observationer av grundvattennivån"
                     source="SGU Grundvattennivåer observerade"
-                    note="Fysiska mätstationer med nivåloggar. Stationer inom 50 km används som kalibreringspunkter för nivå- och djupuppskattning, matchade mot akvifertyp. Observationer inom ±7 dagar från valt datum."
+                    note="Fysiska mätstationer med nivåloggar – observationer av grundvattennivån. Stationer inom 50 km används som kalibreringspunkter för nivå- och djupuppskattning, matchade mot akvifertyp. Observationer inom ±7 dagar från valt datum."
                     url="https://api.sgu.se/oppnadata/grundvattennivaer-observerade/ogc/features/v1"
                   />
                   <SourceRow
