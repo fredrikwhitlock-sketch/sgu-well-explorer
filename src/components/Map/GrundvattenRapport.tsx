@@ -1042,7 +1042,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
       // Surface layers represent what the map shows and what a driller encounters first.
       const extractJordart = (features: any[]): { name: string; kod: string } | null => {
         if (!features?.length) return null;
-        const f = features.find(f => (f.properties?.jg2 ?? f.properties?.JG2) !== 91) ?? features[0];
+        const f = features[0];
         const jg2 = f.properties?.jg2 ?? f.properties?.JG2;
         if (jg2 == null) return null;
         return { name: getSoilTypeColor(Number(jg2)).name, kod: String(jg2) };
@@ -1063,11 +1063,6 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
         await tryRes(overstaRes,    'oversta-ytlager');
         await tryRes(ytlagerRes,    'ytlager');
         await tryRes(jordartCql2Res, 'grundlager');
-        if (!jordart && jordartBboxRes.status === 'fulfilled' && jordartBboxRes.value.ok) {
-          const d = await jordartBboxRes.value.json().catch(() => null);
-          const j = extractJordart(d?.features);
-          if (j) { jordart = j; kalla = 'grundlager'; }
-        }
         if (jordart) { result.jordartNamn = jordart.name; result.jordartKod = jordart.kod; result.jordartKalla = kalla; }
       } catch { /* ignore */ }
 
@@ -1542,8 +1537,10 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
   useEffect(() => { fetchData(); }, [fetchData]);
 
   // ── Derived interpretation ─────────────────────────────────────────────────
+  const isWaterPoint = data?.jordartKod === '91';
   // Use jg2 code when available (precise); fall back to name-based match.
-  const aquifer = data
+  // Water (jg2=91) is not an aquifer – skip classification entirely.
+  const aquifer = data && !isWaterPoint
     ? (data.jordartKod ? classifyByJg2(Number(data.jordartKod)) : classifyAquifer(data.jordartNamn))
     : null;
 
@@ -1961,8 +1958,17 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
             <div>
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Tolkning</h3>
 
+              {/* Water point – no aquifer analysis */}
+              {isWaterPoint ? (
+                <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mb-2">
+                  <div className="text-xs text-muted-foreground mb-0.5">Jordart (ytgeologi)</div>
+                  <div className="font-semibold text-blue-700 dark:text-blue-400">Vatten</div>
+                  <div className="text-xs text-muted-foreground mt-1">Punkten ligger i ett vattendrag, sjö eller hav – ingen akviferanalys</div>
+                </div>
+              ) : null}
+
               {/* Aquifer type – only shown when we have actual jordart data */}
-              {aquifer && aquifer.type !== 'unknown' ? (
+              {!isWaterPoint && aquifer && aquifer.type !== 'unknown' ? (
                 <div className="bg-secondary/40 rounded-lg p-3 mb-2">
                   {effectiveAquifer && effectiveAquifer !== aquifer ? (
                     // Surface is a confining layer; the effective aquifer comes from
@@ -1987,13 +1993,14 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
                     </div>
                   )}
                 </div>
-              ) : !data.jordartNamn ? (
+              ) : !isWaterPoint && !data.jordartNamn ? (
                 <div className="text-xs text-muted-foreground mb-2">
                   Ingen jordartsinformation tillgänglig för denna punkt
                 </div>
               ) : null}
 
-              {/* Capacity interpretation */}
+              {/* Capacity interpretation – not relevant for water points */}
+              {!isWaterPoint && (
               <div className="rounded-lg border border-border p-3">
                 <div className="text-xs text-muted-foreground mb-0.5">Kapacitet – uppskattning</div>
                 {/* For rock/morän terrain the relevant well type is always bergborrad */}
@@ -2088,6 +2095,7 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
                   </div>
                 )}
               </div>
+              )}
             </div>
 
             <hr className="border-border" />
