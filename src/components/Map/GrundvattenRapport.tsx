@@ -876,14 +876,10 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
              fetch(`${levelBase}&filter=${encodeURIComponent(`omrade_id=${id} AND datum='${selectedDate}'`)}&limit=1`, { signal }).then(safeJson).catch(() => null),
              fetch(`${levelBase}&filter=${encodeURIComponent(`omrade_id=${id}`)}&sortby=-datum&limit=1`, { signal }).then(safeJson).catch(() => null),
            ]);
-           const monthUrls: string[] = [];
-           for (let i = 24; i >= 0; i--) {
-             const md = new Date(selectedDate);
-             md.setMonth(md.getMonth() - i);
-             md.setDate(1);
-             monthUrls.push(`${levelBase}&filter=${encodeURIComponent(`omrade_id=${id} AND datum='${md.toISOString().split('T')[0]}'`)}&limit=1`);
-           }
-           seriesPromise = Promise.all(monthUrls.map(url => fetch(url, { signal }).then(safeJson).catch(() => null)));
+           seriesPromise = fetch(
+             `${levelBase}&filter=${encodeURIComponent(`omrade_id=${id}`)}&sortby=-datum&limit=26`,
+             { signal }
+           ).then(safeJson).catch(() => null);
          }
          return d;
        }).catch(() => null);
@@ -1015,11 +1011,10 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
         result.sitSma = p.grundvattensituation_sma;
         result.sitStora = p.grundvattensituation_stora;
       }
-      if (Array.isArray(seriesData)) {
-        const parsed = (seriesData as any[])
-          .filter(d => d?.features?.length > 0)
-          .map((d: any) => {
-            const p = d.features[0].properties ?? {};
+      if (seriesData?.features?.length > 0) {
+        const parsed = (seriesData.features as any[])
+          .map((f: any) => {
+            const p = f.properties ?? {};
             return { datum: String(p.datum ?? '').slice(0, 10), fyllnadSma: typeof p.fyllnadsgrad_sma === 'number' ? p.fyllnadsgrad_sma : null, fyllnadStora: typeof p.fyllnadsgrad_stora === 'number' ? p.fyllnadsgrad_stora : null, sitSma: typeof p.grundvattensituation_sma === 'number' ? p.grundvattensituation_sma : null, sitStora: typeof p.grundvattensituation_stora === 'number' ? p.grundvattensituation_stora : null };
           })
           .filter((s: any) => s.datum)
