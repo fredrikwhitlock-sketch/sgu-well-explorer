@@ -345,6 +345,273 @@ export const LayerPanel = ({
           )}
         </div>
 
+        {/* Groundwater Quality Layer Control */}
+        <div className="space-y-3 pt-4 border-t border-border">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label htmlFor="gw-quality-layer" className="text-sm font-medium">
+                Grundvattenkvalitet
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Provplatser {gwQualityLoaded > 0 && `(${gwQualityLoaded})`}
+              </p>
+            </div>
+            <Switch
+              id="gw-quality-layer"
+              checked={gwQualityVisible}
+              onCheckedChange={onGwQualityVisibleChange}
+            />
+          </div>
+
+          {gwQualityVisible && (
+            <div className="mt-2 space-y-2 text-xs">
+              <p className="text-muted-foreground font-medium">Antal prover per station</p>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-center w-5 h-5">
+                    <div className="w-[22px] h-[22px] rotate-45 rounded-[2px] bg-[rgb(127,29,29)] border-2 border-white/90 shadow" />
+                  </div>
+                  <span className="text-muted-foreground">&gt;50 prover (trendstationer)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-center w-5 h-5">
+                    <div className="w-4 h-4 rounded-full bg-[rgb(194,65,12)] border-2 border-white/90 shadow" />
+                  </div>
+                  <span className="text-muted-foreground">20–50 prover</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-center w-5 h-5">
+                    <div className="w-3 h-3 rounded-full bg-[rgb(234,88,12)] border-2 border-white/85 shadow" />
+                  </div>
+                  <span className="text-muted-foreground">10–20 prover</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-center w-5 h-5">
+                    <div className="w-2.5 h-2.5 rounded-full bg-[rgb(251,146,60)] border border-white/80 shadow" />
+                  </div>
+                  <span className="text-muted-foreground">5–10 prover</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-center w-5 h-5">
+                    <div className="w-2 h-2 rounded-full bg-[rgb(253,186,116)] border border-white/75 shadow" />
+                  </div>
+                  <span className="text-muted-foreground">0–5 prover</span>
+                </div>
+              </div>
+              <a
+                href="https://resource.sgu.se/dokument/produkter/grundvattenkvalitet-analysresultat-provplatser-beskrivning.pdf"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sgu-link hover:underline inline-flex items-center gap-1"
+              >
+                Produktbeskrivning <ExternalLink className="w-3 h-3" />
+              </a>
+              {gwQualityLoaded > 0 && (
+                <div className="flex gap-2 mt-2">
+                  {onExportGwQuality && (
+                    <Button variant="outline" size="sm" onClick={onExportGwQuality} className="flex-1 text-xs h-7">
+                      <Download className="w-3 h-3 mr-1" />
+                      Exportera ({gwQualityLoaded})
+                    </Button>
+                  )}
+                  {onClearGwQuality && (
+                    <Button variant="outline" size="sm" onClick={onClearGwQuality} className="text-xs h-7">
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Observed Groundwater Levels Layer Control */}
+        <div className="space-y-3 pt-4 border-t border-border">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label htmlFor="gw-observed-layer" className="text-sm font-medium">
+                Grundvattennivåer observerade
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Mätstationer {gwLevelsObservedLoaded > 0 && `(${gwLevelsObservedLoaded})`}
+              </p>
+            </div>
+            <Switch
+              id="gw-observed-layer"
+              checked={gwLevelsObservedVisible}
+              onCheckedChange={onGwLevelsObservedVisibleChange}
+            />
+          </div>
+
+          {gwLevelsObservedVisible && (
+            <div className="mt-2 space-y-2 text-xs">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-[rgb(147,51,234)]" />
+                <span className="text-muted-foreground">Klickbara stationer</span>
+              </div>
+              <a
+                href="https://resource.sgu.se/dokument/produkter/grundvattennivaer-observerade-beskrivning.pdf"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sgu-link hover:underline inline-flex items-center gap-1"
+              >
+                Produktbeskrivning <ExternalLink className="w-3 h-3" />
+              </a>
+              {gwLevelsObservedLoaded > 0 && (
+                <div className="flex gap-2 mt-2">
+                  {onExportGwLevelsObserved && (
+                    <Button variant="outline" size="sm" onClick={onExportGwLevelsObserved} className="flex-1 text-xs h-7">
+                      <Download className="w-3 h-3 mr-1" />
+                      Exportera ({gwLevelsObservedLoaded})
+                    </Button>
+                  )}
+                  {onClearGwLevelsObserved && (
+                    <Button variant="outline" size="sm" onClick={onClearGwLevelsObserved} className="text-xs h-7">
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* HYPE Beräknade grundvattennivåer – fyra lager */}
+        <div className="space-y-3 pt-4 border-t border-border">
+          <div className="space-y-1">
+            <Label className="text-sm font-medium">Beräknade grundvattennivåer</Label>
+            <p className="text-xs text-muted-foreground">
+              SGU-HYPE {loadingHypoAreas ? '(laddar…)' : hypoAreasLoaded > 0 ? `(${hypoAreasLoaded} områden)` : ''}
+            </p>
+          </div>
+
+          {/* Four sub-layer toggles */}
+          <div className="space-y-2 pl-1">
+            {[
+              { id: 'hypo-fyllnad-sma', label: 'Fyllnadsgrad – Små magasin', checked: hypoFyllnadSmaVisible, onChange: onHypoFyllnadSmaVisibleChange },
+              { id: 'hypo-fyllnad-stora', label: 'Fyllnadsgrad – Stora magasin', checked: hypoFyllnadStoraVisible, onChange: onHypoFyllnadStoraVisibleChange },
+              { id: 'hypo-sit-sma', label: 'Grundvattensituation – Små magasin', checked: hypoSitSmaVisible, onChange: onHypoSitSmaVisibleChange },
+              { id: 'hypo-sit-stora', label: 'Grundvattensituation – Stora magasin', checked: hypoSitStoraVisible, onChange: onHypoSitStoraVisibleChange },
+            ].map(({ id, label, checked, onChange }) => (
+              <div key={id} className="flex items-center justify-between">
+                <Label htmlFor={id} className="text-xs text-foreground cursor-pointer">{label}</Label>
+                <Switch id={id} checked={checked} onCheckedChange={onChange} />
+              </div>
+            ))}
+          </div>
+
+          {(hypoFyllnadSmaVisible || hypoFyllnadStoraVisible || hypoSitSmaVisible || hypoSitStoraVisible) && (
+            <div className="space-y-3">
+              {/* Date selector */}
+              <div className="space-y-1">
+                <Label htmlFor="hypo-areas-date" className="text-xs text-muted-foreground">Datum</Label>
+                <input
+                  id="hypo-areas-date"
+                  type="date"
+                  value={hypoAreasDate}
+                  min="1961-01-01"
+                  onChange={(e) => onHypoAreasDateChange(e.target.value)}
+                  className="w-full text-xs border border-border rounded px-2 py-1 bg-background text-foreground"
+                />
+              </div>
+
+              {/* Opacity slider */}
+              <div className="space-y-2">
+                <Label htmlFor="hypo-areas-opacity" className="text-xs text-muted-foreground">
+                  Transparens: {Math.round(hypoAreasOpacity * 100)}%
+                </Label>
+                <Slider
+                  id="hypo-areas-opacity"
+                  min={0} max={1} step={0.1}
+                  value={[hypoAreasOpacity]}
+                  onValueChange={([v]) => onHypoAreasOpacityChange(v)}
+                  className="w-full"
+                />
+              </div>
+
+              {/* Legend */}
+              <div className="space-y-1 text-xs">
+                <p className="text-muted-foreground font-medium">Färgskala (percentil):</p>
+                {[
+                  { color: 'rgb(165,0,38)',   label: 'Mycket under normalt (<10%)' },
+                  { color: 'rgb(215,90,40)',   label: 'Under normalt (10–25%)' },
+                  { color: 'rgb(254,224,70)',  label: 'Normalt (25–75%)' },
+                  { color: 'rgb(90,174,97)',   label: 'Över normalt (75–90%)' },
+                  { color: 'rgb(0,104,55)',    label: 'Mycket över normalt (>90%)' },
+                  { color: 'rgb(200,200,200)', label: 'Ingen data' },
+                ].map(({ color, label }) => (
+                  <div key={label} className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-sm shrink-0" style={{ backgroundColor: color }} />
+                    <span className="text-muted-foreground">{label}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="text-xs space-y-1">
+                <a
+                  href="https://www.sgu.se/grundvatten/grundvattennivaer/berakningsmodell/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sgu-link hover:underline inline-flex items-center gap-1"
+                >
+                  Om beräkningsmodellen <ExternalLink className="w-3 h-3" />
+                </a>
+                {hypoAreasLoaded > 0 && onClearHypoAreas && (
+                  <div>
+                    <Button variant="outline" size="sm" onClick={onClearHypoAreas} className="text-xs h-7 mt-1">
+                      <Trash2 className="w-3 h-3 mr-1" />
+                      Rensa ({hypoAreasLoaded})
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Observations Layer Control */}
+        <div className="space-y-3 pt-4 border-t border-border">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label htmlFor="observations-layer" className="text-sm font-medium">
+                Observationer
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Fältobservationer {observationsLoaded > 0 && `(${observationsLoaded})`}
+              </p>
+            </div>
+            <Switch
+              id="observations-layer"
+              checked={observationsVisible}
+              onCheckedChange={onObservationsVisibleChange}
+            />
+          </div>
+
+          {observationsVisible && (
+            <div className="mt-2 space-y-2 text-xs">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-[rgb(16,185,129)]" />
+                <span className="text-muted-foreground">Klickbara observationer</span>
+              </div>
+              {observationsLoaded > 0 && (
+                <div className="flex gap-2 mt-2">
+                  {onExportObservations && (
+                    <Button variant="outline" size="sm" onClick={onExportObservations} className="flex-1 text-xs h-7">
+                      <Download className="w-3 h-3 mr-1" />
+                      Exportera ({observationsLoaded})
+                    </Button>
+                  )}
+                  {onClearObservations && (
+                    <Button variant="outline" size="sm" onClick={onClearObservations} className="text-xs h-7">
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* Aquifers Layer Control */}
         <div className="space-y-3 pt-4 border-t border-border">
           <div className="flex items-center justify-between">
@@ -362,7 +629,7 @@ export const LayerPanel = ({
               onCheckedChange={onAquifersVisibleChange}
             />
           </div>
-          
+
           {aquifersVisible && (
             <div className="mt-3 space-y-3">
               <div className="space-y-2">
@@ -388,9 +655,9 @@ export const LayerPanel = ({
                   </div>
                 ))}
                 <p className="text-[10px] text-muted-foreground mt-1">Laddas per vy (zoom ≥ 9)</p>
-                <a 
-                  href="https://www.sgu.se/produkter-och-tjanster/geologiska-data/grundvatten--geologiska-data/" 
-                  target="_blank" 
+                <a
+                  href="https://www.sgu.se/produkter-och-tjanster/geologiska-data/grundvatten--geologiska-data/"
+                  target="_blank"
                   rel="noopener noreferrer"
                   className="text-sgu-link hover:underline inline-flex items-center gap-1 mt-2"
                 >
@@ -433,7 +700,7 @@ export const LayerPanel = ({
               onCheckedChange={onSoilTypesVisibleChange}
             />
           </div>
-          
+
           {soilTypesVisible && (
             <div className="mt-3 space-y-3">
               <div className="space-y-2">
@@ -463,9 +730,9 @@ export const LayerPanel = ({
                     </div>
                   ))}
                 </div>
-                <a 
-                  href="https://www.sgu.se/produkter-och-tjanster/geologiska-data/jordarter--geologiska-data/jordartsdata/" 
-                  target="_blank" 
+                <a
+                  href="https://www.sgu.se/produkter-och-tjanster/geologiska-data/jordarter--geologiska-data/jordartsdata/"
+                  target="_blank"
                   rel="noopener noreferrer"
                   className="text-sgu-link hover:underline inline-flex items-center gap-1 mt-2"
                 >
@@ -508,16 +775,16 @@ export const LayerPanel = ({
               onCheckedChange={onSourcesVisibleChange}
             />
           </div>
-          
+
           {sourcesVisible && (
             <div className="mt-2 space-y-2 text-xs">
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full bg-sgu-maroon" />
                 <span className="text-muted-foreground">Källor</span>
               </div>
-              <a 
-                href="https://www.sgu.se/grundvatten/kallor/" 
-                target="_blank" 
+              <a
+                href="https://www.sgu.se/grundvatten/kallor/"
+                target="_blank"
                 rel="noopener noreferrer"
                 className="text-sgu-link hover:underline inline-flex items-center gap-1"
               >
@@ -560,16 +827,16 @@ export const LayerPanel = ({
               onCheckedChange={onWaterBodiesVisibleChange}
             />
           </div>
-          
+
           {waterBodiesVisible && (
             <div className="mt-2 space-y-2 text-xs">
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full border-2 border-[rgb(59,130,246)] bg-[rgba(59,130,246,0.15)]" />
                 <span className="text-muted-foreground">Klickbara förekomster</span>
               </div>
-              <a 
-                href="https://resource.sgu.se/dokument/produkter/grundvattenforekomster-beskrivning.pdf" 
-                target="_blank" 
+              <a
+                href="https://resource.sgu.se/dokument/produkter/grundvattenforekomster-beskrivning.pdf"
+                target="_blank"
                 rel="noopener noreferrer"
                 className="text-sgu-link hover:underline inline-flex items-center gap-1"
               >
@@ -585,57 +852,6 @@ export const LayerPanel = ({
                   )}
                   {onClearWaterBodies && (
                     <Button variant="outline" size="sm" onClick={onClearWaterBodies} className="text-xs h-7">
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Observed Groundwater Levels Layer Control */}
-        <div className="space-y-3 pt-4 border-t border-border">
-          <div className="flex items-center justify-between">
-            <div className="space-y-1">
-              <Label htmlFor="gw-observed-layer" className="text-sm font-medium">
-                Grundvattennivåer observerade
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                Mätstationer {gwLevelsObservedLoaded > 0 && `(${gwLevelsObservedLoaded})`}
-              </p>
-            </div>
-            <Switch
-              id="gw-observed-layer"
-              checked={gwLevelsObservedVisible}
-              onCheckedChange={onGwLevelsObservedVisibleChange}
-            />
-          </div>
-          
-          {gwLevelsObservedVisible && (
-            <div className="mt-2 space-y-2 text-xs">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-[rgb(147,51,234)]" />
-                <span className="text-muted-foreground">Klickbara stationer</span>
-              </div>
-              <a 
-                href="https://resource.sgu.se/dokument/produkter/grundvattennivaer-observerade-beskrivning.pdf" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-sgu-link hover:underline inline-flex items-center gap-1"
-              >
-                Produktbeskrivning <ExternalLink className="w-3 h-3" />
-              </a>
-              {gwLevelsObservedLoaded > 0 && (
-                <div className="flex gap-2 mt-2">
-                  {onExportGwLevelsObserved && (
-                    <Button variant="outline" size="sm" onClick={onExportGwLevelsObserved} className="flex-1 text-xs h-7">
-                      <Download className="w-3 h-3 mr-1" />
-                      Exportera ({gwLevelsObservedLoaded})
-                    </Button>
-                  )}
-                  {onClearGwLevelsObserved && (
-                    <Button variant="outline" size="sm" onClick={onClearGwLevelsObserved} className="text-xs h-7">
                       <Trash2 className="w-3 h-3" />
                     </Button>
                   )}
@@ -732,222 +948,6 @@ export const LayerPanel = ({
               Om jorddjupsmodellen <ExternalLink className="w-3 h-3" />
             </a>
           </div>
-        </div>
-
-        {/* HYPE Beräknade grundvattennivåer – fyra lager */}
-        <div className="space-y-3 pt-4 border-t border-border">
-          <div className="space-y-1">
-            <Label className="text-sm font-medium">Beräknade grundvattennivåer</Label>
-            <p className="text-xs text-muted-foreground">
-              SGU-HYPE {loadingHypoAreas ? '(laddar…)' : hypoAreasLoaded > 0 ? `(${hypoAreasLoaded} områden)` : ''}
-            </p>
-          </div>
-
-          {/* Four sub-layer toggles */}
-          <div className="space-y-2 pl-1">
-            {[
-              { id: 'hypo-fyllnad-sma', label: 'Fyllnadsgrad – Små magasin', checked: hypoFyllnadSmaVisible, onChange: onHypoFyllnadSmaVisibleChange },
-              { id: 'hypo-fyllnad-stora', label: 'Fyllnadsgrad – Stora magasin', checked: hypoFyllnadStoraVisible, onChange: onHypoFyllnadStoraVisibleChange },
-              { id: 'hypo-sit-sma', label: 'Grundvattensituation – Små magasin', checked: hypoSitSmaVisible, onChange: onHypoSitSmaVisibleChange },
-              { id: 'hypo-sit-stora', label: 'Grundvattensituation – Stora magasin', checked: hypoSitStoraVisible, onChange: onHypoSitStoraVisibleChange },
-            ].map(({ id, label, checked, onChange }) => (
-              <div key={id} className="flex items-center justify-between">
-                <Label htmlFor={id} className="text-xs text-foreground cursor-pointer">{label}</Label>
-                <Switch id={id} checked={checked} onCheckedChange={onChange} />
-              </div>
-            ))}
-          </div>
-
-          {(hypoFyllnadSmaVisible || hypoFyllnadStoraVisible || hypoSitSmaVisible || hypoSitStoraVisible) && (
-            <div className="space-y-3">
-              {/* Date selector */}
-              <div className="space-y-1">
-                <Label htmlFor="hypo-areas-date" className="text-xs text-muted-foreground">Datum</Label>
-                <input
-                  id="hypo-areas-date"
-                  type="date"
-                  value={hypoAreasDate}
-                  min="1961-01-01"
-                  onChange={(e) => onHypoAreasDateChange(e.target.value)}
-                  className="w-full text-xs border border-border rounded px-2 py-1 bg-background text-foreground"
-                />
-              </div>
-
-              {/* Opacity slider */}
-              <div className="space-y-2">
-                <Label htmlFor="hypo-areas-opacity" className="text-xs text-muted-foreground">
-                  Transparens: {Math.round(hypoAreasOpacity * 100)}%
-                </Label>
-                <Slider
-                  id="hypo-areas-opacity"
-                  min={0} max={1} step={0.1}
-                  value={[hypoAreasOpacity]}
-                  onValueChange={([v]) => onHypoAreasOpacityChange(v)}
-                  className="w-full"
-                />
-              </div>
-
-              {/* Legend */}
-              <div className="space-y-1 text-xs">
-                <p className="text-muted-foreground font-medium">Färgskala (percentil):</p>
-                {[
-                  { color: 'rgb(165,0,38)',   label: 'Mycket under normalt (<10%)' },
-                  { color: 'rgb(215,90,40)',   label: 'Under normalt (10–25%)' },
-                  { color: 'rgb(254,224,70)',  label: 'Normalt (25–75%)' },
-                  { color: 'rgb(90,174,97)',   label: 'Över normalt (75–90%)' },
-                  { color: 'rgb(0,104,55)',    label: 'Mycket över normalt (>90%)' },
-                  { color: 'rgb(200,200,200)', label: 'Ingen data' },
-                ].map(({ color, label }) => (
-                  <div key={label} className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-sm shrink-0" style={{ backgroundColor: color }} />
-                    <span className="text-muted-foreground">{label}</span>
-                  </div>
-                ))}
-              </div>
-
-              <div className="text-xs space-y-1">
-                <a
-                  href="https://www.sgu.se/grundvatten/grundvattennivaer/berakningsmodell/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sgu-link hover:underline inline-flex items-center gap-1"
-                >
-                  Om beräkningsmodellen <ExternalLink className="w-3 h-3" />
-                </a>
-                {hypoAreasLoaded > 0 && onClearHypoAreas && (
-                  <div>
-                    <Button variant="outline" size="sm" onClick={onClearHypoAreas} className="text-xs h-7 mt-1">
-                      <Trash2 className="w-3 h-3 mr-1" />
-                      Rensa ({hypoAreasLoaded})
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Groundwater Quality Layer Control */}
-        <div className="space-y-3 pt-4 border-t border-border">
-          <div className="flex items-center justify-between">
-            <div className="space-y-1">
-              <Label htmlFor="gw-quality-layer" className="text-sm font-medium">
-                Grundvattenkvalitet
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                Provplatser {gwQualityLoaded > 0 && `(${gwQualityLoaded})`}
-              </p>
-            </div>
-            <Switch
-              id="gw-quality-layer"
-              checked={gwQualityVisible}
-              onCheckedChange={onGwQualityVisibleChange}
-            />
-          </div>
-          
-          {gwQualityVisible && (
-            <div className="mt-2 space-y-2 text-xs">
-              <p className="text-muted-foreground font-medium">Antal prover per station</p>
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center justify-center w-5 h-5">
-                    <div className="w-[22px] h-[22px] rotate-45 rounded-[2px] bg-[rgb(127,29,29)] border-2 border-white/90 shadow" />
-                  </div>
-                  <span className="text-muted-foreground">&gt;50 prover (trendstationer)</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center justify-center w-5 h-5">
-                    <div className="w-4 h-4 rounded-full bg-[rgb(194,65,12)] border-2 border-white/90 shadow" />
-                  </div>
-                  <span className="text-muted-foreground">20–50 prover</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center justify-center w-5 h-5">
-                    <div className="w-3 h-3 rounded-full bg-[rgb(234,88,12)] border-2 border-white/85 shadow" />
-                  </div>
-                  <span className="text-muted-foreground">10–20 prover</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center justify-center w-5 h-5">
-                    <div className="w-2.5 h-2.5 rounded-full bg-[rgb(251,146,60)] border border-white/80 shadow" />
-                  </div>
-                  <span className="text-muted-foreground">5–10 prover</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center justify-center w-5 h-5">
-                    <div className="w-2 h-2 rounded-full bg-[rgb(253,186,116)] border border-white/75 shadow" />
-                  </div>
-                  <span className="text-muted-foreground">0–5 prover</span>
-                </div>
-              </div>
-              <a 
-                href="https://resource.sgu.se/dokument/produkter/grundvattenkvalitet-analysresultat-provplatser-beskrivning.pdf" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-sgu-link hover:underline inline-flex items-center gap-1"
-              >
-                Produktbeskrivning <ExternalLink className="w-3 h-3" />
-              </a>
-              {gwQualityLoaded > 0 && (
-                <div className="flex gap-2 mt-2">
-                  {onExportGwQuality && (
-                    <Button variant="outline" size="sm" onClick={onExportGwQuality} className="flex-1 text-xs h-7">
-                      <Download className="w-3 h-3 mr-1" />
-                      Exportera ({gwQualityLoaded})
-                    </Button>
-                  )}
-                  {onClearGwQuality && (
-                    <Button variant="outline" size="sm" onClick={onClearGwQuality} className="text-xs h-7">
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Observations Layer Control */}
-        <div className="space-y-3 pt-4 border-t border-border">
-          <div className="flex items-center justify-between">
-            <div className="space-y-1">
-              <Label htmlFor="observations-layer" className="text-sm font-medium">
-                Observationer
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                Fältobservationer {observationsLoaded > 0 && `(${observationsLoaded})`}
-              </p>
-            </div>
-            <Switch
-              id="observations-layer"
-              checked={observationsVisible}
-              onCheckedChange={onObservationsVisibleChange}
-            />
-          </div>
-          
-          {observationsVisible && (
-            <div className="mt-2 space-y-2 text-xs">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-[rgb(16,185,129)]" />
-                <span className="text-muted-foreground">Klickbara observationer</span>
-              </div>
-              {observationsLoaded > 0 && (
-                <div className="flex gap-2 mt-2">
-                  {onExportObservations && (
-                    <Button variant="outline" size="sm" onClick={onExportObservations} className="flex-1 text-xs h-7">
-                      <Download className="w-3 h-3 mr-1" />
-                      Exportera ({observationsLoaded})
-                    </Button>
-                  )}
-                  {onClearObservations && (
-                    <Button variant="outline" size="sm" onClick={onClearObservations} className="text-xs h-7">
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
         </div>
 
         {/* Lantmäteriet WMS Section Header */}
