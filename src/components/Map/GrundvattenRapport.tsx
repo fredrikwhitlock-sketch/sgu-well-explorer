@@ -2129,7 +2129,7 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
                               )}
                             </div>
                             <div className="text-right shrink-0 ml-2">
-                              <span className="font-semibold text-blue-700 dark:text-blue-400">{st.djup.toFixed(1)} m</span>
+                              <span className="font-semibold text-blue-700 dark:text-blue-400">{parseFloat(st.djup.toPrecision(3))} m</span>
                               <div className="text-[10px] text-muted-foreground">{st.obsdatum.slice(0, 10)}</div>
                             </div>
                           </button>

@@ -1379,15 +1379,18 @@ export const MapView = () => {
           levelMap.set(f.properties.omrade_id, f.properties);
         }
 
+        // Use silent=true to suppress per-feature events; one source.changed() at the end
         for (const feature of hypoAreasSource.getFeatures()) {
           const omradeId = feature.get('omrade_id');
           const ld = levelMap.get(omradeId);
           if (ld) {
-            feature.set('fyllnadsgrad_sma', ld.fyllnadsgrad_sma);
-            feature.set('fyllnadsgrad_stora', ld.fyllnadsgrad_stora);
-            feature.set('grundvattensituation_sma', ld.grundvattensituation_sma);
-            feature.set('grundvattensituation_stora', ld.grundvattensituation_stora);
-            feature.set('datum', ld.datum);
+            feature.setProperties({
+              fyllnadsgrad_sma: ld.fyllnadsgrad_sma,
+              fyllnadsgrad_stora: ld.fyllnadsgrad_stora,
+              grundvattensituation_sma: ld.grundvattensituation_sma,
+              grundvattensituation_stora: ld.grundvattensituation_stora,
+              datum: ld.datum,
+            }, true);
           } else {
             feature.set('fyllnadsgrad_sma', null);
             feature.set('fyllnadsgrad_stora', null);
@@ -1397,9 +1400,9 @@ export const MapView = () => {
           }
         }
 
-        // Trigger re-render on all four layers
-        [hypoFyllnadSmaLayerRef, hypoFyllnadStoraLayerRef, hypoSitSmaLayerRef, hypoSitStoraLayerRef]
-          .forEach(r => r.current?.changed());
+        // Single source change → all layers re-render immediately
+        hypoAreasSource.changed();
+        mapInstanceRef.current?.render();
       } catch (error) {
         console.error("Error fetching HYPE level data:", error);
         toast.error("Kunde inte hämta beräknade grundvattennivåer");
