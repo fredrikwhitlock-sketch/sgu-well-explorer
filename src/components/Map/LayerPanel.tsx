@@ -446,8 +446,12 @@ export const LayerPanel = ({
           {gwLevelsObservedVisible && (
             <div className="mt-2 space-y-2 text-xs">
               <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-[rgb(147,51,234)]" />
-                <span className="text-muted-foreground">Klickbara stationer</span>
+                <div className="w-3 h-3 rounded-full bg-[rgb(147,51,234)]" style={{border: '2px solid rgba(255,255,255,0.8)'}} />
+                <span className="text-muted-foreground">Aktiv station</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-[rgb(150,150,150)] opacity-50" style={{border: '1px solid rgba(200,200,200,0.6)'}} />
+                <span className="text-muted-foreground">Nedlagd station</span>
               </div>
               <a
                 href="https://resource.sgu.se/dokument/produkter/grundvattennivaer-observerade-beskrivning.pdf"
