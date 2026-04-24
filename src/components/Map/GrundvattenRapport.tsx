@@ -1932,7 +1932,7 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
             className="p-1.5 rounded hover:bg-white/10 transition-colors"
             title={expanded ? 'Minimera' : 'Utöka vy'}
           >
-            {expanded ? <Minimize2 className="w-3.5 h-3.5 text-muted-foreground" /> : <Maximize2 className="w-3.5 h-3.5 text-muted-foreground" />}
+            {expanded ? <Minimize2 className="w-3.5 h-3.5 text-white/80" /> : <Maximize2 className="w-3.5 h-3.5 text-white/80" />}
           </button>
         )}
       </div>
@@ -1948,11 +1948,10 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" /><span>{error}</span>
           </div>
         ) : data ? (
-          expanded && !isMobile ? (
-            <div className="grid grid-cols-2 divide-x divide-border h-full">
-              <div className="p-4 space-y-4 text-sm overflow-y-auto">
+          <div className={expanded && !isMobile ? 'grid grid-cols-2 divide-x divide-border h-full' : 'p-4 space-y-4 text-sm'}>
+            <div className={expanded && !isMobile ? 'p-4 space-y-4 text-sm overflow-y-auto' : 'contents'}>
 
-                {/* Coordinates */}
+            {/* Coordinates */}
             <div>
               <div className="flex items-center gap-1.5 mb-1.5">
                 <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
@@ -2116,7 +2115,9 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
               )}
             </div>
 
-            <hr className="border-border" />
+            </div>{/* end left col */}
+            <div className={expanded && !isMobile ? 'p-4 space-y-4 text-sm overflow-y-auto' : 'contents'}>
+            {!(expanded && !isMobile) && <hr className="border-border" />}
 
             {/* ── UNDERLAGSDATA ── */}
             <div>
@@ -2901,6 +2902,7 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
                 </button>
               </div>
             )}
+            </div>{/* end right col */}
           </div>
         ) : null}
       </div>
