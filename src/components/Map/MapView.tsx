@@ -12,7 +12,7 @@ import { register } from "ol/proj/proj4";
 import proj4 from "proj4";
 import { get as getProjection } from "ol/proj";
 import { defaults as defaultControls } from "ol/control";
-import { Style, Circle, Fill, Stroke } from "ol/style";
+import { Style, Circle, Fill, Stroke, RegularShape } from "ol/style";
 import Point from "ol/geom/Point";
 import Polygon from "ol/geom/Polygon";
 import Feature from "ol/Feature";
@@ -1022,16 +1022,59 @@ export const MapView = () => {
     const gwQualityLayer = new VectorLayer({
       source: gwQualitySource,
       visible: gwQualityVisible,
-      style: new Style({
-        image: new Circle({
-          radius: 6,
-          fill: new Fill({ color: "rgba(234, 88, 12, 0.8)" }), // Orange color
-          stroke: new Stroke({
-            color: "rgba(255, 255, 255, 0.8)",
-            width: 2,
+      style: (feature) => {
+        const n = Number(feature.get('antal_prov') ?? 0);
+        // >50 prover: large diamond – clearly marks trend/trend-like stations
+        if (n > 50) {
+          return new Style({
+            image: new RegularShape({
+              points: 4,
+              radius: 11,
+              angle: Math.PI / 4, // rotated square = diamond
+              fill: new Fill({ color: 'rgba(127, 29, 29, 0.9)' }),  // deep red
+              stroke: new Stroke({ color: 'rgba(255,255,255,0.95)', width: 2.5 }),
+            }),
+          });
+        }
+        // 20-50 prover
+        if (n > 20) {
+          return new Style({
+            image: new Circle({
+              radius: 8,
+              fill: new Fill({ color: 'rgba(194, 65, 12, 0.88)' }), // dark orange
+              stroke: new Stroke({ color: 'rgba(255,255,255,0.9)', width: 2 }),
+            }),
+          });
+        }
+        // 10-20 prover
+        if (n > 10) {
+          return new Style({
+            image: new Circle({
+              radius: 6,
+              fill: new Fill({ color: 'rgba(234, 88, 12, 0.85)' }), // orange
+              stroke: new Stroke({ color: 'rgba(255,255,255,0.85)', width: 1.5 }),
+            }),
+          });
+        }
+        // 5-10 prover
+        if (n > 5) {
+          return new Style({
+            image: new Circle({
+              radius: 5,
+              fill: new Fill({ color: 'rgba(251, 146, 60, 0.8)' }), // light orange
+              stroke: new Stroke({ color: 'rgba(255,255,255,0.8)', width: 1.5 }),
+            }),
+          });
+        }
+        // 0-5 prover
+        return new Style({
+          image: new Circle({
+            radius: 4,
+            fill: new Fill({ color: 'rgba(253, 186, 116, 0.75)' }), // peach
+            stroke: new Stroke({ color: 'rgba(255,255,255,0.75)', width: 1 }),
           }),
-        }),
-      }),
+        });
+      },
     });
     gwQualityLayerRef.current = gwQualityLayer;
 

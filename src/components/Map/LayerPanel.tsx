@@ -847,9 +847,38 @@ export const LayerPanel = ({
           
           {gwQualityVisible && (
             <div className="mt-2 space-y-2 text-xs">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-[rgb(234,88,12)]" />
-                <span className="text-muted-foreground">Klickbara provplatser</span>
+              <p className="text-muted-foreground font-medium">Antal prover per station</p>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-center w-5 h-5">
+                    <div className="w-[22px] h-[22px] rotate-45 rounded-[2px] bg-[rgb(127,29,29)] border-2 border-white/90 shadow" />
+                  </div>
+                  <span className="text-muted-foreground">&gt;50 prover (trendstationer)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-center w-5 h-5">
+                    <div className="w-4 h-4 rounded-full bg-[rgb(194,65,12)] border-2 border-white/90 shadow" />
+                  </div>
+                  <span className="text-muted-foreground">20–50 prover</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-center w-5 h-5">
+                    <div className="w-3 h-3 rounded-full bg-[rgb(234,88,12)] border-2 border-white/85 shadow" />
+                  </div>
+                  <span className="text-muted-foreground">10–20 prover</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-center w-5 h-5">
+                    <div className="w-2.5 h-2.5 rounded-full bg-[rgb(251,146,60)] border border-white/80 shadow" />
+                  </div>
+                  <span className="text-muted-foreground">5–10 prover</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-center w-5 h-5">
+                    <div className="w-2 h-2 rounded-full bg-[rgb(253,186,116)] border border-white/75 shadow" />
+                  </div>
+                  <span className="text-muted-foreground">0–5 prover</span>
+                </div>
               </div>
               <a 
                 href="https://resource.sgu.se/dokument/produkter/grundvattenkvalitet-analysresultat-provplatser-beskrivning.pdf" 
