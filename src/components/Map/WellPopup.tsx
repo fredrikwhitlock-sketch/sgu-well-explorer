@@ -999,9 +999,9 @@ export const WellPopup = ({
               <div className="text-xs font-semibold text-foreground">Hämta analysresultat</div>
               <div className="flex flex-wrap gap-2">
                 {properties.nationellt_provplatsid && (
-                  <a 
-                    href={`https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/analysresultat/items?f=csv&filter=nationellt_provplatsid%20%3D%20${properties.nationellt_provplatsid}&limit=10000`}
-                    target="_blank" 
+                  <a
+                    href={`https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/analysresultat/items?f=text%2Fcsv&filter=nationellt_provplatsid=${properties.nationellt_provplatsid}&filter-lang=cql2-text&limit=10000`}
+                    target="_blank"
                     rel="noopener noreferrer"
                     className="text-sm text-sgu-link hover:underline inline-flex items-center gap-1"
                   >
@@ -1009,9 +1009,9 @@ export const WellPopup = ({
                   </a>
                 )}
                 {properties.nationellt_provplatsid && (
-                  <a 
-                    href={`https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/analysresultat/items?f=json&filter=nationellt_provplatsid%20%3D%20${properties.nationellt_provplatsid}&limit=10000`}
-                    target="_blank" 
+                  <a
+                    href={`https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/analysresultat/items?f=json&filter=nationellt_provplatsid=${properties.nationellt_provplatsid}&filter-lang=cql2-text&limit=10000`}
+                    target="_blank"
                     rel="noopener noreferrer"
                     className="text-sm text-sgu-link hover:underline inline-flex items-center gap-1"
                   >
