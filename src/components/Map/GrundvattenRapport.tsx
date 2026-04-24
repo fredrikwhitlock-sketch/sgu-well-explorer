@@ -2145,12 +2145,8 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
                             </div>
                           )}
                         </div>
-                        <div className="text-right shrink-0 ml-2">
-                          <span className="font-semibold text-blue-700 dark:text-blue-400">{parseFloat(st.djup.toPrecision(3))} m</span>
-                          <div className="text-[10px] text-muted-foreground">{st.obsdatum.slice(0, 10)}</div>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                   {data.obsStationer.length > 10 && (
                     <div className="text-[10px] text-muted-foreground mb-3 text-right">
