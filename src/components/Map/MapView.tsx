@@ -1392,13 +1392,11 @@ export const MapView = () => {
               datum: ld.datum,
             }, true);
           } else {
-            feature.setProperties({
-              fyllnadsgrad_sma: null,
-              fyllnadsgrad_stora: null,
-              grundvattensituation_sma: null,
-              grundvattensituation_stora: null,
-              datum: date,
-            }, true);
+            feature.set('fyllnadsgrad_sma', null);
+            feature.set('fyllnadsgrad_stora', null);
+            feature.set('grundvattensituation_sma', null);
+            feature.set('grundvattensituation_stora', null);
+            feature.set('datum', date);
           }
         }
 
