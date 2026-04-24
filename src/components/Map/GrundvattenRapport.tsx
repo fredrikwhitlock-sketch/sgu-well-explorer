@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from "react";
-import { X, Droplets, Loader2, MapPin, AlertCircle, RefreshCw, Info, ChevronDown, Bot, Download } from "lucide-react";
+import { X, Droplets, Loader2, MapPin, AlertCircle, RefreshCw, Info, ChevronDown, Bot, Download, Maximize2, Minimize2 } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, ReferenceArea } from "recharts";
 import proj4 from "proj4";
 import { getSoilTypeColor } from "../../lib/soilTypeColors";
@@ -770,6 +770,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
 
   const dragRef = useRef({ dragging: false, startX: 0, startY: 0, startLeft: 80, startTop: 80 });
   const [position, setPosition] = useState({ left: 80, top: 80 });
+  const [expanded, setExpanded] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
   // Detect mobile so we can render as a bottom sheet instead of a floating panel
@@ -1874,7 +1875,7 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
       style={
         isMobile
           ? { maxHeight: '85vh' }
-          : { left: position.left, top: position.top, width: 400, maxHeight: '85vh' }
+          : { left: position.left, top: position.top, width: expanded ? 900 : 400, maxHeight: '85vh' }
       }
     >
       {/* Mobile drag handle */}
@@ -1924,9 +1925,19 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
         >
           <Download className="w-3.5 h-3.5 text-muted-foreground" />
         </button>
+        {!isMobile && (
+          <button
+            type="button"
+            onClick={() => setExpanded(e => !e)}
+            className="p-1.5 rounded hover:bg-white/10 transition-colors"
+            title={expanded ? 'Minimera' : 'Utöka vy'}
+          >
+            {expanded ? <Minimize2 className="w-3.5 h-3.5 text-white/80" /> : <Maximize2 className="w-3.5 h-3.5 text-white/80" />}
+          </button>
+        )}
       </div>
 
-      <div className="overflow-y-auto flex-1">
+      <div className={`flex-1 ${expanded && !isMobile ? 'overflow-hidden' : 'overflow-y-auto'}`}>
         {loading ? (
           <div className="flex items-center gap-2 p-6 text-muted-foreground">
             <Loader2 className="w-4 h-4 animate-spin shrink-0" />
@@ -1937,7 +1948,8 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" /><span>{error}</span>
           </div>
         ) : data ? (
-          <div className="p-4 space-y-4 text-sm">
+          <div className={expanded && !isMobile ? 'grid grid-cols-2 divide-x divide-border h-full' : 'p-4 space-y-4 text-sm'}>
+            <div className={expanded && !isMobile ? 'p-4 space-y-4 text-sm overflow-y-auto' : 'contents'}>
 
             {/* Coordinates */}
             <div>
@@ -2103,7 +2115,9 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
               )}
             </div>
 
-            <hr className="border-border" />
+            </div>{/* end left col */}
+            <div className={expanded && !isMobile ? 'p-4 space-y-4 text-sm overflow-y-auto' : 'contents'}>
+            {!(expanded && !isMobile) && <hr className="border-border" />}
 
             {/* ── UNDERLAGSDATA ── */}
             <div>
@@ -2888,6 +2902,7 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
                 </button>
               </div>
             )}
+            </div>{/* end right col */}
           </div>
         ) : null}
       </div>
