@@ -959,16 +959,19 @@ export const MapView = () => {
     const gwLevelsObservedLayer = new VectorLayer({
       source: gwLevelsObservedSource,
       visible: gwLevelsObservedVisible,
-      style: new Style({
-        image: new Circle({
-          radius: 6,
-          fill: new Fill({ color: "rgba(147, 51, 234, 0.8)" }),
-          stroke: new Stroke({
-            color: "rgba(255, 255, 255, 0.8)",
-            width: 2,
+      style: (feature) => {
+        const inactive = !!feature.get('tdat');
+        return new Style({
+          image: new Circle({
+            radius: 6,
+            fill: new Fill({ color: inactive ? "rgba(150, 150, 150, 0.5)" : "rgba(147, 51, 234, 0.8)" }),
+            stroke: new Stroke({
+              color: inactive ? "rgba(200, 200, 200, 0.6)" : "rgba(255, 255, 255, 0.8)",
+              width: inactive ? 1 : 2,
+            }),
           }),
-        }),
-      }),
+        });
+      },
     });
     gwLevelsObservedLayerRef.current = gwLevelsObservedLayer;
 
