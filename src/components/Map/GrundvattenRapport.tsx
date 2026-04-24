@@ -852,7 +852,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
       // Bbox fallback picks the first non-water feature (code 91) so rivers
       // don't shadow the surrounding soil type.
       const jordartApiBase = `https://api.sgu.se/oppnadata/jordarter25k-100k/ogc/features/v1/collections`;
-      const jordartCqlFilter = `filter=${encodeURIComponent(`S_INTERSECTS(geometry,POINT(${lon} ${lat}))`)}&filter-lang=cql2-text&limit=1`;
+      const jordartCqlFilter = `filter=${encodeURIComponent(`S_INTERSECTS(geom,POINT(${lon} ${lat}))`)}&filter-lang=cql2-text&limit=1`;
       const jordartCql2Url     = `${jordartApiBase}/grundlager/items?f=json&${jordartCqlFilter}`;
       const jordartBboxUrl     = `${jordartApiBase}/grundlager/items?f=json&bbox=${bbox}&limit=5`;
       const ytlagerCql2Url     = `${jordartApiBase}/ytlager/items?f=json&${jordartCqlFilter}`;
@@ -1057,9 +1057,19 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
           }
         };
 
-        await tryRes(overstaRes,    'oversta-ytlager');
-        await tryRes(ytlagerRes,    'ytlager');
+        await tryRes(overstaRes,     'oversta-ytlager');
+        await tryRes(ytlagerRes,     'ytlager');
         await tryRes(jordartCql2Res, 'grundlager');
+        // Bbox fallback for grundlager – skip water polygons (jg2=91)
+        if (!jordart && jordartBboxRes.status === 'fulfilled' && jordartBboxRes.value.ok) {
+          const d = await jordartBboxRes.value.json().catch(() => null);
+          const nonWater = (d?.features ?? []).filter((f: any) => {
+            const jg2 = f.properties?.jg2 ?? f.properties?.JG2;
+            return jg2 != null && Number(jg2) !== 91;
+          });
+          const j = extractJordart(nonWater);
+          if (j) { jordart = j; kalla = 'grundlager'; }
+        }
         if (jordart) { result.jordartNamn = jordart.name; result.jordartKod = jordart.kod; result.jordartKalla = kalla; }
       } catch { /* ignore */ }
 
@@ -1072,9 +1082,8 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
           const d = await forekomstRes.value.json();
           if (d.features?.length > 0) {
             const p = d.features[0].properties ?? {};
-            const namn = p.magasinsnamn;
-            if (namn) {
-              result.magasin = {
+            const namn = p.magasinsnamn || p.namn || 'Grundvattenmagasin';
+            result.magasin = {
                 namn,
                 akvifertyp:              p.akvifertyp || undefined,
                 genes:                   p.genes || undefined,
@@ -1094,7 +1103,6 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                 lankBeskrivning:         p.lank_magasinsbeskrivning || undefined,
                 magasinsposition:        p.magasinsposition_kod > 0 ? p.magasinsposition : undefined,
               };
-            }
           }
         } catch { /* ignore */ }
       }
