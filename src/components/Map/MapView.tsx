@@ -1393,7 +1393,7 @@ export const MapView = () => {
             feature.set('fyllnadsgrad_stora', null);
             feature.set('grundvattensituation_sma', null);
             feature.set('grundvattensituation_stora', null);
-            feature.set('datum', apiDate);
+            feature.set('datum', date);
           }
         }
 
