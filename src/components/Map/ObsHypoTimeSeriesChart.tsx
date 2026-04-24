@@ -192,10 +192,11 @@ export const ObsHypoTimeSeriesChart = ({
         row = { ts: p.ts };
         map.set(p.ts, row);
       }
-      row.hypoFyll = useStora ? p.fyllStora : p.fyllSma;
+      row.hypoFyllSma = p.fyllSma;
+      row.hypoFyllStora = p.fyllStora;
     }
     return Array.from(map.values()).sort((a, b) => a.ts - b.ts);
-  }, [obsByStation, hypoSeries, stationsToShow, useStora]);
+  }, [obsByStation, hypoSeries, stationsToShow]);
 
   if (loading) {
     return (
@@ -209,7 +210,7 @@ export const ObsHypoTimeSeriesChart = ({
   if (error) return <div className="text-xs text-destructive">{error}</div>;
 
   const hasAnyObs = stationsToShow.some((s) => (obsByStation.get(s.id)?.length ?? 0) > 0);
-  const hasHypo = hypoSeries.some((p) => (useStora ? p.fyllStora : p.fyllSma) != null);
+  const hasHypo = hypoSeries.some((p) => p.fyllSma != null || p.fyllStora != null);
 
   if (!hasAnyObs && !hasHypo) {
     return <div className="text-xs text-muted-foreground">Ingen tidsseriedata tillgänglig.</div>;
@@ -236,7 +237,7 @@ export const ObsHypoTimeSeriesChart = ({
         Grundvattennivå – senaste {years} åren
         {hasHypo && (
           <span className="text-muted-foreground/70 normal-case font-normal">
-            {" · "}HYPE-fyllnadsgrad ({useStora ? "stora" : "små"} magasin) i bakgrunden
+            {" · "}HYPE-fyllnadsgrad (små/stora magasin) i bakgrunden
           </span>
         )}
       </p>
@@ -297,7 +298,7 @@ export const ObsHypoTimeSeriesChart = ({
               labelFormatter={(ts: any) => new Date(Number(ts)).toISOString().slice(0, 10)}
               formatter={(v: any, name: any) => {
                 if (v == null) return ["—", name];
-                if (name === "HYPE fyllnadsgrad") return [`${Math.round(Number(v))} %`, name];
+                if (name === "Fyllnadsgrad små" || name === "Fyllnadsgrad stora") return [`${Math.round(Number(v))} perc.`, name];
                 return [`${Number(v).toFixed(2)} m`, name];
               }}
               contentStyle={{
@@ -312,9 +313,23 @@ export const ObsHypoTimeSeriesChart = ({
               <Line
                 yAxisId="hypo"
                 type="monotone"
-                dataKey="hypoFyll"
-                name="HYPE fyllnadsgrad"
-                stroke="hsl(var(--muted-foreground))"
+                dataKey="hypoFyllSma"
+                name="Fyllnadsgrad små"
+                stroke="#3b82f6"
+                strokeWidth={1}
+                strokeDasharray="4 3"
+                dot={false}
+                connectNulls
+                isAnimationActive={false}
+              />
+            )}
+            {hasHypo && (
+              <Line
+                yAxisId="hypo"
+                type="monotone"
+                dataKey="hypoFyllStora"
+                name="Fyllnadsgrad stora"
+                stroke="#22c55e"
                 strokeWidth={1}
                 strokeDasharray="4 3"
                 dot={false}
