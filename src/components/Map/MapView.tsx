@@ -1379,7 +1379,8 @@ export const MapView = () => {
           levelMap.set(f.properties.omrade_id, f.properties);
         }
 
-        // Use silent=true to suppress per-feature events; one source.changed() at the end
+        // setProperties without silent so feature revision increments
+        // → invalidates layer style cache so new colors are drawn
         for (const feature of hypoAreasSource.getFeatures()) {
           const omradeId = feature.get('omrade_id');
           const ld = levelMap.get(omradeId);
@@ -1390,18 +1391,20 @@ export const MapView = () => {
               grundvattensituation_sma: ld.grundvattensituation_sma,
               grundvattensituation_stora: ld.grundvattensituation_stora,
               datum: ld.datum,
-            }, true);
+            });
           } else {
-            feature.set('fyllnadsgrad_sma', null);
-            feature.set('fyllnadsgrad_stora', null);
-            feature.set('grundvattensituation_sma', null);
-            feature.set('grundvattensituation_stora', null);
-            feature.set('datum', date);
+            feature.setProperties({
+              fyllnadsgrad_sma: null,
+              fyllnadsgrad_stora: null,
+              grundvattensituation_sma: null,
+              grundvattensituation_stora: null,
+              datum: date,
+            });
           }
         }
 
-        // Single source change → all layers re-render immediately
-        hypoAreasSource.changed();
+        [hypoFyllnadSmaLayerRef, hypoFyllnadStoraLayerRef, hypoSitSmaLayerRef, hypoSitStoraLayerRef]
+          .forEach(r => r.current?.changed());
         mapInstanceRef.current?.render();
       } catch (error) {
         console.error("Error fetching HYPE level data:", error);
