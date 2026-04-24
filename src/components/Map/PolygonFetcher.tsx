@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { X, Download, Loader2, Database } from "lucide-react";
+import { X, Download, Loader2, Database, AlertTriangle } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { CheckSquare, Square } from "lucide-react";
 
@@ -45,6 +45,8 @@ const DATA_SOURCES: DataSource[] = [
 ];
 
 const DEFAULT_SELECTED = new Set(['brunnar', 'kallor', 'magasin', 'nivaer', 'kvalitet']);
+const PAGE_SIZE = 5000;
+const COUNT_WARN_THRESHOLD = 100_000;
 
 interface SourceState {
   features: any[];
@@ -58,6 +60,7 @@ interface LinkedState {
   loading: boolean;
   count: number;
   error?: string;
+  warning?: string; // set when count > threshold, halts auto-fetch
 }
 
 interface PolygonFetcherProps {
@@ -84,12 +87,9 @@ function triggerCSV(features: any[], filename: string) {
   const blob = new Blob(['﻿' + rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
 }
 
 function triggerGeoJSON(features: any[], filename: string) {
@@ -98,71 +98,47 @@ function triggerGeoJSON(features: any[], filename: string) {
   });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
 }
 
-const PAGE_SIZE = 5000;
-const today = new Date().toISOString().split('T')[0];
-
-// Hybrid pagination: parallel offset fetching when numberMatched available,
-// otherwise follows links.next sequentially. Uses PAGE_SIZE=5000 to minimise requests.
+// Pure sequential link-following — guaranteed correct for CQL2-filtered SGU endpoints.
+// Parallel offset-fetching breaks on the observations endpoint beyond ~45k rows.
 async function fetchAllPages(
   baseUrl: string,
   onProgress?: (count: number) => void
 ): Promise<any[]> {
   const sep = baseUrl.includes('?') ? '&' : '?';
-  const firstUrl = `${baseUrl}${sep}limit=${PAGE_SIZE}`;
+  const features: any[] = [];
+  let nextUrl: string | null = `${baseUrl}${sep}limit=${PAGE_SIZE}`;
 
-  const firstResp = await fetch(firstUrl);
-  if (!firstResp.ok) throw new Error(`HTTP ${firstResp.status}`);
-  const firstData = await firstResp.json();
-
-  const features: any[] = [...(firstData.features ?? [])];
-  onProgress?.(features.length);
-
-  const hasNext = firstData.links?.some((l: any) => l.rel === 'next');
-  if (!hasNext) return features;
-
-  const total: number | null = firstData.numberMatched ?? null;
-
-  if (total !== null && total > features.length) {
-    // Parallel offset fetching — all remaining pages at once
-    const remaining = Math.ceil((total - features.length) / PAGE_SIZE);
-    const pages = await Promise.all(
-      Array.from({ length: remaining }, (_, i) =>
-        fetch(`${baseUrl}${sep}limit=${PAGE_SIZE}&offset=${(i + 1) * PAGE_SIZE}`)
-          .then(r => r.ok ? r.json() : null)
-          .then(d => d?.features ?? [])
-          .catch(() => [])
-      )
-    );
-    for (const page of pages) {
-      features.push(...page);
-      onProgress?.(features.length);
-    }
-  } else {
-    // Sequential link-following fallback (most reliable)
-    let nextUrl: string | null =
-      firstData.links?.find((l: any) => l.rel === 'next')?.href ?? null;
-    while (nextUrl) {
-      const resp = await fetch(nextUrl);
-      if (!resp.ok) break;
-      const data = await resp.json();
-      features.push(...(data.features ?? []));
-      onProgress?.(features.length);
-      nextUrl = data.links?.find((l: any) => l.rel === 'next')?.href ?? null;
-    }
+  while (nextUrl) {
+    const resp = await fetch(nextUrl);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    features.push(...(data.features ?? []));
+    onProgress?.(features.length);
+    nextUrl = data.links?.find((l: any) => l.rel === 'next')?.href ?? null;
   }
 
   return features;
 }
 
-// Fetch linked data filtered by IDs in parallel batches.
+// One-item probe to get numberMatched without loading the full dataset.
+async function peekCount(baseUrl: string): Promise<number | null> {
+  const sep = baseUrl.includes('?') ? '&' : '?';
+  try {
+    const resp = await fetch(`${baseUrl}${sep}limit=1`);
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    return typeof data.numberMatched === 'number' ? data.numberMatched : null;
+  } catch {
+    return null;
+  }
+}
+
+// Fetch linked data by ID batches in parallel, with correct incremental progress.
 async function fetchByIdBatches(
   baseUrl: string,
   filterFn: (ids: string[]) => string,
@@ -173,25 +149,30 @@ async function fetchByIdBatches(
   const batches: string[][] = [];
   for (let i = 0; i < ids.length; i += batchSize) batches.push(ids.slice(i, i + batchSize));
 
-  let total = 0;
-  const results = await Promise.all(
-    batches.map(async batch => {
+  const batchCounts = new Array(batches.length).fill(0);
+  const allFeatures = await Promise.all(
+    batches.map(async (batch, idx) => {
       const url = `${baseUrl}&filter=${encodeURIComponent(filterFn(batch))}&filter-lang=cql2-text`;
-      const features = await fetchAllPages(url, (n) => {
-        total += n;
-        onProgress?.(total);
+      return fetchAllPages(url, (n) => {
+        batchCounts[idx] = n;
+        onProgress?.(batchCounts.reduce((a, b) => a + b, 0));
       });
-      return features;
     })
   );
-  return results.flat();
+  return allFeatures.flat();
 }
+
+const today = new Date().toISOString().split('T')[0];
 
 export const PolygonFetcher = ({ bbox, areaKm2, onClose }: PolygonFetcherProps) => {
   const [selected, setSelected] = useState<Set<string>>(new Set(DEFAULT_SELECTED));
   const [results, setResults] = useState<Record<string, SourceState>>({});
   const [fetching, setFetching] = useState(false);
   const [linked, setLinked] = useState<{ analysresultat?: LinkedState; nivaObs?: LinkedState }>({});
+
+  // Stores IDs for linked fetches that were blocked by the count warning.
+  const pendingNivaIds = useRef<string[]>([]);
+  const pendingAnalysIds = useRef<string[]>([]);
 
   const bboxStr = bbox.join(',');
 
@@ -202,11 +183,45 @@ export const PolygonFetcher = ({ bbox, areaKm2, onClose }: PolygonFetcherProps) 
       return next;
     });
 
+  const doFetchNivaObs = async (ids: string[]) => {
+    setLinked(l => ({ ...l, nivaObs: { features: [], loading: true, count: 0 } }));
+    try {
+      const base = 'https://api.sgu.se/oppnadata/grundvattennivaer-observerade/ogc/features/v1/collections/nivaer/items?f=json';
+      const obs = await fetchByIdBatches(
+        base,
+        batch => `platsbeteckning IN (${batch.map(id => `'${id.replace(/'/g, "''")}'`).join(',')})`,
+        ids,
+        (count) => setLinked(l => ({ ...l, nivaObs: l.nivaObs ? { ...l.nivaObs, count } : { features: [], loading: true, count } }))
+      );
+      setLinked(l => ({ ...l, nivaObs: { features: obs, loading: false, count: obs.length } }));
+    } catch {
+      setLinked(l => ({ ...l, nivaObs: { features: [], loading: false, count: 0, error: 'Misslyckades' } }));
+    }
+  };
+
+  const doFetchAnalysresultat = async (ids: string[]) => {
+    setLinked(l => ({ ...l, analysresultat: { features: [], loading: true, count: 0 } }));
+    try {
+      const base = 'https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/analysresultat/items?f=json';
+      const analys = await fetchByIdBatches(
+        base,
+        batch => `nationellt_provplatsid IN (${batch.join(',')})`,
+        ids,
+        (count) => setLinked(l => ({ ...l, analysresultat: l.analysresultat ? { ...l.analysresultat, count } : { features: [], loading: true, count } }))
+      );
+      setLinked(l => ({ ...l, analysresultat: { features: analys, loading: false, count: analys.length } }));
+    } catch {
+      setLinked(l => ({ ...l, analysresultat: { features: [], loading: false, count: 0, error: 'Misslyckades' } }));
+    }
+  };
+
   const handleFetch = async () => {
     setFetching(true);
     setLinked({});
-    const sources = DATA_SOURCES.filter(s => selected.has(s.id));
+    pendingNivaIds.current = [];
+    pendingAnalysIds.current = [];
 
+    const sources = DATA_SOURCES.filter(s => selected.has(s.id));
     const init: Record<string, SourceState> = {};
     for (const s of sources) init[s.id] = { features: [], loading: true, count: 0 };
     setResults(init);
@@ -219,24 +234,27 @@ export const PolygonFetcher = ({ bbox, areaKm2, onClose }: PolygonFetcherProps) 
           });
           setResults(r => ({ ...r, [s.id]: { features, loading: false, count: features.length } }));
 
-          // Auto-start linked data fetch as soon as parent data arrives
           if (s.id === 'nivaer' && features.length > 0) {
             const ids = features
               .map((f: any) => f.properties?.platsbeteckning)
               .filter((v: any): v is string => typeof v === 'string' && v.length > 0);
             if (ids.length > 0) {
-              setLinked(l => ({ ...l, nivaObs: { features: [], loading: true, count: 0 } }));
-              try {
-                const base = 'https://api.sgu.se/oppnadata/grundvattennivaer-observerade/ogc/features/v1/collections/nivaer/items?f=json';
-                const obs = await fetchByIdBatches(
-                  base,
-                  batch => `platsbeteckning IN (${batch.map(id => `'${id.replace(/'/g, "''")}'`).join(',')})`,
-                  ids,
-                  (count) => setLinked(l => ({ ...l, nivaObs: { ...l.nivaObs!, count } }))
-                );
-                setLinked(l => ({ ...l, nivaObs: { features: obs, loading: false, count: obs.length } }));
-              } catch {
-                setLinked(l => ({ ...l, nivaObs: { features: [], loading: false, count: 0, error: 'Misslyckades' } }));
+              const base = 'https://api.sgu.se/oppnadata/grundvattennivaer-observerade/ogc/features/v1/collections/nivaer/items?f=json';
+              const filterStr = `platsbeteckning IN (${ids.map(id => `'${id.replace(/'/g, "''")}'`).join(',')})`;
+              const probeUrl = `${base}&filter=${encodeURIComponent(filterStr)}&filter-lang=cql2-text`;
+              const count = await peekCount(probeUrl);
+
+              if (count !== null && count > COUNT_WARN_THRESHOLD) {
+                pendingNivaIds.current = ids;
+                setLinked(l => ({
+                  ...l,
+                  nivaObs: {
+                    features: [], loading: false, count: 0,
+                    warning: `${count.toLocaleString('sv-SE')} observationer – för stort för automatisk hämtning.`,
+                  },
+                }));
+              } else {
+                await doFetchNivaObs(ids);
               }
             }
           }
@@ -247,18 +265,22 @@ export const PolygonFetcher = ({ bbox, areaKm2, onClose }: PolygonFetcherProps) 
               .filter((v: any): v is string | number => v != null && v !== '')
               .map(String);
             if (ids.length > 0) {
-              setLinked(l => ({ ...l, analysresultat: { features: [], loading: true, count: 0 } }));
-              try {
-                const base = 'https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/analysresultat/items?f=json';
-                const analys = await fetchByIdBatches(
-                  base,
-                  batch => `nationellt_provplatsid IN (${batch.join(',')})`,
-                  ids,
-                  (count) => setLinked(l => ({ ...l, analysresultat: { ...l.analysresultat!, count } }))
-                );
-                setLinked(l => ({ ...l, analysresultat: { features: analys, loading: false, count: analys.length } }));
-              } catch {
-                setLinked(l => ({ ...l, analysresultat: { features: [], loading: false, count: 0, error: 'Misslyckades' } }));
+              const base = 'https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/analysresultat/items?f=json';
+              const filterStr = `nationellt_provplatsid IN (${ids.join(',')})`;
+              const probeUrl = `${base}&filter=${encodeURIComponent(filterStr)}&filter-lang=cql2-text`;
+              const count = await peekCount(probeUrl);
+
+              if (count !== null && count > COUNT_WARN_THRESHOLD) {
+                pendingAnalysIds.current = ids;
+                setLinked(l => ({
+                  ...l,
+                  analysresultat: {
+                    features: [], loading: false, count: 0,
+                    warning: `${count.toLocaleString('sv-SE')} analysresultat – för stort för automatisk hämtning.`,
+                  },
+                }));
+              } else {
+                await doFetchAnalysresultat(ids);
               }
             }
           }
@@ -275,24 +297,22 @@ export const PolygonFetcher = ({ bbox, areaKm2, onClose }: PolygonFetcherProps) 
   const anyResults =
     Object.values(results).some(r => r.features.length > 0) ||
     !!linked.nivaObs?.features.length ||
-    !!linked.analysresultat?.features.length;
+    !!linked.analysresultat?.features.length ||
+    !!linked.nivaObs?.warning ||
+    !!linked.analysresultat?.warning;
 
   const ExportRow = ({
     label, features, csvName, geojsonName, loading, count,
   }: {
-    label: string;
-    features: any[];
-    csvName: string;
-    geojsonName: string;
-    loading?: boolean;
-    count?: number;
+    label: string; features: any[]; csvName: string; geojsonName: string;
+    loading?: boolean; count?: number;
   }) => (
     <div className="flex items-center gap-1 px-2 py-1 flex-wrap">
       <span className="text-xs text-foreground flex-1">
         {label}
         {loading
-          ? <span className="text-muted-foreground"> ({count ?? 0}…)</span>
-          : <span> ({features.length})</span>}
+          ? <span className="text-muted-foreground"> ({(count ?? 0).toLocaleString('sv-SE')}…)</span>
+          : <span> ({features.length.toLocaleString('sv-SE')})</span>}
       </span>
       {features.length > 0 && (
         <>
@@ -327,9 +347,7 @@ export const PolygonFetcher = ({ bbox, areaKm2, onClose }: PolygonFetcherProps) 
         <div className="text-xs text-muted-foreground">
           Ritat område:{' '}
           <span className="font-medium text-foreground">{areaKm2.toFixed(2)} km²</span>
-          <span className="block text-[10px] mt-0.5">
-            Bbox: {bbox.map(v => v.toFixed(4)).join(', ')}
-          </span>
+          <span className="block text-[10px] mt-0.5">Bbox: {bbox.map(v => v.toFixed(4)).join(', ')}</span>
         </div>
 
         <Separator />
@@ -353,11 +371,11 @@ export const PolygonFetcher = ({ bbox, areaKm2, onClose }: PolygonFetcherProps) 
                 {r?.loading && (
                   <span className="ml-auto text-xs text-muted-foreground flex items-center gap-1">
                     <Loader2 className="w-3 h-3 animate-spin" />
-                    {r.count > 0 ? r.count : ''}
+                    {r.count > 0 ? r.count.toLocaleString('sv-SE') : ''}
                   </span>
                 )}
                 {r && !r.loading && !r.error && (
-                  <span className="ml-auto text-xs text-muted-foreground">{r.features.length}</span>
+                  <span className="ml-auto text-xs text-muted-foreground">{r.features.length.toLocaleString('sv-SE')}</span>
                 )}
                 {r?.error && <span className="ml-auto text-xs text-destructive">!</span>}
               </button>
@@ -394,9 +412,22 @@ export const PolygonFetcher = ({ bbox, areaKm2, onClose }: PolygonFetcherProps) 
                       geojsonName={`${s.id}_polygon_${today}.geojson`}
                     />
 
-                    {s.id === 'nivaer' && linked.nivaObs !== undefined && (
+                    {s.id === 'nivaer' && linked.nivaObs && (
                       <div className="ml-3 border-l-2 border-border pl-2">
-                        {linked.nivaObs.error ? (
+                        {linked.nivaObs.warning ? (
+                          <div className="py-1 space-y-1">
+                            <div className="flex items-start gap-1 text-xs text-amber-600 dark:text-amber-400">
+                              <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" />
+                              <span>{linked.nivaObs.warning}</span>
+                            </div>
+                            <button
+                              className="text-xs text-sgu-link hover:underline"
+                              onClick={() => doFetchNivaObs(pendingNivaIds.current)}
+                            >
+                              Ladda ändå
+                            </button>
+                          </div>
+                        ) : linked.nivaObs.error ? (
                           <span className="text-xs text-destructive">{linked.nivaObs.error}</span>
                         ) : (
                           <ExportRow
@@ -411,9 +442,22 @@ export const PolygonFetcher = ({ bbox, areaKm2, onClose }: PolygonFetcherProps) 
                       </div>
                     )}
 
-                    {s.id === 'kvalitet' && linked.analysresultat !== undefined && (
+                    {s.id === 'kvalitet' && linked.analysresultat && (
                       <div className="ml-3 border-l-2 border-border pl-2">
-                        {linked.analysresultat.error ? (
+                        {linked.analysresultat.warning ? (
+                          <div className="py-1 space-y-1">
+                            <div className="flex items-start gap-1 text-xs text-amber-600 dark:text-amber-400">
+                              <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" />
+                              <span>{linked.analysresultat.warning}</span>
+                            </div>
+                            <button
+                              className="text-xs text-sgu-link hover:underline"
+                              onClick={() => doFetchAnalysresultat(pendingAnalysIds.current)}
+                            >
+                              Ladda ändå
+                            </button>
+                          </div>
+                        ) : linked.analysresultat.error ? (
                           <span className="text-xs text-destructive">{linked.analysresultat.error}</span>
                         ) : (
                           <ExportRow
