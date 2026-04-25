@@ -4,6 +4,7 @@ import View from "ol/View";
 import TileLayer from "ol/layer/Tile";
 import ImageLayer from "ol/layer/Image";
 import VectorLayer from "ol/layer/Vector";
+import VectorImageLayer from "ol/layer/VectorImage";
 import OSM from "ol/source/OSM";
 import ImageWMS from "ol/source/ImageWMS";
 import VectorSource from "ol/source/Vector";
@@ -132,15 +133,15 @@ export const MapView = () => {
   const [currentZoom, setCurrentZoom] = useState(11);
   const sourcesLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const wellsLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
-  const aquifersLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
-  const soilTypesLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
-  const waterBodiesLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
+  const aquifersLayerRef = useRef<VectorImageLayer<VectorSource> | null>(null);
+  const soilTypesLayerRef = useRef<VectorImageLayer<VectorSource> | null>(null);
+  const waterBodiesLayerRef = useRef<VectorImageLayer<VectorSource> | null>(null);
   const gwLevelsObservedLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const gwQualityLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const observationsLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const jorddjupObsLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
-  const jorddjupKartorLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
-  const jorddjupSprickLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
+  const jorddjupKartorLayerRef = useRef<VectorImageLayer<VectorSource> | null>(null);
+  const jorddjupSprickLayerRef = useRef<VectorImageLayer<VectorSource> | null>(null);
   const loadWellsForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
   const loadSoilTypesForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
   const loadWaterBodiesForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
@@ -150,10 +151,10 @@ export const MapView = () => {
   const loadJorddjupKartorForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
   const loadJorddjupSprickForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
   const hypoAreasSourceRef = useRef<VectorSource | null>(null);
-  const hypoFyllnadSmaLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
-  const hypoFyllnadStoraLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
-  const hypoSitSmaLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
-  const hypoSitStoraLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
+  const hypoFyllnadSmaLayerRef = useRef<VectorImageLayer<VectorSource> | null>(null);
+  const hypoFyllnadStoraLayerRef = useRef<VectorImageLayer<VectorSource> | null>(null);
+  const hypoSitSmaLayerRef = useRef<VectorImageLayer<VectorSource> | null>(null);
+  const hypoSitStoraLayerRef = useRef<VectorImageLayer<VectorSource> | null>(null);
   const fetchAndJoinHypoLevelsRef = useRef<((date: string) => Promise<void>) | null>(null);
   const hypoAreasDateRef = useRef((() => { const d = new Date(); d.setDate(d.getDate() - ((d.getDay() + 7) % 7)); return d.toISOString().split('T')[0]; })());
   // Lantmäteriet WMS layer refs
@@ -716,7 +717,7 @@ export const MapView = () => {
     };
     loadAquifersForExtentRef.current = loadAquifersForExtent;
 
-    const aquifersLayer = new VectorLayer({
+    const aquifersLayer = new VectorImageLayer({
       source: aquifersSource,
       visible: aquifersVisible,
       opacity: aquifersOpacity,
@@ -826,7 +827,7 @@ export const MapView = () => {
       });
     };
 
-    const soilTypesLayer = new VectorLayer({
+    const soilTypesLayer = new VectorImageLayer({
       source: soilTypesSource,
       visible: soilTypesVisible,
       opacity: soilTypesOpacity,
@@ -897,7 +898,7 @@ export const MapView = () => {
     };
     loadWaterBodiesForExtentRef.current = loadWaterBodiesForExtent;
 
-    const waterBodiesLayer = new VectorLayer({
+    const waterBodiesLayer = new VectorImageLayer({
       source: waterBodiesSource,
       visible: waterBodiesVisible,
       style: new Style({
@@ -1259,7 +1260,7 @@ export const MapView = () => {
     };
     loadJorddjupKartorForExtentRef.current = loadJorddjupKartorForExtent;
 
-    const jorddjupKartorLayer = new VectorLayer({
+    const jorddjupKartorLayer = new VectorImageLayer({
       source: jorddjupKartorSource,
       visible: jorddjupKartorVisible,
       style: new Style({
@@ -1307,7 +1308,7 @@ export const MapView = () => {
     };
     loadJorddjupSprickForExtentRef.current = loadJorddjupSprickForExtent;
 
-    const jorddjupSprickLayer = new VectorLayer({
+    const jorddjupSprickLayer = new VectorImageLayer({
       source: jorddjupSprickSource,
       visible: jorddjupSprickVisible,
       style: new Style({
@@ -1382,10 +1383,10 @@ export const MapView = () => {
       });
     };
 
-    const hypoFyllnadSmaLayer = new VectorLayer({ source: hypoAreasSource, visible: hypoFyllnadSmaVisible, opacity: hypoAreasOpacity, style: makeHypoStyle('fyllnadsgrad_sma') });
-    const hypoFyllnadStoraLayer = new VectorLayer({ source: hypoAreasSource, visible: hypoFyllnadStoraVisible, opacity: hypoAreasOpacity, style: makeHypoStyle('fyllnadsgrad_stora') });
-    const hypoSitSmaLayer = new VectorLayer({ source: hypoAreasSource, visible: hypoSitSmaVisible, opacity: hypoAreasOpacity, style: makeHypoStyle('grundvattensituation_sma') });
-    const hypoSitStoraLayer = new VectorLayer({ source: hypoAreasSource, visible: hypoSitStoraVisible, opacity: hypoAreasOpacity, style: makeHypoStyle('grundvattensituation_stora') });
+    const hypoFyllnadSmaLayer = new VectorImageLayer({ source: hypoAreasSource, visible: hypoFyllnadSmaVisible, opacity: hypoAreasOpacity, style: makeHypoStyle('fyllnadsgrad_sma') });
+    const hypoFyllnadStoraLayer = new VectorImageLayer({ source: hypoAreasSource, visible: hypoFyllnadStoraVisible, opacity: hypoAreasOpacity, style: makeHypoStyle('fyllnadsgrad_stora') });
+    const hypoSitSmaLayer = new VectorImageLayer({ source: hypoAreasSource, visible: hypoSitSmaVisible, opacity: hypoAreasOpacity, style: makeHypoStyle('grundvattensituation_sma') });
+    const hypoSitStoraLayer = new VectorImageLayer({ source: hypoAreasSource, visible: hypoSitStoraVisible, opacity: hypoAreasOpacity, style: makeHypoStyle('grundvattensituation_stora') });
 
     hypoFyllnadSmaLayerRef.current = hypoFyllnadSmaLayer;
     hypoFyllnadStoraLayerRef.current = hypoFyllnadStoraLayer;
