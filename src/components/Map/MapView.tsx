@@ -1904,13 +1904,13 @@ export const MapView = () => {
   useEffect(() => {
     const layer = gwLevelsObservedLayerRef.current;
     if (layer) {
-      const src = layer.getSource();
       if (!gwLevelsObservedVisible) {
-        src?.clear(); setGwLevelsObservedLoaded(0);
-      } else if ((src?.getFeatures().length ?? 0) === 0) {
-        src?.loadFeatures(src.getExtent(), 1, src.getProjection());
+        layer.setVisible(false);
+        layer.getSource()?.refresh();
+        setGwLevelsObservedLoaded(0);
+      } else {
+        layer.setVisible(true);
       }
-      layer.setVisible(gwLevelsObservedVisible);
     }
   }, [gwLevelsObservedVisible]);
 
@@ -1918,13 +1918,13 @@ export const MapView = () => {
   useEffect(() => {
     const layer = gwQualityLayerRef.current;
     if (layer) {
-      const src = layer.getSource();
       if (!gwQualityVisible) {
-        src?.clear(); setGwQualityLoaded(0);
-      } else if ((src?.getFeatures().length ?? 0) === 0) {
-        src?.loadFeatures(src.getExtent(), 1, src.getProjection());
+        layer.setVisible(false);
+        layer.getSource()?.refresh();
+        setGwQualityLoaded(0);
+      } else {
+        layer.setVisible(true);
       }
-      layer.setVisible(gwQualityVisible);
     }
   }, [gwQualityVisible]);
 
@@ -1932,13 +1932,13 @@ export const MapView = () => {
   useEffect(() => {
     const layer = observationsLayerRef.current;
     if (layer) {
-      const src = layer.getSource();
       if (!observationsVisible) {
-        src?.clear(); setObservationsLoaded(0);
-      } else if ((src?.getFeatures().length ?? 0) === 0) {
-        src?.loadFeatures(src.getExtent(), 1, src.getProjection());
+        layer.setVisible(false);
+        layer.getSource()?.refresh();
+        setObservationsLoaded(0);
+      } else {
+        layer.setVisible(true);
       }
-      layer.setVisible(observationsVisible);
     }
   }, [observationsVisible]);
 
@@ -2102,16 +2102,15 @@ export const MapView = () => {
   // Update all four HYPE layer visibilities; trigger source load when any becomes visible
   useEffect(() => {
     const anyVisible = hypoFyllnadSmaVisible || hypoFyllnadStoraVisible || hypoSitSmaVisible || hypoSitStoraVisible;
-    const source = hypoAreasSourceRef.current;
-    if (!anyVisible && source) {
-      source.clear(); setHypoAreasLoaded(0);
-    } else if (anyVisible && source && source.getFeatures().length === 0) {
-      source.loadFeatures(source.getExtent(), 1, source.getProjection());
-    }
     hypoFyllnadSmaLayerRef.current?.setVisible(hypoFyllnadSmaVisible);
     hypoFyllnadStoraLayerRef.current?.setVisible(hypoFyllnadStoraVisible);
     hypoSitSmaLayerRef.current?.setVisible(hypoSitSmaVisible);
     hypoSitStoraLayerRef.current?.setVisible(hypoSitStoraVisible);
+    const source = hypoAreasSourceRef.current;
+    if (!anyVisible && source) {
+      source.refresh();
+      setHypoAreasLoaded(0);
+    }
   }, [hypoFyllnadSmaVisible, hypoFyllnadStoraVisible, hypoSitSmaVisible, hypoSitStoraVisible]);
 
   // Update HYPE opacity (shared across all four layers)
