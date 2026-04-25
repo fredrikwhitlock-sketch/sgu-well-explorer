@@ -1251,7 +1251,8 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                 // eu_cd is the formal EU code — try ms_cd first
                 forekomstMsCd = fp.ms_cd || fp.eucd_gwb || fp.eu_cd || fp.eucd || null;
                 if (forekomstMsCd) forekomstMsCd = String(forekomstMsCd).trim();
-                if (!bodyId && forekomstMsCd) bodyId = forekomstMsCd;
+                // Spatial intersection is authoritative — always override bbox-derived bodyId
+                if (forekomstMsCd) bodyId = forekomstMsCd;
                 // Flatten polygon coordinates to get min/max lon/lat
                 const geom = feat.geometry;
                 if (geom?.type === 'Polygon' || geom?.type === 'MultiPolygon') {
