@@ -4,6 +4,7 @@ import View from "ol/View";
 import TileLayer from "ol/layer/Tile";
 import ImageLayer from "ol/layer/Image";
 import VectorLayer from "ol/layer/Vector";
+import VectorImageLayer from "ol/layer/VectorImage";
 import OSM from "ol/source/OSM";
 import ImageWMS from "ol/source/ImageWMS";
 import VectorSource from "ol/source/Vector";
@@ -132,15 +133,15 @@ export const MapView = () => {
   const [currentZoom, setCurrentZoom] = useState(11);
   const sourcesLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const wellsLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
-  const aquifersLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
-  const soilTypesLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
-  const waterBodiesLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
+  const aquifersLayerRef = useRef<VectorImageLayer<VectorSource> | null>(null);
+  const soilTypesLayerRef = useRef<VectorImageLayer<VectorSource> | null>(null);
+  const waterBodiesLayerRef = useRef<VectorImageLayer<VectorSource> | null>(null);
   const gwLevelsObservedLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const gwQualityLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const observationsLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const jorddjupObsLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
-  const jorddjupKartorLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
-  const jorddjupSprickLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
+  const jorddjupKartorLayerRef = useRef<VectorImageLayer<VectorSource> | null>(null);
+  const jorddjupSprickLayerRef = useRef<VectorImageLayer<VectorSource> | null>(null);
   const loadWellsForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
   const loadSoilTypesForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
   const loadWaterBodiesForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
@@ -149,11 +150,17 @@ export const MapView = () => {
   const loadJorddjupObsForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
   const loadJorddjupKartorForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
   const loadJorddjupSprickForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
+  const clearAquifersRef = useRef<(() => void) | null>(null);
+  const clearSoilTypesRef = useRef<(() => void) | null>(null);
+  const clearWaterBodiesRef = useRef<(() => void) | null>(null);
+  const clearJorddjupObsRef = useRef<(() => void) | null>(null);
+  const clearJorddjupKartorRef = useRef<(() => void) | null>(null);
+  const clearJorddjupSprickRef = useRef<(() => void) | null>(null);
   const hypoAreasSourceRef = useRef<VectorSource | null>(null);
-  const hypoFyllnadSmaLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
-  const hypoFyllnadStoraLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
-  const hypoSitSmaLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
-  const hypoSitStoraLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
+  const hypoFyllnadSmaLayerRef = useRef<VectorImageLayer<VectorSource> | null>(null);
+  const hypoFyllnadStoraLayerRef = useRef<VectorImageLayer<VectorSource> | null>(null);
+  const hypoSitSmaLayerRef = useRef<VectorImageLayer<VectorSource> | null>(null);
+  const hypoSitStoraLayerRef = useRef<VectorImageLayer<VectorSource> | null>(null);
   const fetchAndJoinHypoLevelsRef = useRef<((date: string) => Promise<void>) | null>(null);
   const hypoAreasDateRef = useRef((() => { const d = new Date(); d.setDate(d.getDate() - ((d.getDay() + 7) % 7)); return d.toISOString().split('T')[0]; })());
   // Lantmäteriet WMS layer refs
@@ -715,8 +722,9 @@ export const MapView = () => {
       }
     };
     loadAquifersForExtentRef.current = loadAquifersForExtent;
+    clearAquifersRef.current = () => { loadedAquiferExtentsRef.length = 0; aquifersSource.clear(); setAquifersLoaded(0); };
 
-    const aquifersLayer = new VectorLayer({
+    const aquifersLayer = new VectorImageLayer({
       source: aquifersSource,
       visible: aquifersVisible,
       opacity: aquifersOpacity,
@@ -810,6 +818,7 @@ export const MapView = () => {
     };
     
     loadSoilTypesForExtentRef.current = loadSoilTypesForExtent;
+    clearSoilTypesRef.current = () => { loadedSoilExtentsRef.length = 0; soilTypesSource.clear(); setSoilTypesLoaded(0); };
 
     const soilTypeStyleFunction = (feature: any) => {
       const jg2 = feature.get('jg2') || 0;
@@ -826,7 +835,7 @@ export const MapView = () => {
       });
     };
 
-    const soilTypesLayer = new VectorLayer({
+    const soilTypesLayer = new VectorImageLayer({
       source: soilTypesSource,
       visible: soilTypesVisible,
       opacity: soilTypesOpacity,
@@ -896,8 +905,9 @@ export const MapView = () => {
       }
     };
     loadWaterBodiesForExtentRef.current = loadWaterBodiesForExtent;
+    clearWaterBodiesRef.current = () => { loadedWaterBodyExtentsRef.length = 0; waterBodiesSource.clear(); setWaterBodiesLoaded(0); };
 
-    const waterBodiesLayer = new VectorLayer({
+    const waterBodiesLayer = new VectorImageLayer({
       source: waterBodiesSource,
       visible: waterBodiesVisible,
       style: new Style({
@@ -1196,6 +1206,7 @@ export const MapView = () => {
       }
     };
     loadJorddjupObsForExtentRef.current = loadJorddjupObsForExtent;
+    clearJorddjupObsRef.current = () => { loadedJorddjupObsExtents.length = 0; jorddjupObsSource.clear(); setJorddjupObsLoaded(0); };
 
     const jorddjupObsStyleFn = (feature: any) => {
       const djup = feature.get('djup') ?? 0;
@@ -1258,8 +1269,9 @@ export const MapView = () => {
       }
     };
     loadJorddjupKartorForExtentRef.current = loadJorddjupKartorForExtent;
+    clearJorddjupKartorRef.current = () => { loadedJorddjupKartorExtents.length = 0; jorddjupKartorSource.clear(); setJorddjupKartorLoaded(0); };
 
-    const jorddjupKartorLayer = new VectorLayer({
+    const jorddjupKartorLayer = new VectorImageLayer({
       source: jorddjupKartorSource,
       visible: jorddjupKartorVisible,
       style: new Style({
@@ -1306,8 +1318,9 @@ export const MapView = () => {
       }
     };
     loadJorddjupSprickForExtentRef.current = loadJorddjupSprickForExtent;
+    clearJorddjupSprickRef.current = () => { loadedJorddjupSprickExtents.length = 0; jorddjupSprickSource.clear(); setJorddjupSprickLoaded(0); };
 
-    const jorddjupSprickLayer = new VectorLayer({
+    const jorddjupSprickLayer = new VectorImageLayer({
       source: jorddjupSprickSource,
       visible: jorddjupSprickVisible,
       style: new Style({
@@ -1382,10 +1395,10 @@ export const MapView = () => {
       });
     };
 
-    const hypoFyllnadSmaLayer = new VectorLayer({ source: hypoAreasSource, visible: hypoFyllnadSmaVisible, opacity: hypoAreasOpacity, style: makeHypoStyle('fyllnadsgrad_sma') });
-    const hypoFyllnadStoraLayer = new VectorLayer({ source: hypoAreasSource, visible: hypoFyllnadStoraVisible, opacity: hypoAreasOpacity, style: makeHypoStyle('fyllnadsgrad_stora') });
-    const hypoSitSmaLayer = new VectorLayer({ source: hypoAreasSource, visible: hypoSitSmaVisible, opacity: hypoAreasOpacity, style: makeHypoStyle('grundvattensituation_sma') });
-    const hypoSitStoraLayer = new VectorLayer({ source: hypoAreasSource, visible: hypoSitStoraVisible, opacity: hypoAreasOpacity, style: makeHypoStyle('grundvattensituation_stora') });
+    const hypoFyllnadSmaLayer = new VectorImageLayer({ source: hypoAreasSource, visible: hypoFyllnadSmaVisible, opacity: hypoAreasOpacity, style: makeHypoStyle('fyllnadsgrad_sma') });
+    const hypoFyllnadStoraLayer = new VectorImageLayer({ source: hypoAreasSource, visible: hypoFyllnadStoraVisible, opacity: hypoAreasOpacity, style: makeHypoStyle('fyllnadsgrad_stora') });
+    const hypoSitSmaLayer = new VectorImageLayer({ source: hypoAreasSource, visible: hypoSitSmaVisible, opacity: hypoAreasOpacity, style: makeHypoStyle('grundvattensituation_sma') });
+    const hypoSitStoraLayer = new VectorImageLayer({ source: hypoAreasSource, visible: hypoSitStoraVisible, opacity: hypoAreasOpacity, style: makeHypoStyle('grundvattensituation_stora') });
 
     hypoFyllnadSmaLayerRef.current = hypoFyllnadSmaLayer;
     hypoFyllnadStoraLayerRef.current = hypoFyllnadStoraLayer;
@@ -1829,14 +1842,15 @@ export const MapView = () => {
   // Update Aquifers visibility and load data when enabled
   useEffect(() => {
     if (aquifersLayerRef.current) {
-      aquifersLayerRef.current.setVisible(aquifersVisible);
-      if (aquifersVisible && mapInstanceRef.current) {
+      if (!aquifersVisible) {
+        clearAquifersRef.current?.();
+      } else if (mapInstanceRef.current) {
         const zoom = mapInstanceRef.current.getView().getZoom() || 0;
         if (zoom >= 9 && loadAquifersForExtentRef.current) {
-          const extent = mapInstanceRef.current.getView().calculateExtent();
-          loadAquifersForExtentRef.current(extent);
+          loadAquifersForExtentRef.current(mapInstanceRef.current.getView().calculateExtent());
         }
       }
+      aquifersLayerRef.current.setVisible(aquifersVisible);
     }
   }, [aquifersVisible]);
 
@@ -1850,16 +1864,17 @@ export const MapView = () => {
   // Update Soil Types visibility and load data when enabled
   useEffect(() => {
     if (soilTypesLayerRef.current) {
-      soilTypesLayerRef.current.setVisible(soilTypesVisible);
-      if (soilTypesVisible && mapInstanceRef.current && loadSoilTypesForExtentRef.current) {
+      if (!soilTypesVisible) {
+        clearSoilTypesRef.current?.();
+      } else if (mapInstanceRef.current && loadSoilTypesForExtentRef.current) {
         const currentZoom = mapInstanceRef.current.getView().getZoom() || 0;
         if (currentZoom < 12) {
           toast.info("Zooma in för att ladda jordarter (minst zoomnivå 12)");
         } else {
-          const extent = mapInstanceRef.current.getView().calculateExtent();
-          loadSoilTypesForExtentRef.current(extent);
+          loadSoilTypesForExtentRef.current(mapInstanceRef.current.getView().calculateExtent());
         }
       }
+      soilTypesLayerRef.current.setVisible(soilTypesVisible);
     }
   }, [soilTypesVisible]);
 
@@ -1873,56 +1888,57 @@ export const MapView = () => {
   // Update Water Bodies visibility and load data when enabled
   useEffect(() => {
     if (waterBodiesLayerRef.current) {
-      waterBodiesLayerRef.current.setVisible(waterBodiesVisible);
-      if (waterBodiesVisible && mapInstanceRef.current) {
+      if (!waterBodiesVisible) {
+        clearWaterBodiesRef.current?.();
+      } else if (mapInstanceRef.current) {
         const zoom = mapInstanceRef.current.getView().getZoom() || 0;
         if (zoom >= 7 && loadWaterBodiesForExtentRef.current) {
-          const extent = mapInstanceRef.current.getView().calculateExtent();
-          loadWaterBodiesForExtentRef.current(extent);
+          loadWaterBodiesForExtentRef.current(mapInstanceRef.current.getView().calculateExtent());
         }
       }
+      waterBodiesLayerRef.current.setVisible(waterBodiesVisible);
     }
   }, [waterBodiesVisible]);
 
   // Update Observed GW Levels visibility and load data when enabled
   useEffect(() => {
-    if (gwLevelsObservedLayerRef.current) {
-      if (gwLevelsObservedVisible && gwLevelsObservedLayerRef.current.getSource()?.getFeatures().length === 0) {
-        gwLevelsObservedLayerRef.current.getSource()?.loadFeatures(
-          gwLevelsObservedLayerRef.current.getSource()!.getExtent(),
-          1,
-          gwLevelsObservedLayerRef.current.getSource()!.getProjection()
-        );
+    const layer = gwLevelsObservedLayerRef.current;
+    if (layer) {
+      const src = layer.getSource();
+      if (!gwLevelsObservedVisible) {
+        src?.clear(); setGwLevelsObservedLoaded(0);
+      } else if ((src?.getFeatures().length ?? 0) === 0) {
+        src?.loadFeatures(src.getExtent(), 1, src.getProjection());
       }
-      gwLevelsObservedLayerRef.current.setVisible(gwLevelsObservedVisible);
+      layer.setVisible(gwLevelsObservedVisible);
     }
   }, [gwLevelsObservedVisible]);
 
   // Update Groundwater Quality visibility and load data when enabled
   useEffect(() => {
-    if (gwQualityLayerRef.current) {
-      if (gwQualityVisible && gwQualityLayerRef.current.getSource()?.getFeatures().length === 0) {
-        gwQualityLayerRef.current.getSource()?.loadFeatures(
-          gwQualityLayerRef.current.getSource()!.getExtent(),
-          1,
-          gwQualityLayerRef.current.getSource()!.getProjection()
-        );
+    const layer = gwQualityLayerRef.current;
+    if (layer) {
+      const src = layer.getSource();
+      if (!gwQualityVisible) {
+        src?.clear(); setGwQualityLoaded(0);
+      } else if ((src?.getFeatures().length ?? 0) === 0) {
+        src?.loadFeatures(src.getExtent(), 1, src.getProjection());
       }
-      gwQualityLayerRef.current.setVisible(gwQualityVisible);
+      layer.setVisible(gwQualityVisible);
     }
   }, [gwQualityVisible]);
 
   // Update Observations visibility and load data when enabled
   useEffect(() => {
-    if (observationsLayerRef.current) {
-      if (observationsVisible && observationsLayerRef.current.getSource()?.getFeatures().length === 0) {
-        observationsLayerRef.current.getSource()?.loadFeatures(
-          observationsLayerRef.current.getSource()!.getExtent(),
-          1,
-          observationsLayerRef.current.getSource()!.getProjection()
-        );
+    const layer = observationsLayerRef.current;
+    if (layer) {
+      const src = layer.getSource();
+      if (!observationsVisible) {
+        src?.clear(); setObservationsLoaded(0);
+      } else if ((src?.getFeatures().length ?? 0) === 0) {
+        src?.loadFeatures(src.getExtent(), 1, src.getProjection());
       }
-      observationsLayerRef.current.setVisible(observationsVisible);
+      layer.setVisible(observationsVisible);
     }
   }, [observationsVisible]);
 
@@ -2046,43 +2062,40 @@ export const MapView = () => {
   // Jorddjupsmodell – extent-based loading (minzoom 12), same pattern as brunnar
   useEffect(() => {
     if (jorddjupObsLayerRef.current) {
-      jorddjupObsLayerRef.current.setVisible(jorddjupObsVisible);
-      if (jorddjupObsVisible && mapInstanceRef.current && loadJorddjupObsForExtentRef.current) {
+      if (!jorddjupObsVisible) {
+        clearJorddjupObsRef.current?.();
+      } else if (mapInstanceRef.current && loadJorddjupObsForExtentRef.current) {
         const zoom = mapInstanceRef.current.getView().getZoom() || 0;
-        if (zoom < 12) {
-          toast.info("Zooma in för att ladda jorddjupsobservationer (minst zoomnivå 12)");
-        } else {
-          loadJorddjupObsForExtentRef.current(mapInstanceRef.current.getView().calculateExtent());
-        }
+        if (zoom < 12) toast.info("Zooma in för att ladda jorddjupsobservationer (minst zoomnivå 12)");
+        else loadJorddjupObsForExtentRef.current(mapInstanceRef.current.getView().calculateExtent());
       }
+      jorddjupObsLayerRef.current.setVisible(jorddjupObsVisible);
     }
   }, [jorddjupObsVisible]);
 
   useEffect(() => {
     if (jorddjupKartorLayerRef.current) {
-      jorddjupKartorLayerRef.current.setVisible(jorddjupKartorVisible);
-      if (jorddjupKartorVisible && mapInstanceRef.current && loadJorddjupKartorForExtentRef.current) {
+      if (!jorddjupKartorVisible) {
+        clearJorddjupKartorRef.current?.();
+      } else if (mapInstanceRef.current && loadJorddjupKartorForExtentRef.current) {
         const zoom = mapInstanceRef.current.getView().getZoom() || 0;
-        if (zoom < 12) {
-          toast.info("Zooma in för att ladda jordartskartor (minst zoomnivå 12)");
-        } else {
-          loadJorddjupKartorForExtentRef.current(mapInstanceRef.current.getView().calculateExtent());
-        }
+        if (zoom < 12) toast.info("Zooma in för att ladda jordartskartor (minst zoomnivå 12)");
+        else loadJorddjupKartorForExtentRef.current(mapInstanceRef.current.getView().calculateExtent());
       }
+      jorddjupKartorLayerRef.current.setVisible(jorddjupKartorVisible);
     }
   }, [jorddjupKartorVisible]);
 
   useEffect(() => {
     if (jorddjupSprickLayerRef.current) {
-      jorddjupSprickLayerRef.current.setVisible(jorddjupSprickVisible);
-      if (jorddjupSprickVisible && mapInstanceRef.current && loadJorddjupSprickForExtentRef.current) {
+      if (!jorddjupSprickVisible) {
+        clearJorddjupSprickRef.current?.();
+      } else if (mapInstanceRef.current && loadJorddjupSprickForExtentRef.current) {
         const zoom = mapInstanceRef.current.getView().getZoom() || 0;
-        if (zoom < 12) {
-          toast.info("Zooma in för att ladda sprickzoner (minst zoomnivå 12)");
-        } else {
-          loadJorddjupSprickForExtentRef.current(mapInstanceRef.current.getView().calculateExtent());
-        }
+        if (zoom < 12) toast.info("Zooma in för att ladda sprickzoner (minst zoomnivå 12)");
+        else loadJorddjupSprickForExtentRef.current(mapInstanceRef.current.getView().calculateExtent());
       }
+      jorddjupSprickLayerRef.current.setVisible(jorddjupSprickVisible);
     }
   }, [jorddjupSprickVisible]);
 
@@ -2090,7 +2103,9 @@ export const MapView = () => {
   useEffect(() => {
     const anyVisible = hypoFyllnadSmaVisible || hypoFyllnadStoraVisible || hypoSitSmaVisible || hypoSitStoraVisible;
     const source = hypoAreasSourceRef.current;
-    if (anyVisible && source && source.getFeatures().length === 0) {
+    if (!anyVisible && source) {
+      source.clear(); setHypoAreasLoaded(0);
+    } else if (anyVisible && source && source.getFeatures().length === 0) {
       source.loadFeatures(source.getExtent(), 1, source.getProjection());
     }
     hypoFyllnadSmaLayerRef.current?.setVisible(hypoFyllnadSmaVisible);
