@@ -2119,11 +2119,7 @@ export const MapView = () => {
     hypoFyllnadStoraLayerRef.current?.setVisible(hypoFyllnadStoraVisible);
     hypoSitSmaLayerRef.current?.setVisible(hypoSitSmaVisible);
     hypoSitStoraLayerRef.current?.setVisible(hypoSitStoraVisible);
-    const source = hypoAreasSourceRef.current;
-    if (!anyVisible && source) {
-      source.refresh();
-      setHypoAreasLoaded(0);
-    }
+    // Keep source cached when hidden – data is re-used on next show without a fetch
   }, [hypoFyllnadSmaVisible, hypoFyllnadStoraVisible, hypoSitSmaVisible, hypoSitStoraVisible]);
 
   // Update HYPE opacity (shared across all four layers)
