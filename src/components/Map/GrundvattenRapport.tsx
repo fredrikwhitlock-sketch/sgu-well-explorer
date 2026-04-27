@@ -1685,7 +1685,11 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
     if (!data) return;
     const today = new Date().toISOString().split('T')[0];
     const kCol = (k: number) => GV_KLASS_COLORS[k] ?? '#6b7280';
-    const sitLabel: Record<number, string> = { 1: 'Mycket lågt', 2: 'Lågt', 3: 'Normalt', 4: 'Högt', 5: 'Mycket högt' };
+    const sitPctLabel = (v: number) =>
+      v <= 14 ? 'Mycket under normalt' :
+      v <= 34 ? 'Under normalt' :
+      v <= 65 ? 'Normalt' :
+      v <= 85 ? 'Över normalt' : 'Mycket över normalt';
 
     let html = `<!DOCTYPE html>
 <html lang="sv">
@@ -1765,10 +1769,10 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
     if (data.fyllnadsgradSma != null || data.fyllnadsgradStora != null) {
       html += `<h2>Grundvattennivå (HYPE-modell)</h2>`;
       if (data.hypoDate) html += `<div class="row"><span class="lbl">Modelldata${data.hypoDateIsFallback ? ' (närmaste tillgängliga)' : ''}</span><span class="val">${data.hypoDate}</span></div>`;
-      if (data.fyllnadsgradSma != null) html += `<div class="row"><span class="lbl">Fyllnadsgrad, små magasin</span><span class="val">${Math.round(data.fyllnadsgradSma * 100)}%</span></div>`;
-      if (data.fyllnadsgradStora != null) html += `<div class="row"><span class="lbl">Fyllnadsgrad, stora magasin</span><span class="val">${Math.round(data.fyllnadsgradStora * 100)}%</span></div>`;
-      if (data.sitSma != null) html += `<div class="row"><span class="lbl">Situation, små magasin</span><span class="val">${sitLabel[data.sitSma] ?? `Klass ${data.sitSma}`}</span></div>`;
-      if (data.sitStora != null) html += `<div class="row"><span class="lbl">Situation, stora magasin</span><span class="val">${sitLabel[data.sitStora] ?? `Klass ${data.sitStora}`}</span></div>`;
+      if (data.fyllnadsgradSma != null) html += `<div class="row"><span class="lbl">Fyllnadsgrad, små magasin</span><span class="val">${Math.round(data.fyllnadsgradSma)}% — ${sitPctLabel(data.fyllnadsgradSma)}</span></div>`;
+      if (data.fyllnadsgradStora != null) html += `<div class="row"><span class="lbl">Fyllnadsgrad, stora magasin</span><span class="val">${Math.round(data.fyllnadsgradStora)}% — ${sitPctLabel(data.fyllnadsgradStora)}</span></div>`;
+      if (data.sitSma != null) html += `<div class="row"><span class="lbl">Situation, små magasin</span><span class="val">${Math.round(data.sitSma)}% — ${sitPctLabel(data.sitSma)}</span></div>`;
+      if (data.sitStora != null) html += `<div class="row"><span class="lbl">Situation, stora magasin</span><span class="val">${Math.round(data.sitStora)}% — ${sitPctLabel(data.sitStora)}</span></div>`;
     }
 
     // Depth
