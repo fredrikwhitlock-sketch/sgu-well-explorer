@@ -1370,24 +1370,19 @@ export const MapView = () => {
     });
     hypoAreasSourceRef.current = hypoAreasSource;
 
-    // Shared style factory – SGU färgskala (percentil 0–100) för både
-    // fyllnadsgrad_* och grundvattensituation_* enligt SGU:s officiella legend:
-    //   0–14   mörkt orange (mycket under normalt)
-    //   15–34  ljust orange (under normalt)
-    //   35–65  ljusgul     (normalt)
-    //   66–85  ljusblå     (över normalt)
-    //   86–100 mörkblå     (mycket över normalt)
-    const makeHypoStyle = (field: string) => (feature: any) => {
+    // Fyllnadsgrad – 7-klass SGU-skala (brun→grå→teal)
+    const makeFyllnadStyle = (field: string) => (feature: any) => {
       const v = feature.get(field);
-      let fillColor = 'rgba(200, 200, 200, 0.25)'; // grå – ingen data
-      // SGU sentinel-värden för "ingen data": null, -1, 99
+      let fillColor = 'rgba(200, 200, 200, 0.2)';
       const hasData = v !== null && v !== undefined && v !== -1 && v !== 99;
       if (hasData) {
-        if      (v <= 14) fillColor = 'rgba(217, 95, 14, 0.8)';   // mörkt orange
-        else if (v <= 34) fillColor = 'rgba(253, 174, 97, 0.8)';  // ljust orange
-        else if (v <= 65) fillColor = 'rgba(255, 237, 160, 0.8)'; // ljusgul
-        else if (v <= 85) fillColor = 'rgba(158, 202, 225, 0.8)'; // ljusblå
-        else              fillColor = 'rgba(49, 130, 189, 0.8)';  // mörkblå
+        if      (v <= 6.5)  fillColor = 'rgba(122, 60, 16, 0.85)';  // mörkt brun
+        else if (v <= 19.5) fillColor = 'rgba(200, 168, 96, 0.85)'; // tan/guldbrun
+        else if (v <= 37.5) fillColor = 'rgba(232, 216, 152, 0.85)';// ljus beige
+        else if (v <= 62.5) fillColor = 'rgba(160, 160, 160, 0.85)';// grå (normal)
+        else if (v <= 80.5) fillColor = 'rgba(90, 180, 158, 0.85)'; // medium teal
+        else if (v <= 93.5) fillColor = 'rgba(42, 122, 104, 0.85)'; // mörk teal
+        else                fillColor = 'rgba(13, 79, 66, 0.85)';   // mycket mörk teal
       }
       return new Style({
         stroke: new Stroke({ color: 'rgba(0,0,0,0.25)', width: 0.5 }),
@@ -1395,10 +1390,28 @@ export const MapView = () => {
       });
     };
 
-    const hypoFyllnadSmaLayer = new VectorImageLayer({ source: hypoAreasSource, visible: hypoFyllnadSmaVisible, opacity: hypoAreasOpacity, style: makeHypoStyle('fyllnadsgrad_sma') });
-    const hypoFyllnadStoraLayer = new VectorImageLayer({ source: hypoAreasSource, visible: hypoFyllnadStoraVisible, opacity: hypoAreasOpacity, style: makeHypoStyle('fyllnadsgrad_stora') });
-    const hypoSitSmaLayer = new VectorImageLayer({ source: hypoAreasSource, visible: hypoSitSmaVisible, opacity: hypoAreasOpacity, style: makeHypoStyle('grundvattensituation_sma') });
-    const hypoSitStoraLayer = new VectorImageLayer({ source: hypoAreasSource, visible: hypoSitStoraVisible, opacity: hypoAreasOpacity, style: makeHypoStyle('grundvattensituation_stora') });
+    // Grundvattensituation – 5-klass SGU-skala (orange→gul→blå)
+    const makeSitStyle = (field: string) => (feature: any) => {
+      const v = feature.get(field);
+      let fillColor = 'rgba(200, 200, 200, 0.2)';
+      const hasData = v !== null && v !== undefined && v !== -1 && v !== 99;
+      if (hasData) {
+        if      (v <= 14) fillColor = 'rgba(232, 96, 48, 0.85)';   // orange
+        else if (v <= 34) fillColor = 'rgba(240, 224, 64, 0.85)';  // gul
+        else if (v <= 65) fillColor = 'rgba(144, 184, 224, 0.85)'; // ljusblå
+        else if (v <= 85) fillColor = 'rgba(72, 120, 200, 0.85)';  // medelblå
+        else              fillColor = 'rgba(30, 58, 144, 0.85)';   // mörkblå
+      }
+      return new Style({
+        stroke: new Stroke({ color: 'rgba(0,0,0,0.25)', width: 0.5 }),
+        fill: new Fill({ color: fillColor }),
+      });
+    };
+
+    const hypoFyllnadSmaLayer = new VectorImageLayer({ source: hypoAreasSource, visible: hypoFyllnadSmaVisible, opacity: hypoAreasOpacity, style: makeFyllnadStyle('fyllnadsgrad_sma') });
+    const hypoFyllnadStoraLayer = new VectorImageLayer({ source: hypoAreasSource, visible: hypoFyllnadStoraVisible, opacity: hypoAreasOpacity, style: makeFyllnadStyle('fyllnadsgrad_stora') });
+    const hypoSitSmaLayer = new VectorImageLayer({ source: hypoAreasSource, visible: hypoSitSmaVisible, opacity: hypoAreasOpacity, style: makeSitStyle('grundvattensituation_sma') });
+    const hypoSitStoraLayer = new VectorImageLayer({ source: hypoAreasSource, visible: hypoSitStoraVisible, opacity: hypoAreasOpacity, style: makeSitStyle('grundvattensituation_stora') });
 
     hypoFyllnadSmaLayerRef.current = hypoFyllnadSmaLayer;
     hypoFyllnadStoraLayerRef.current = hypoFyllnadStoraLayer;

@@ -533,23 +533,47 @@ export const LayerPanel = ({
                 />
               </div>
 
-              {/* Legend */}
-              <div className="space-y-1 text-xs">
-                <p className="text-muted-foreground font-medium">Färgskala (percentil):</p>
-                {[
-                  { color: 'rgb(165,0,38)',   label: 'Mycket under normalt (<10%)' },
-                  { color: 'rgb(215,90,40)',   label: 'Under normalt (10–25%)' },
-                  { color: 'rgb(254,224,70)',  label: 'Normalt (25–75%)' },
-                  { color: 'rgb(90,174,97)',   label: 'Över normalt (75–90%)' },
-                  { color: 'rgb(0,104,55)',    label: 'Mycket över normalt (>90%)' },
-                  { color: 'rgb(200,200,200)', label: 'Ingen data' },
-                ].map(({ color, label }) => (
-                  <div key={label} className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-sm shrink-0" style={{ backgroundColor: color }} />
-                    <span className="text-muted-foreground">{label}</span>
-                  </div>
-                ))}
-              </div>
+              {/* Legend – fyllnadsgrad */}
+              {(hypoFyllnadSmaVisible || hypoFyllnadStoraVisible) && (
+                <div className="space-y-1 text-xs">
+                  <p className="text-muted-foreground font-medium">Fyllnadsgrad (percentil):</p>
+                  {[
+                    { color: 'rgb(13,79,66)',    label: '93,5 – 100' },
+                    { color: 'rgb(42,122,104)',  label: '80,5 – 93,5' },
+                    { color: 'rgb(90,180,158)',  label: '62,5 – 80,5' },
+                    { color: 'rgb(160,160,160)', label: '37,5 – 62,5' },
+                    { color: 'rgb(232,216,152)', label: '19,5 – 37,5' },
+                    { color: 'rgb(200,168,96)',  label: '6,5 – 19,5' },
+                    { color: 'rgb(122,60,16)',   label: '0 – 6,5' },
+                    { color: 'rgb(200,200,200)', label: 'Ingen data' },
+                  ].map(({ color, label }) => (
+                    <div key={label} className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-sm shrink-0" style={{ backgroundColor: color }} />
+                      <span className="text-muted-foreground">{label}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Legend – grundvattensituation */}
+              {(hypoSitSmaVisible || hypoSitStoraVisible) && (
+                <div className="space-y-1 text-xs">
+                  <p className="text-muted-foreground font-medium">Grundvattensituation (percentil):</p>
+                  {[
+                    { color: 'rgb(30,58,144)',   label: '86 – 100' },
+                    { color: 'rgb(72,120,200)',  label: '66 – 85' },
+                    { color: 'rgb(144,184,224)', label: '35 – 65' },
+                    { color: 'rgb(240,224,64)',  label: '15 – 34' },
+                    { color: 'rgb(232,96,48)',   label: '0 – 14' },
+                    { color: 'rgb(200,200,200)', label: 'Ingen data' },
+                  ].map(({ color, label }) => (
+                    <div key={label} className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-sm shrink-0" style={{ backgroundColor: color }} />
+                      <span className="text-muted-foreground">{label}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               <div className="text-xs space-y-1">
                 <a
