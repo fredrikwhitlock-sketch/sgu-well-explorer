@@ -1377,11 +1377,13 @@ export const WellPopup = ({
                   {properties.fyllnadsgrad_sma}%
                   {' '}
                   <span className="font-normal text-muted-foreground">
-                    {properties.fyllnadsgrad_sma <= 14 ? '— Mycket under normalt' :
-                     properties.fyllnadsgrad_sma <= 34 ? '— Under normalt' :
-                     properties.fyllnadsgrad_sma <= 65 ? '— Normalt' :
-                     properties.fyllnadsgrad_sma <= 85 ? '— Över normalt' :
-                     '— Mycket över normalt'}
+                    {properties.fyllnadsgrad_sma <= 6.5  ? '— Extremt låg' :
+                     properties.fyllnadsgrad_sma <= 19.5 ? '— Mycket under normalt' :
+                     properties.fyllnadsgrad_sma <= 37.5 ? '— Under normalt' :
+                     properties.fyllnadsgrad_sma <= 62.5 ? '— Normalt' :
+                     properties.fyllnadsgrad_sma <= 80.5 ? '— Över normalt' :
+                     properties.fyllnadsgrad_sma <= 93.5 ? '— Mycket över normalt' :
+                     '— Extremt hög'}
                   </span>
                 </dd>
               </div>
@@ -1389,9 +1391,9 @@ export const WellPopup = ({
 
             {properties.grundvattensituation_sma !== undefined && properties.grundvattensituation_sma !== null && properties.grundvattensituation_sma !== -1 && properties.grundvattensituation_sma !== 99 && (
               <div>
-                <dt className="text-xs font-medium text-muted-foreground">Grundvattensituation</dt>
+                <dt className="text-xs font-medium text-muted-foreground">Grundvattensituation (percentil)</dt>
                 <dd className="text-sm text-foreground mt-1">
-                  {properties.grundvattensituation_sma}
+                  {properties.grundvattensituation_sma}%
                   {' '}
                   <span className="font-normal text-muted-foreground">
                     {properties.grundvattensituation_sma <= 14 ? '— Mycket under normalt' :
@@ -1418,11 +1420,13 @@ export const WellPopup = ({
                       {properties.fyllnadsgrad_stora}%
                       {' '}
                       <span className="font-normal text-muted-foreground">
-                        {properties.fyllnadsgrad_stora <= 14 ? '— Mycket under normalt' :
-                         properties.fyllnadsgrad_stora <= 34 ? '— Under normalt' :
-                         properties.fyllnadsgrad_stora <= 65 ? '— Normalt' :
-                         properties.fyllnadsgrad_stora <= 85 ? '— Över normalt' :
-                         '— Mycket över normalt'}
+                        {properties.fyllnadsgrad_stora <= 6.5  ? '— Extremt låg' :
+                         properties.fyllnadsgrad_stora <= 19.5 ? '— Mycket under normalt' :
+                         properties.fyllnadsgrad_stora <= 37.5 ? '— Under normalt' :
+                         properties.fyllnadsgrad_stora <= 62.5 ? '— Normalt' :
+                         properties.fyllnadsgrad_stora <= 80.5 ? '— Över normalt' :
+                         properties.fyllnadsgrad_stora <= 93.5 ? '— Mycket över normalt' :
+                         '— Extremt hög'}
                       </span>
                     </dd>
                   </div>
@@ -1430,9 +1434,9 @@ export const WellPopup = ({
 
                 {properties.grundvattensituation_stora !== undefined && properties.grundvattensituation_stora !== null && properties.grundvattensituation_stora !== -1 && properties.grundvattensituation_stora !== 99 && (
                   <div>
-                    <dt className="text-xs font-medium text-muted-foreground">Grundvattensituation</dt>
+                    <dt className="text-xs font-medium text-muted-foreground">Grundvattensituation (percentil)</dt>
                     <dd className="text-sm text-foreground mt-1">
-                      {properties.grundvattensituation_stora}
+                      {properties.grundvattensituation_stora}%
                       {' '}
                       <span className="font-normal text-muted-foreground">
                         {properties.grundvattensituation_stora <= 14 ? '— Mycket under normalt' :
@@ -1462,7 +1466,7 @@ export const WellPopup = ({
                   }
                 />
                 <p className="text-[10px] text-muted-foreground mt-1">
-                  Gult band = normalintervall (25–75:e percentilen / klass 3).
+                  Färgbanden i diagrammen återspeglar kartans klassindelning. Grå zon (fyllnadsgrad) och ljusblå zon (situation) = normalintervall.
                 </p>
               </>
             )}
