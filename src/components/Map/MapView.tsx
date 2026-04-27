@@ -1435,8 +1435,7 @@ export const MapView = () => {
             if (latestDate) {
               const latestUrl = `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/grundvattennivaer-tidigare/items?f=json&filter=${encodeURIComponent(`datum='${latestDate}'`)}`;
               allLevelFeatures = await fetchAllPages(latestUrl);
-              setHypoAreasDate(latestDate);
-              hypoAreasDateRef.current = latestDate;
+              toast.info(`Ingen data för ${date}, visar senaste tillgängliga (${latestDate})`);
             }
           }
         }
@@ -2133,12 +2132,15 @@ export const MapView = () => {
     hypoAreasDateRef.current = hypoAreasDate;
   }, [hypoAreasDate]);
 
-  // Re-fetch level data when date changes (only if polygons already loaded)
+  // Re-fetch level data when date changes (only if polygons already loaded).
+  // Debounce so partial typed dates don't trigger mid-entry fetches.
   useEffect(() => {
     const source = hypoAreasSourceRef.current;
-    if (source && source.getFeatures().length > 0) {
+    if (!source || source.getFeatures().length === 0) return;
+    const timer = setTimeout(() => {
       fetchAndJoinHypoLevelsRef.current?.(hypoAreasDate);
-    }
+    }, 500);
+    return () => clearTimeout(timer);
   }, [hypoAreasDate]);
 
   const handleSearchResult = (coordinates: [number, number], zoom?: number) => {
