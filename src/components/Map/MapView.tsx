@@ -1398,7 +1398,7 @@ export const MapView = () => {
       if (hasData) {
         if      (v <= 14) fillColor = 'rgba(232, 96, 48, 0.85)';   // orange
         else if (v <= 34) fillColor = 'rgba(240, 224, 64, 0.85)';  // gul
-        else if (v <= 65) fillColor = 'rgba(144, 184, 224, 0.85)'; // ljusblå
+        else if (v <= 65) fillColor = 'rgba(74, 166, 100, 0.85)';  // grön
         else if (v <= 85) fillColor = 'rgba(72, 120, 200, 0.85)';  // medelblå
         else              fillColor = 'rgba(30, 58, 144, 0.85)';   // mörkblå
       }

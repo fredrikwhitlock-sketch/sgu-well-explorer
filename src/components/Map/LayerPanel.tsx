@@ -562,7 +562,7 @@ export const LayerPanel = ({
                   {[
                     { color: 'rgb(30,58,144)',   label: '86 – 100' },
                     { color: 'rgb(72,120,200)',  label: '66 – 85' },
-                    { color: 'rgb(144,184,224)', label: '35 – 65' },
+                    { color: 'rgb(74,166,100)',  label: '35 – 65' },
                     { color: 'rgb(240,224,64)',  label: '15 – 34' },
                     { color: 'rgb(232,96,48)',   label: '0 – 14' },
                     { color: 'rgb(200,200,200)', label: 'Ingen data' },
