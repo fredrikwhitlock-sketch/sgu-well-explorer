@@ -139,8 +139,12 @@ export const ObsHypoTimeSeriesChart = ({
 
   const stationsToShow = useMemo(
     () => stations.slice(0, maxStations),
-    [stations, maxStations],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [stations.map(s => s.id).join(','), maxStations],
   );
+
+  // Stable key so a new array reference with the same IDs doesn't re-trigger the fetch
+  const stationKey = stationsToShow.map((s) => s.id).join(',');
 
   useEffect(() => {
     const ctrl = new AbortController();
@@ -170,7 +174,9 @@ export const ObsHypoTimeSeriesChart = ({
       });
 
     return () => ctrl.abort();
-  }, [stationsToShow, omradeId, years]);
+  // stationsToShow is derived from stationKey — use the key to avoid re-fetching on same-content re-renders
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stationKey, omradeId, years]);
 
   // Merge all series into a single sorted-by-ts array of rows for recharts
   const merged = useMemo(() => {
