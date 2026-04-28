@@ -192,7 +192,7 @@ export const HypoTimeSeriesChart = ({ omradeId, hasStora, years = 3 }: Props) =>
                 {/* Color class bands – situation 5-class scale */}
                 <ReferenceArea y1={0}  y2={14} fill="rgba(232,96,48,0.15)"    stroke="none" />
                 <ReferenceArea y1={14} y2={34} fill="rgba(240,224,64,0.13)"   stroke="none" />
-                <ReferenceArea y1={34} y2={65} fill="rgba(144,184,224,0.15)"  stroke="none" />
+                <ReferenceArea y1={34} y2={65} fill="rgba(74,166,100,0.15)"   stroke="none" />
                 <ReferenceArea y1={65} y2={85} fill="rgba(72,120,200,0.15)"   stroke="none" />
                 <ReferenceArea y1={85} y2={100} fill="rgba(30,58,144,0.15)"   stroke="none" />
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -206,7 +206,7 @@ export const HypoTimeSeriesChart = ({ omradeId, hasStora, years = 3 }: Props) =>
             </ResponsiveContainer>
           </div>
           <p className="text-[9px] text-muted-foreground mt-0.5">
-            Ljusblå zon = normalintervall (35–65:e percentilen)
+            Grön zon = normalintervall (35–65:e percentilen)
           </p>
         </div>
       )}

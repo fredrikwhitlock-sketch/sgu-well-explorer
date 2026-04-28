@@ -1466,7 +1466,7 @@ export const WellPopup = ({
                   }
                 />
                 <p className="text-[10px] text-muted-foreground mt-1">
-                  Färgbanden i diagrammen återspeglar kartans klassindelning. Grå zon (fyllnadsgrad) och ljusblå zon (situation) = normalintervall.
+                  Färgbanden i diagrammen återspeglar kartans klassindelning. Grå zon (fyllnadsgrad) och grön zon (situation) = normalintervall.
                 </p>
               </>
             )}
