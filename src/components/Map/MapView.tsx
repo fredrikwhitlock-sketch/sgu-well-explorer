@@ -1336,33 +1336,67 @@ export const MapView = () => {
         try {
           setLoadingHypoAreas(true);
           setHypoAreasLoaded(0);
-          console.log("Loading HYPE areas from OGC API...");
 
-          const allFeatures = await fetchAllPages(
-            `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/omraden/items?f=json`,
-            (count) => setHypoAreasLoaded(count)
-          );
+          const date = hypoAreasDateRef.current;
+          const levelBase = `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/grundvattennivaer-tidigare/items?f=json`;
 
-          console.log(`Received ${allFeatures.length} HYPE areas`);
+          // Fetch polygons and level data for the current date in parallel
+          const [allAreaFeatures, allLevelFeatures] = await Promise.all([
+            fetchAllPages(
+              `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/omraden/items?f=json`,
+              (count) => setHypoAreasLoaded(count)
+            ),
+            fetchAllPages(`${levelBase}&filter=${encodeURIComponent(`datum='${date}'`)}`),
+          ]);
 
-          if (allFeatures.length > 0) {
-            const features = new GeoJSON().readFeatures(
-              { type: "FeatureCollection", features: allFeatures },
-              { dataProjection: "EPSG:4326", featureProjection: "EPSG:3857" }
-            );
-            hypoAreasSource.addFeatures(features);
-            setHypoAreasLoaded(features.length);
+          if (allAreaFeatures.length === 0) return;
 
-            // Fetch level data for the current date after polygons are loaded
-            if (fetchAndJoinHypoLevelsRef.current) {
-              await fetchAndJoinHypoLevelsRef.current(hypoAreasDateRef.current);
+          // If the chosen date has no data, fall back to the latest available date
+          let levelFeatures = allLevelFeatures;
+          if (levelFeatures.length === 0) {
+            const latestResp = await fetch(`${levelBase}&sortby=-datum&limit=1`).catch(() => null);
+            if (latestResp?.ok) {
+              const latestData = await latestResp.json().catch(() => null);
+              const latestDate = String(latestData?.features?.[0]?.properties?.datum ?? '').split('T')[0];
+              if (latestDate) {
+                levelFeatures = await fetchAllPages(`${levelBase}&filter=${encodeURIComponent(`datum='${latestDate}'`)}`);
+                toast.info(`Ingen data för ${date}, visar senaste tillgängliga (${latestDate})`);
+              }
             }
-
-            toast.success(`Laddade ${features.length} HYPE-områden`);
           }
+
+          // Build a level-data lookup keyed by omrade_id
+          const levelMap = new Map<number, any>();
+          for (const f of levelFeatures) {
+            levelMap.set(f.properties.omrade_id, f.properties);
+          }
+
+          // Parse features and merge level properties before adding to source
+          // so the very first render already has the color data
+          const features = new GeoJSON().readFeatures(
+            { type: 'FeatureCollection', features: allAreaFeatures },
+            { dataProjection: 'EPSG:4326', featureProjection: 'EPSG:3857' }
+          );
+          for (const feature of features) {
+            const ld = levelMap.get(feature.get('omrade_id'));
+            feature.setProperties(ld
+              ? { fyllnadsgrad_sma: ld.fyllnadsgrad_sma, fyllnadsgrad_stora: ld.fyllnadsgrad_stora, grundvattensituation_sma: ld.grundvattensituation_sma, grundvattensituation_stora: ld.grundvattensituation_stora, datum: ld.datum }
+              : { fyllnadsgrad_sma: null, fyllnadsgrad_stora: null, grundvattensituation_sma: null, grundvattensituation_stora: null, datum: date }
+            );
+          }
+
+          hypoAreasSource.addFeatures(features);
+          setHypoAreasLoaded(features.length);
+
+          // Fetch and join HYPE time-series data as before
+          if (fetchAndJoinHypoLevelsRef.current) {
+            await fetchAndJoinHypoLevelsRef.current(date);
+          }
+
+          toast.success(`Laddade ${features.length} HYPE-områden`);
         } catch (error) {
-          console.error("Error loading HYPE areas:", error);
-          toast.error("Kunde inte ladda beräknade grundvattennivåer");
+          console.error('Error loading HYPE areas:', error);
+          toast.error('Kunde inte ladda beräknade grundvattennivåer');
         } finally {
           setLoadingHypoAreas(false);
         }
@@ -1450,11 +1484,10 @@ export const MapView = () => {
           levelMap.set(f.properties.omrade_id, f.properties);
         }
 
-        // setProperties without silent so feature revision increments
-        // → invalidates layer style cache so new colors are drawn
         for (const feature of hypoAreasSource.getFeatures()) {
           const omradeId = feature.get('omrade_id');
           const ld = levelMap.get(omradeId);
+          // silent=true: suppress per-feature change events; one source.changed() below
           if (ld) {
             feature.setProperties({
               fyllnadsgrad_sma: ld.fyllnadsgrad_sma,
@@ -1462,20 +1495,18 @@ export const MapView = () => {
               grundvattensituation_sma: ld.grundvattensituation_sma,
               grundvattensituation_stora: ld.grundvattensituation_stora,
               datum: ld.datum,
-            });
+            }, true);
           } else {
             feature.setProperties({
-              fyllnadsgrad_sma: null,
-              fyllnadsgrad_stora: null,
-              grundvattensituation_sma: null,
-              grundvattensituation_stora: null,
+              fyllnadsgrad_sma: null, fyllnadsgrad_stora: null,
+              grundvattensituation_sma: null, grundvattensituation_stora: null,
               datum: date,
-            });
+            }, true);
           }
         }
 
-        [hypoFyllnadSmaLayerRef, hypoFyllnadStoraLayerRef, hypoSitSmaLayerRef, hypoSitStoraLayerRef]
-          .forEach(r => r.current?.changed());
+        // Single source.changed() invalidates VectorImageLayer's cached image
+        hypoAreasSource.changed();
         mapInstanceRef.current?.render();
       } catch (error) {
         console.error("Error fetching HYPE level data:", error);
