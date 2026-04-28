@@ -1899,9 +1899,21 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
           <Droplets className="w-4 h-4" />
           <span className="font-semibold text-sm">Grundvattenanalys</span>
         </div>
-        <button onClick={onClose} className="hover:bg-white/20 rounded p-0.5 transition-colors">
-          <X className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-1">
+          {!isMobile && (
+            <button
+              type="button"
+              onClick={() => setExpanded(e => !e)}
+              className="p-1.5 rounded hover:bg-white/20 transition-colors"
+              title={expanded ? 'Komprimera vy' : 'Utöka till tvåkolumnslayout'}
+            >
+              {expanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            </button>
+          )}
+          <button onClick={onClose} className="p-1.5 rounded hover:bg-white/20 transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* Date picker */}
@@ -1930,16 +1942,6 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
         >
           <Download className="w-3.5 h-3.5 text-muted-foreground" />
         </button>
-        {!isMobile && (
-          <button
-            type="button"
-            onClick={() => setExpanded(e => !e)}
-            className="p-1.5 rounded hover:bg-white/10 transition-colors"
-            title={expanded ? 'Minimera' : 'Utöka vy'}
-          >
-            {expanded ? <Minimize2 className="w-3.5 h-3.5 text-white/80" /> : <Maximize2 className="w-3.5 h-3.5 text-white/80" />}
-          </button>
-        )}
       </div>
 
       <div className={`flex-1 ${expanded && !isMobile ? 'overflow-hidden' : 'overflow-y-auto'}`}>
