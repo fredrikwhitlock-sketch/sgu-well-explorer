@@ -2024,7 +2024,9 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
       style={
         isMobile
           ? { maxHeight: '85vh' }
-          : { left: position.left, top: position.top, width: expanded ? 1200 : 400, maxHeight: '85vh' }
+          : expanded
+          ? { left: position.left, top: position.top, width: 1200, height: '85vh' }
+          : { left: position.left, top: position.top, width: 400, maxHeight: '85vh' }
       }
     >
       {/* Mobile drag handle */}
@@ -2549,34 +2551,6 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
                   )}
                 </div>
               )}
-
-              {/* Jordart */}
-              {data.jordartNamn && (
-                <div className="flex justify-between items-baseline text-xs mb-1.5">
-                  <span className="text-muted-foreground">
-                    Jordart
-                    {data.jordartKalla && data.jordartKalla !== 'grundlager' && (
-                      <span className="ml-1 text-[10px]">({data.jordartKalla})</span>
-                    )}
-                  </span>
-                  <span className="font-medium ml-2 text-right">{data.jordartNamn}</span>
-                </div>
-              )}
-
-              {/* Jorddjup */}
-              {data.jorddjup ? (
-                <div className="flex justify-between items-baseline text-xs mb-1.5">
-                  <span className="text-muted-foreground">Jorddjup (10×10 m raster, interpolerat)</span>
-                  <span className="font-medium ml-2 text-right">
-                    {data.jorddjup.djup.toFixed(1)} m
-                  </span>
-                </div>
-              ) : aquifer?.type === 'rock' ? (
-                <div className="flex justify-between items-baseline text-xs mb-1.5">
-                  <span className="text-muted-foreground">Jorddjup</span>
-                  <span className="font-medium ml-2 text-right text-muted-foreground italic">≈ 0 m (berg i dagen)</span>
-                </div>
-              ) : null}
 
               {/* Geokemi – närmaste morän ICP-MS-prov */}
               {data.geokemi && (() => {
