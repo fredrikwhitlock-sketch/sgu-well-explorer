@@ -751,7 +751,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
     const bergBr = (data.brunnar ?? []).filter(b => b.isBergborrad);
     const jordBr = (data.brunnar ?? []).filter(b => !b.isBergborrad);
     const medOf = (arr: BrunnInfo[]) => {
-      const vals = arr.map(b => b.kapacitet!).filter(v => v > 0).sort((a, b) => a - b);
+      const vals = arr.map(b => b.kapacitet).filter((v): v is number => v != null && v > 0).sort((a, b) => a - b);
       return vals.length ? vals[Math.floor(vals.length / 2)] : null;
     };
 
@@ -889,15 +889,24 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
         fetch(`${brunnarBase}&bbox=${brunnarBbox(delta)}&limit=${limit}`, { signal })
           .then(r => r.ok ? r.json().catch(() => null) : null)
           .catch(() => null);
-      const kapCount = (d: any) =>
-        (d?.features ?? []).filter((f: any) => (f.properties?.kapacitet ?? 0) > 0).length;
-      // Cascade: 100 m first → 5 km if no capacity well found → 15 km if fewer than 3
+      // Always fetch 1 km (limit 50) in parallel with 5 km (limit 100) so nearby wells
+      // are never lost to API pagination. Fall through to 15 km if the area is sparse.
       const brunnarChain: Promise<any> = (async () => {
-        const tiny = await brunnarFetchJson(0.0009, 10);   // ≈ 100 m first
-        const hasNearby = kapCount(tiny) >= 1;
-        const medium = await brunnarFetchJson(0.045, 25);  // ≈ 5 km always after tiny
-        if (hasNearby || kapCount(medium) >= 3) return medium;
-        return await brunnarFetchJson(0.13, 40) ?? medium; // ≈ 15 km
+        const [close, medium] = await Promise.all([
+          brunnarFetchJson(0.009, 50),   // ≈ 1 km — guarantees nearby wells are captured
+          brunnarFetchJson(0.045, 100),  // ≈ 5 km
+        ]);
+        const base = (medium?.features ?? []).length < 5
+          ? (await brunnarFetchJson(0.13, 100)) ?? medium  // ≈ 15 km if sparse
+          : medium;
+        // Merge close + base, deduplicating by brunnsid / feature id
+        const seen = new Set<string>();
+        const merged: any[] = [];
+        for (const f of [...(close?.features ?? []), ...(base?.features ?? [])]) {
+          const key = String(f.properties?.brunnsid ?? f.id ?? '');
+          if (key && !seen.has(key)) { seen.add(key); merged.push(f); }
+        }
+        return { features: merged };
       })();
       // Jorddjupsmodell – WMS GetFeatureInfo via proxy (10×10 m interpolated raster).
       // Use EPSG:3857 bbox (same CRS as map) to avoid WMS 1.3.0 axis-order issues.
@@ -1192,10 +1201,6 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
 
       if (brunnarData?.features?.length > 0) {
         result.brunnar = brunnarData.features
-          .filter((f: any) => {
-            const kap = f.properties?.kapacitet;
-            return kap != null && kap > 0;
-          })
           .map((f: any) => {
             const p = f.properties ?? {};
             const totaldjup = p.totaldjup ?? p.borrhalsdjup ?? null;
@@ -2641,7 +2646,7 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
             {data.brunnar && data.brunnar.length > 0 && (
               <div>
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
-                  Brunnar med kapacitetsdata i närheten
+                  Brunnar i närheten
                   {data.brunnar.length > 8 && <span className="ml-1 font-normal">({data.brunnar.length} totalt, visar 8)</span>}
                 </h3>
                 <div className="space-y-1.5">
@@ -2653,7 +2658,9 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
                         {b.djup != null && <span className="text-muted-foreground ml-1.5">{b.djup} m</span>}
                         {b.distKm != null && <span className="text-muted-foreground ml-1.5">{b.distKm.toFixed(1)} km fr. punkten</span>}
                       </div>
-                      <div className="font-semibold text-blue-700 dark:text-blue-400 ml-2 shrink-0">{b.kapacitet} l/h</div>
+                      <div className={`font-semibold ml-2 shrink-0 ${b.kapacitet != null ? 'text-blue-700 dark:text-blue-400' : 'text-muted-foreground'}`}>
+                        {b.kapacitet != null ? `${b.kapacitet} l/h` : 'kap. okänd'}
+                      </div>
                     </div>
                   ))}
                 </div>
