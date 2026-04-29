@@ -2315,7 +2315,7 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
                                 <button
                                   type="button"
                                   onClick={() => setChartPopup({ kind: 'obs', stationId: st.id, namn: st.namn || st.id, distKm: st.distKm })}
-                                  className="p-0.5 rounded hover:bg-secondary/70 transition-colors"
+                                  className="hidden sm:block p-0.5 rounded hover:bg-secondary/70 transition-colors"
                                   title="Visa i större fönster"
                                 >
                                   <Maximize2 className="w-3 h-3 text-muted-foreground" />
@@ -2462,7 +2462,7 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
                           <button
                             type="button"
                             onClick={() => setChartPopup({ kind: 'hype', dataKey: key, label, color, gradId })}
-                            className="p-0.5 rounded hover:bg-secondary/70 transition-colors"
+                            className="hidden sm:block p-0.5 rounded hover:bg-secondary/70 transition-colors"
                             title="Visa i större fönster"
                           >
                             <Maximize2 className="w-3 h-3 text-muted-foreground" />
