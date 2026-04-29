@@ -628,6 +628,67 @@ const GV_KLASS_COLORS: Record<number, string> = {
   5: '#dc2626',
 };
 
+// ── FloatingChartPopup ────────────────────────────────────────────────────────
+
+interface FloatingChartPopupProps {
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}
+
+function FloatingChartPopup({ title, onClose, children }: FloatingChartPopupProps) {
+  const [pos, setPos] = useState(() => ({
+    left: Math.max(20, Math.min(window.innerWidth / 2 - 360, window.innerWidth - 740)),
+    top: 80,
+  }));
+  const popupDragRef = useRef({ dragging: false, startX: 0, startY: 0, startLeft: 0, startTop: 0 });
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!popupDragRef.current.dragging) return;
+      setPos({
+        left: popupDragRef.current.startLeft + (e.clientX - popupDragRef.current.startX),
+        top: popupDragRef.current.startTop + (e.clientY - popupDragRef.current.startY),
+      });
+    };
+    const onUp = () => { popupDragRef.current.dragging = false; };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+  }, []);
+
+  const handlePopupMouseDown = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest('button')) return;
+    popupDragRef.current = { dragging: true, startX: e.clientX, startY: e.clientY, startLeft: pos.left, startTop: pos.top };
+    e.preventDefault();
+  };
+
+  return (
+    <div
+      className="fixed z-50 bg-card border border-border rounded-xl shadow-2xl overflow-hidden flex flex-col"
+      style={{ left: pos.left, top: pos.top, width: 700, maxHeight: '80vh' }}
+    >
+      <div
+        className="flex items-center justify-between px-4 py-2.5 bg-sgu-maroon text-white select-none cursor-move shrink-0"
+        onMouseDown={handlePopupMouseDown}
+      >
+        <span className="text-sm font-semibold">{title}</span>
+        <button type="button" onClick={onClose} className="p-1 rounded hover:bg-white/20 transition-colors">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+      <div className="p-4 overflow-y-auto flex-1">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+type ChartPopupState =
+  | { kind: 'obs'; stationId: string; namn: string; distKm: number }
+  | { kind: 'hype'; dataKey: 'fyllnadSma' | 'fyllnadStora'; label: string; color: string; gradId: string }
+  | null;
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysisData, onOpenAI }: Props) => {
@@ -638,6 +699,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
   const [error, setError] = useState<string | null>(null);
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const [expandedGvKemi, setExpandedGvKemi] = useState<Set<number>>(new Set([0]));
+  const [chartPopup, setChartPopup] = useState<ChartPopupState>(null);
 
   useEffect(() => { setExpandedGvKemi(new Set([0])); }, [coordinate]);
 
@@ -1871,6 +1933,88 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
+    <>
+    {/* Floating chart popup */}
+    {chartPopup && (
+      <FloatingChartPopup
+        title={
+          chartPopup.kind === 'obs'
+            ? `Nivådiagram – ${chartPopup.namn}`
+            : chartPopup.label
+        }
+        onClose={() => setChartPopup(null)}
+      >
+        {chartPopup.kind === 'obs' && (
+          <ObsHypoTimeSeriesChart
+            stations={[{ id: chartPopup.stationId, namn: chartPopup.namn, distKm: chartPopup.distKm }]}
+            omradeId={data?.omradeId}
+            useStora={!!(effectiveAquifer?.useStoraMagasin)}
+            years={5}
+            maxStations={1}
+          />
+        )}
+        {chartPopup.kind === 'hype' && data?.hypoSeries && data.hypoSeries.length >= 2 && (() => {
+          const { dataKey, label, color, gradId } = chartPopup;
+          const xFmt = (v: string) => { const d = new Date(v); const m = d.toLocaleDateString('sv', { month: 'short' }).replace('.', ''); return d.getMonth() === 0 ? `${m} ${d.getFullYear()}` : m; };
+          const quarterTicks = data.hypoSeries!
+            .map(d => d.datum)
+            .filter(d => [0, 3, 6, 9].includes(new Date(d).getMonth()))
+            .reduce<string[]>((acc, d) => {
+              const key = d.slice(0, 7);
+              if (!acc.some(x => x.slice(0, 7) === key)) acc.push(d);
+              return acc;
+            }, []);
+          const bigGradId = `${gradId}Big`;
+          return (
+            <div>
+              <ResponsiveContainer width="100%" height={320}>
+                <AreaChart data={data.hypoSeries} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id={bigGradId} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={color} stopOpacity={0.5} />
+                      <stop offset="95%" stopColor={color} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <ReferenceArea y1={0}   y2={10}  fill="rgba(185,28,28,0.12)"  ifOverflow="hidden" />
+                  <ReferenceArea y1={10}  y2={25}  fill="rgba(234,88,12,0.10)"  ifOverflow="hidden" />
+                  <ReferenceArea y1={25}  y2={75}  fill="rgba(161,150,50,0.08)" ifOverflow="hidden" />
+                  <ReferenceArea y1={75}  y2={90}  fill="rgba(22,163,74,0.10)"  ifOverflow="hidden" />
+                  <ReferenceArea y1={90}  y2={100} fill="rgba(21,128,61,0.15)"  ifOverflow="hidden" />
+                  <XAxis dataKey="datum" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} tickLine={false} axisLine={false} tickFormatter={xFmt} ticks={quarterTicks} />
+                  <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} tickFormatter={(v: number) => `${v}%`} />
+                  <Tooltip
+                    content={({ active, payload, label: l }) => {
+                      if (!active || !payload?.length) return null;
+                      return (
+                        <div style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 6, padding: '4px 8px', fontSize: 11 }}>
+                          <div style={{ fontWeight: 600, marginBottom: 2 }}>{String(l).slice(0, 7)}</div>
+                          {payload.map((p: any) => (
+                            <div key={String(p.name)} style={{ color: p.color as string }}>
+                              {p.name}: {p.value != null ? `${Math.round(Number(p.value))}:e perc.` : '–'}
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    }}
+                  />
+                  {data.hypoDate && (
+                    <ReferenceLine
+                      x={data.hypoDate.slice(0, 10)}
+                      stroke="hsl(var(--foreground))"
+                      strokeDasharray="3 3"
+                      strokeWidth={1}
+                      label={{ value: 'Valt datum', fontSize: 9, position: 'top', fill: 'hsl(var(--muted-foreground))' }}
+                    />
+                  )}
+                  <Area type="monotone" dataKey={dataKey} name={label} stroke={color} fill={`url(#${bigGradId})`} strokeWidth={2} dot={false} connectNulls />
+                </AreaChart>
+              </ResponsiveContainer>
+              <p className="text-[10px] text-muted-foreground mt-2">Gult band = normalintervall (25–75:e percentilen)</p>
+            </div>
+          );
+        })()}
+      </FloatingChartPopup>
+    )}
     <div
       className={`absolute z-30 bg-card shadow-xl border border-border overflow-hidden flex flex-col ${
         isMobile
@@ -2164,6 +2308,16 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
                           </button>
                           {isOpen && (
                             <div className="border-t border-border bg-background/40 p-2">
+                              <div className="flex items-center justify-end mb-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setChartPopup({ kind: 'obs', stationId: st.id, namn: st.namn || st.id, distKm: st.distKm })}
+                                  className="p-0.5 rounded hover:bg-secondary/70 transition-colors"
+                                  title="Visa i större fönster"
+                                >
+                                  <Maximize2 className="w-3 h-3 text-muted-foreground" />
+                                </button>
+                              </div>
                               <ObsHypoTimeSeriesChart
                                 stations={[{ id: st.id, namn: st.namn, distKm: st.distKm }]}
                                 omradeId={data.omradeId}
@@ -2300,7 +2454,17 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
                     );
                     const singleChart = (key: 'fyllnadSma' | 'fyllnadStora', label: string, color: string, gradId: string) => (
                       <div>
-                        <div className="text-[10px] text-muted-foreground mb-1 uppercase tracking-wide">{label}</div>
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{label}</div>
+                          <button
+                            type="button"
+                            onClick={() => setChartPopup({ kind: 'hype', dataKey: key, label, color, gradId })}
+                            className="p-0.5 rounded hover:bg-secondary/70 transition-colors"
+                            title="Visa i större fönster"
+                          >
+                            <Maximize2 className="w-3 h-3 text-muted-foreground" />
+                          </button>
+                        </div>
                         <ResponsiveContainer width="100%" height={80}>
                           <AreaChart data={data.hypoSeries} margin={{ top: 2, right: 4, left: -28, bottom: 0 }}>
                             <defs>
@@ -2914,5 +3078,6 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
         ) : null}
       </div>
     </div>
+    </>
   );
 };
