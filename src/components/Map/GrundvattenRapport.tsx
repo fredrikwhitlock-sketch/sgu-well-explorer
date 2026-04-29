@@ -2099,8 +2099,8 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" /><span>{error}</span>
           </div>
         ) : data ? (
-          <div className={expanded && !isMobile ? 'grid grid-cols-3 grid-rows-1 divide-x divide-border h-full' : 'p-4 space-y-4 text-sm'}>
-            <div className={expanded && !isMobile ? 'p-4 space-y-4 text-sm overflow-y-auto min-h-0' : 'contents'}>
+          <div className={expanded && !isMobile ? 'flex h-full divide-x divide-border' : 'p-4 space-y-4 text-sm'}>
+            <div className={expanded && !isMobile ? 'flex-1 min-w-0 p-4 space-y-4 text-sm overflow-y-auto' : 'contents'}>
 
             {/* Coordinates */}
             <div>
@@ -2267,7 +2267,7 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
             </div>
 
             </div>{/* end left col */}
-            <div className={expanded && !isMobile ? 'p-4 space-y-4 text-sm overflow-y-auto min-h-0' : 'contents'}>
+            <div className={expanded && !isMobile ? 'flex-1 min-w-0 p-4 space-y-4 text-sm overflow-y-auto' : 'contents'}>
             {!(expanded && !isMobile) && <hr className="border-border" />}
 
             {/* ── UNDERLAGSDATA ── */}
@@ -2647,7 +2647,7 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
             </div>{/* end col 2 */}
 
             {/* ── COL 3 – GRUNDVATTENKVALITET ── */}
-            <div className={expanded && !isMobile ? 'p-4 space-y-4 text-sm overflow-y-auto min-h-0' : 'contents'}>
+            <div className={expanded && !isMobile ? 'flex-1 min-w-0 p-4 space-y-4 text-sm overflow-y-auto' : 'contents'}>
             {!(expanded && !isMobile) && <hr className="border-border" />}
             <div>
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Grundvattenkvalitet</h3>
