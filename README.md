@@ -1,73 +1,101 @@
-# Welcome to your Lovable project
+# SGU Well Explorer – Grundvattenutforskaren
 
-## Project info
+An interactive map application for exploring Swedish groundwater data from [SGU (Sveriges geologiska undersökning)](https://www.sgu.se/). Click anywhere on the map to get a detailed groundwater analysis report, or draw a polygon to bulk-export data from an area.
 
-**URL**: https://lovable.dev/projects/aa463f5f-33ed-4fa3-886f-6344aeec210d
+## Features
 
-## How can I edit this code?
+### Groundwater Analysis Report
+Click any point on the map to open a three-column analysis panel:
 
-There are several ways of editing your application.
+**Column 1 – Coordinates & Interpretation**
+- WGS84 and SWEREF99TM coordinates
+- Soil type and soil depth (10×10 m raster)
+- Aquifer type interpretation
 
-**Use Lovable**
+**Column 2 – Grundvattentillgång (Availability)**
+- Nearby observed groundwater level stations (within 50 km), matched to selected date ±7 days
+- Inline time-series charts per station, expandable to a larger draggable popup on desktop
+- SGU-HYPE fill-degree for small and large aquifers (percentile + situation)
+- Calibrated depth-to-groundwater estimate with quartile range
+- Nearby groundwater reservoirs (grundvattenmagasin)
+- Closest wells (brunnar) sorted by distance, with capacity and depth
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/aa463f5f-33ed-4fa3-886f-6344aeec210d) and start prompting.
+**Column 3 – Grundvattenkvalitet (Quality)**
+- Nearest groundwater chemistry station (SGU monitoring network), latest values classified against SGU assessment criteria (class 1–5)
+- Mann-Kendall trend analysis per parameter
+- Geochemical background (markgeokemi) from SGU's geochemical atlas
+- AI-powered analysis button (requires Supabase + Claude backend)
 
-Changes made via Lovable will be committed automatically to this repo.
+### Map Layers
+Toggleable layers via the layer panel:
+- **SGU:** Wells (brunnar), springs (källor), groundwater reservoirs, observed level stations, quality monitoring stations, soil types, aquifer polygons, water bodies
+- **SGU-HYPE:** Fill-degree and groundwater situation for small/large aquifers, coloured by area
+- **Lantmäteriet:** Topographic map, ortho imagery, property boundaries
+- **Copernicus Land Service:** Land cover
+- **Jorddjupsmodell:** Soil depth observations, maps, bedrock fracture zones
 
-**Use your preferred IDE**
+### Polygon Data Tool
+Draw a polygon on the map to fetch and export all data within the area:
+- **Data sources:** Brunnar, källor, grundvattenmagasin, GV-nivåstationer, GV-kvalitet (provplatser)
+- **Linked data:** Nivåobservationer (time series) and analysresultat (lab results) fetched by station ID
+- **Export formats:** CSV, GeoJSON, and **GeoPackage** (all layers bundled into one `.gpkg` file)
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+## Technology Stack
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+| Purpose | Library |
+|---|---|
+| Map | [OpenLayers](https://openlayers.org/) |
+| UI components | [shadcn/ui](https://ui.shadcn.com/) + [Tailwind CSS](https://tailwindcss.com/) |
+| Charts | [Recharts](https://recharts.org/) |
+| GeoPackage export | [sql.js](https://sql.js.org/) (SQLite WASM) |
+| Projections | [proj4](https://proj4js.org/) |
+| Backend / AI | [Supabase](https://supabase.com/) |
+| Framework | React + TypeScript + Vite |
 
-Follow these steps:
+## Data Sources
+
+All data is fetched live from public APIs — no API keys required for map or data functions:
+
+| Source | API |
+|---|---|
+| SGU OGC Features (brunnar, källor, magasin, nivåer, kvalitet) | `api.sgu.se/oppnadata/…/ogc/features/v1` |
+| SGU-HYPE groundwater model | `api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/…` |
+| SGU Markgeokemi | `apps.sgu.se/markgeokemi/…` |
+| Lantmäteriet WMS | `minkarta.lantmateriet.se/…` |
+| Copernicus Land Service WMS | `image.discomap.eea.europa.eu/…` |
+
+## Getting Started
+
+Requirements: Node.js ≥ 18 and npm.
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+# Clone the repo
+git clone https://github.com/fredrikwhitlock-sketch/sgu-well-explorer.git
+cd sgu-well-explorer
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+# Install dependencies
+npm install
 
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Start the dev server
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+The app runs at `http://localhost:8080`.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+### Environment Variables (optional)
 
-**Use GitHub Codespaces**
+Only needed for the AI analysis feature. Create a `.env` file in the project root:
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+```env
+VITE_SUPABASE_URL=https://<your-project>.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=<your-anon-key>
+```
 
-## What technologies are used for this project?
+All map and data functions work without these.
 
-This project is built with:
+## Build
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/aa463f5f-33ed-4fa3-886f-6344aeec210d) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+```sh
+npm run build       # production build → dist/
+npm run preview     # preview the production build locally
+```
