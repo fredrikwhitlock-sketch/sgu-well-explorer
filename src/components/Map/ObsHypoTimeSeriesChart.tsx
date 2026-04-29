@@ -278,6 +278,7 @@ export const ObsHypoTimeSeriesChart = ({
               ]}
               reversed
               tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+              tickFormatter={(v: number) => v.toFixed(1)}
               label={{
                 value: "m u. markyta",
                 angle: -90,
