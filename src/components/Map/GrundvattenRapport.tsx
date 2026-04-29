@@ -2024,7 +2024,7 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
       style={
         isMobile
           ? { maxHeight: '85vh' }
-          : { left: position.left, top: position.top, width: expanded ? 900 : 400, maxHeight: '85vh' }
+          : { left: position.left, top: position.top, width: expanded ? 1200 : 400, maxHeight: '85vh' }
       }
     >
       {/* Mobile drag handle */}
@@ -2049,7 +2049,7 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
               type="button"
               onClick={() => setExpanded(e => !e)}
               className="p-1.5 rounded hover:bg-white/20 transition-colors"
-              title={expanded ? 'Komprimera vy' : 'Utöka till tvåkolumnslayout'}
+              title={expanded ? 'Komprimera vy' : 'Utöka till trekolumnslayout'}
             >
               {expanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
             </button>
@@ -2088,7 +2088,7 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
         </button>
       </div>
 
-      <div className={`flex-1 ${expanded && !isMobile ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+      <div className={`flex-1 min-h-0 ${expanded && !isMobile ? 'overflow-hidden' : 'overflow-y-auto'}`}>
         {loading ? (
           <div className="flex items-center gap-2 p-6 text-muted-foreground">
             <Loader2 className="w-4 h-4 animate-spin shrink-0" />
@@ -2099,7 +2099,7 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" /><span>{error}</span>
           </div>
         ) : data ? (
-          <div className={expanded && !isMobile ? 'grid grid-cols-2 divide-x divide-border h-full' : 'p-4 space-y-4 text-sm'}>
+          <div className={expanded && !isMobile ? 'grid grid-cols-3 divide-x divide-border h-full' : 'p-4 space-y-4 text-sm'}>
             <div className={expanded && !isMobile ? 'p-4 space-y-4 text-sm overflow-y-auto' : 'contents'}>
 
             {/* Coordinates */}
@@ -2643,6 +2643,15 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
                 );
               })()}
 
+            </div>{/* end Underlagsdata section */}
+            </div>{/* end col 2 */}
+
+            {/* ── COL 3 – GRUNDVATTENKVALITET ── */}
+            <div className={expanded && !isMobile ? 'p-4 space-y-4 text-sm overflow-y-auto' : 'contents'}>
+            {!(expanded && !isMobile) && <hr className="border-border" />}
+            <div>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Grundvattenkvalitet</h3>
+
               {/* Grundvattenkemi */}
               {data.gvKemi && data.gvKemi.length > 0 && (
                 <div className="mb-3">
@@ -3073,7 +3082,7 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
                 </button>
               </div>
             )}
-            </div>{/* end right col */}
+            </div>{/* end col 3 */}
           </div>
         ) : null}
       </div>
