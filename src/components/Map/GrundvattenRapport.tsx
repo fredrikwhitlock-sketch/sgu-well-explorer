@@ -1196,7 +1196,6 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
             const kap = f.properties?.kapacitet;
             return kap != null && kap > 0;
           })
-          .slice(0, 20)
           .map((f: any) => {
             const p = f.properties ?? {};
             const totaldjup = p.totaldjup ?? p.borrhalsdjup ?? null;
@@ -1215,7 +1214,9 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
               adress: p.adress || p.plats || p.fastighetsadress || undefined,
               typKod: p.typ_kod || p.brunnsstyp || undefined,
             };
-          });
+          })
+          .sort((a: any, b: any) => (a.distKm ?? 999) - (b.distKm ?? 999))
+          .slice(0, 20);
       }
 
       // Jorddjup from jorddjupsmodell – single interpolated WMS raster value (10×10 m).
@@ -2272,9 +2273,9 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
             <div className={expanded && !isMobile ? 'flex-1 min-w-0 p-4 space-y-4 text-sm overflow-y-auto' : 'contents'}>
             {!(expanded && !isMobile) && <hr className="border-border" />}
 
-            {/* ── UNDERLAGSDATA ── */}
+            {/* ── GRUNDVATTENTILLGÅNG ── */}
             <div>
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Underlagsdata</h3>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Grundvattentillgång</h3>
 
               {/* Observed groundwater level stations ±7 days */}
               {data.obsStationer && data.obsStationer.length > 0 ? (
@@ -2552,72 +2553,113 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
                 </div>
               )}
 
-              {/* Geokemi – närmaste morän ICP-MS-prov */}
-              {data.geokemi && (() => {
-                const ELEMENTS: { key: string; label: string; elevated: number; high: number; note?: string }[] = [
-                  { key: 'as', label: 'As', elevated: 10,     high: 25     },
-                  { key: 'u',  label: 'U',  elevated: 5,      high: 12     },
-                  { key: 'ni', label: 'Ni', elevated: 35,     high: 80     },
-                  { key: 'pb', label: 'Pb', elevated: 35,     high: 80     },
-                  { key: 'cr', label: 'Cr', elevated: 80,     high: 200    },
-                  { key: 'cd', label: 'Cd', elevated: 0.4,    high: 1.0    },
-                  { key: 'mn', label: 'Mn', elevated: 800,    high: 2000   },
-                  { key: 'fe', label: 'Fe', elevated: 45000,  high: 80000  },
-                  { key: 'f',  label: 'F',  elevated: 600,    high: 1200   },
-                  { key: 'cu', label: 'Cu', elevated: 30,     high: 70     },
-                  { key: 'zn', label: 'Zn', elevated: 120,    high: 300    },
-                  { key: 'co', label: 'Co', elevated: 15,     high: 40     },
-                  { key: 'mo', label: 'Mo', elevated: 2,      high: 6      },
-                  { key: 'v',  label: 'V',  elevated: 60,     high: 150    },
-                  { key: 'ca', label: 'Ca', elevated: 25000,  high: 60000, note: 'buffert' },
-                  { key: 'mg', label: 'Mg', elevated: 15000,  high: 35000, note: 'buffert' },
-                ];
-                const dot = (v: number | null, elevated: number, high: number, note?: string) => {
-                  if (v == null) return <span className="text-muted-foreground/40">–</span>;
-                  const isBuf = note === 'buffert';
-                  if (v >= high) return <span className={`inline-block w-2 h-2 rounded-full mr-1 ${isBuf ? 'bg-blue-500' : 'bg-red-500'}`} />;
-                  if (v >= elevated) return <span className={`inline-block w-2 h-2 rounded-full mr-1 ${isBuf ? 'bg-blue-400' : 'bg-orange-400'}`} />;
-                  return <span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-1" />;
-                };
-                const hasAny = ELEMENTS.some(e => data.geokemi!.elements[e.key] != null);
-                return (
-                  <div className="mb-3">
-                    <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1 flex items-center justify-between">
-                      <span>Markgeokemi morän</span>
-                      <span className="normal-case font-normal">
-                        MS {data.geokemi.distKm} km
-                        {data.geokemi.distKmAes != null ? ` · AES ${data.geokemi.distKmAes} km` : ''}
-                        {data.geokemi.artal ? ` · ${data.geokemi.artal}` : ''}
-                      </span>
-                    </div>
-                    {hasAny ? (
-                      <div className="grid grid-cols-3 gap-x-2 gap-y-0.5">
-                        {ELEMENTS.filter(e => data.geokemi!.elements[e.key] != null).map(e => {
-                          const v = data.geokemi!.elements[e.key]!;
-                          const isBuf = e.note === 'buffert';
-                          const isHigh = v >= e.high;
-                          const isElevated = v >= e.elevated;
-                          const labelColor = isBuf
-                            ? (isHigh || isElevated ? 'text-blue-600 dark:text-blue-400' : 'text-foreground')
-                            : (isHigh ? 'text-red-600 dark:text-red-400' : isElevated ? 'text-orange-500 dark:text-orange-400' : 'text-foreground');
-                          return (
-                            <div key={e.key} className="flex items-center text-[11px]">
-                              {dot(v, e.elevated, e.high, e.note)}
-                              <span className={`font-medium mr-1 ${labelColor}`}>{e.label}</span>
-                              <span className="text-muted-foreground truncate">{v < 1 ? v.toFixed(2) : v < 10 ? v.toFixed(1) : v < 1000 ? Math.round(v) : (v / 1000).toFixed(1) + 'k'}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <p className="text-xs text-muted-foreground">Inga elementdata i provet</p>
-                    )}
-                    <p className="text-[10px] text-muted-foreground mt-1.5">mg/kg i morän · <span className="inline-flex items-center gap-0.5"><span className="inline-block w-1.5 h-1.5 rounded-full bg-orange-400" /> förhöjd</span> · <span className="inline-flex items-center gap-0.5"><span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500" /> hög</span> · <span className="inline-flex items-center gap-0.5"><span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500" /> hög buffert</span></p>
-                  </div>
-                );
-              })()}
+            </div>{/* end Grundvattentillgång section */}
 
-            </div>{/* end Underlagsdata section */}
+            {/* Grundvattenmagasin – card */}
+            {(data.magasin || data.delomrade) && (() => {
+              const m = data.magasin;
+              const d = data.delomrade;
+              const Row = ({ label, value, bold, blue, muted }: { label: string; value: React.ReactNode; bold?: boolean; blue?: boolean; muted?: boolean }) => (
+                <div className="flex justify-between items-baseline gap-2">
+                  <span className="text-muted-foreground shrink-0">{label}</span>
+                  <span className={`text-right ${bold ? 'font-semibold' : 'font-medium'} ${blue ? 'text-blue-700 dark:text-blue-400' : ''} ${muted ? 'text-muted-foreground' : ''} capitalize`}>{value}</span>
+                </div>
+              );
+              return (
+                <div className="bg-secondary/30 border border-border rounded-lg p-3 space-y-2.5">
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Grundvattenmagasin (SGU)
+                  </div>
+                  {m && (
+                    <>
+                      <div className="text-xs font-semibold leading-snug">{m.namn}</div>
+                      <div className="flex flex-wrap gap-1">
+                        {m.positionKod && (
+                          <span className="text-[10px] font-mono font-bold bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200 px-1.5 py-0.5 rounded">
+                            {m.positionKod}
+                          </span>
+                        )}
+                        {m.akvifertyp && (
+                          <span className="text-[10px] bg-secondary text-muted-foreground px-1.5 py-0.5 rounded capitalize border border-border">
+                            {m.akvifertyp}
+                          </span>
+                        )}
+                        {m.genes && (
+                          <span className="text-[10px] bg-secondary text-muted-foreground px-1.5 py-0.5 rounded capitalize border border-border">
+                            {m.genes}
+                          </span>
+                        )}
+                      </div>
+                      {m.magasinsposition && (
+                        <div className="text-[11px] text-muted-foreground leading-snug -mt-1">{m.magasinsposition}</div>
+                      )}
+                      <div className="space-y-1 text-xs">
+                        {m.geomAreaKm2 != null && <Row label="Yta" value={`~${m.geomAreaKm2} km²`} />}
+                        {m.medelmaktighetMattad && <Row label="Mättad zon" value={m.medelmaktighetMattad} />}
+                        {m.medelmaktighetOmattad && <Row label="Omättad zon" value={m.medelmaktighetOmattad} />}
+                        {m.tillrinningLs != null && <Row label="Tillrinning" value={`${m.tillrinningLs.toLocaleString('sv')} l/s`} />}
+                        {m.grvbildningstyp && <Row label="GV-bildning" value={m.grvbildningstyp} />}
+                      </div>
+                      {m.lankBeskrivning && (
+                        <a href={m.lankBeskrivning} target="_blank" rel="noopener noreferrer"
+                          className="block text-xs text-blue-700 dark:text-blue-400 hover:underline">
+                          Magasinsbeskrivning (SGU) →
+                        </a>
+                      )}
+                    </>
+                  )}
+                  {d && (
+                    <>
+                      {m && <div className="border-t border-border pt-2 mt-1" />}
+                      <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        Delområde (J1)
+                        {d.namn && <span className="ml-1 normal-case font-normal">– {d.namn}</span>}
+                      </div>
+                      {!m && d.magasinsnamn && (
+                        <div className="text-xs font-semibold leading-snug">{d.magasinsnamn}</div>
+                      )}
+                      <div className="space-y-1 text-xs">
+                        {d.uttagsmojligheter && (
+                          <div className="flex justify-between items-baseline gap-2">
+                            <span className="text-muted-foreground shrink-0">Uttagsmöjlighet</span>
+                            <span className="font-bold text-blue-700 dark:text-blue-400">{d.uttagsmojligheter}</span>
+                          </div>
+                        )}
+                        {d.kornstorlek && <Row label="Kornstorlek" value={d.kornstorlek} />}
+                        {d.artesiskt && <Row label="Artesiskt" value={d.artesiskt} />}
+                        {d.nivaforhallande && <Row label="Nivåförhållande" value={d.nivaforhallande} />}
+                        {d.vattenkemi && <Row label="Vattenkemi" value={d.vattenkemi} />}
+                        {d.delomradeskvalitet && <Row label="Karteringskvalitet" value={d.delomradeskvalitet} muted />}
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* Brunnar i närheten */}
+            {data.brunnar && data.brunnar.length > 0 && (
+              <div>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                  Brunnar med kapacitetsdata i närheten
+                  {data.brunnar.length > 8 && <span className="ml-1 font-normal">({data.brunnar.length} totalt, visar 8)</span>}
+                </h3>
+                <div className="space-y-1.5">
+                  {data.brunnar.slice(0, 8).map((b, i) => (
+                    <div key={i} className="flex items-center justify-between bg-secondary/30 rounded px-2.5 py-1.5 text-xs">
+                      <div>
+                        <span className="font-medium">{b.id}</span>
+                        <span className="text-muted-foreground ml-1.5">{b.isBergborrad ? 'berg' : 'jord'}</span>
+                        {b.djup != null && <span className="text-muted-foreground ml-1.5">{b.djup} m</span>}
+                        {b.distKm != null && <span className="text-muted-foreground ml-1.5">{b.distKm.toFixed(1)} km fr. punkten</span>}
+                      </div>
+                      <div className="font-semibold text-blue-700 dark:text-blue-400 ml-2 shrink-0">{b.kapacitet} l/h</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             </div>{/* end col 2 */}
 
             {/* ── COL 3 – GRUNDVATTENKVALITET ── */}
@@ -2804,130 +2846,70 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
                 </div>
               )}
 
-              {/* Grundvattenmagasin – card */}
-              {(data.magasin || data.delomrade) && (() => {
-                const m = data.magasin;
-                const d = data.delomrade;
-                const Row = ({ label, value, bold, blue, muted }: { label: string; value: React.ReactNode; bold?: boolean; blue?: boolean; muted?: boolean }) => (
-                  <div className="flex justify-between items-baseline gap-2">
-                    <span className="text-muted-foreground shrink-0">{label}</span>
-                    <span className={`text-right ${bold ? 'font-semibold' : 'font-medium'} ${blue ? 'text-blue-700 dark:text-blue-400' : ''} ${muted ? 'text-muted-foreground' : ''} capitalize`}>{value}</span>
-                  </div>
-                );
-                return (
-                  <div className="mt-1 bg-secondary/30 border border-border rounded-lg p-3 space-y-2.5">
-                    <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      Grundvattenmagasin (SGU)
-                    </div>
+            </div>{/* end Grundvattenkvalitet section */}
 
-                    {m && (
-                      <>
-                        <div className="text-xs font-semibold leading-snug">{m.namn}</div>
-
-                        {/* Badges: position code + type + genesis */}
-                        <div className="flex flex-wrap gap-1">
-                          {m.positionKod && (
-                            <span className="text-[10px] font-mono font-bold bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200 px-1.5 py-0.5 rounded">
-                              {m.positionKod}
-                            </span>
-                          )}
-                          {m.akvifertyp && (
-                            <span className="text-[10px] bg-secondary text-muted-foreground px-1.5 py-0.5 rounded capitalize border border-border">
-                              {m.akvifertyp}
-                            </span>
-                          )}
-                          {m.genes && (
-                            <span className="text-[10px] bg-secondary text-muted-foreground px-1.5 py-0.5 rounded capitalize border border-border">
-                              {m.genes}
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Full position label text */}
-                        {m.magasinsposition && (
-                          <div className="text-[11px] text-muted-foreground leading-snug -mt-1">{m.magasinsposition}</div>
-                        )}
-
-                        <div className="space-y-1 text-xs">
-                          {m.geomAreaKm2 != null && <Row label="Yta" value={`~${m.geomAreaKm2} km²`} />}
-                          {m.medelmaktighetMattad && <Row label="Mättad zon" value={m.medelmaktighetMattad} />}
-                          {m.medelmaktighetOmattad && <Row label="Omättad zon" value={m.medelmaktighetOmattad} />}
-                          {m.tillrinningLs != null && <Row label="Tillrinning" value={`${m.tillrinningLs.toLocaleString('sv')} l/s`} />}
-                          {m.grvbildningstyp && <Row label="GV-bildning" value={m.grvbildningstyp} />}
-                        </div>
-
-                        {m.lankBeskrivning && (
-                          <a
-                            href={m.lankBeskrivning}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="block text-xs text-blue-700 dark:text-blue-400 hover:underline"
-                          >
-                            Magasinsbeskrivning (SGU) →
-                          </a>
-                        )}
-                      </>
-                    )}
-
-                    {/* Delområde sub-section */}
-                    {d && (
-                      <>
-                        {m && <div className="border-t border-border pt-2 mt-1" />}
-                        <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                          Delområde (J1)
-                          {d.namn && <span className="ml-1 normal-case font-normal">– {d.namn}</span>}
-                        </div>
-                        {!m && d.magasinsnamn && (
-                          <div className="text-xs font-semibold leading-snug">{d.magasinsnamn}</div>
-                        )}
-                        <div className="space-y-1 text-xs">
-                          {d.uttagsmojligheter && (
-                            <div className="flex justify-between items-baseline gap-2">
-                              <span className="text-muted-foreground shrink-0">Uttagsmöjlighet</span>
-                              <span className="font-bold text-blue-700 dark:text-blue-400">{d.uttagsmojligheter}</span>
-                            </div>
-                          )}
-                          {d.kornstorlek && <Row label="Kornstorlek" value={d.kornstorlek} />}
-                          {d.artesiskt && <Row label="Artesiskt" value={d.artesiskt} />}
-                          {d.nivaforhallande && <Row label="Nivåförhållande" value={d.nivaforhallande} />}
-                          {d.vattenkemi && <Row label="Vattenkemi" value={d.vattenkemi} />}
-                          {d.delomradeskvalitet && <Row label="Karteringskvalitet" value={d.delomradeskvalitet} muted />}
-                        </div>
-                      </>
-                    )}
-                  </div>
-                );
-              })()}
-            </div>
-
-            {/* Brunnar i närheten */}
-            {data.brunnar && data.brunnar.length > 0 && (() => {
-              const sorted = [...data.brunnar].sort((a, b) =>
-                (a.distKm ?? 999) - (b.distKm ?? 999)
-              ).slice(0, 8);
+            {/* Geokemi – närmaste morän ICP-MS-prov */}
+            {data.geokemi && (() => {
+              const ELEMENTS: { key: string; label: string; elevated: number; high: number; note?: string }[] = [
+                { key: 'as', label: 'As', elevated: 10,     high: 25     },
+                { key: 'u',  label: 'U',  elevated: 5,      high: 12     },
+                { key: 'ni', label: 'Ni', elevated: 35,     high: 80     },
+                { key: 'pb', label: 'Pb', elevated: 35,     high: 80     },
+                { key: 'cr', label: 'Cr', elevated: 80,     high: 200    },
+                { key: 'cd', label: 'Cd', elevated: 0.4,    high: 1.0    },
+                { key: 'mn', label: 'Mn', elevated: 800,    high: 2000   },
+                { key: 'fe', label: 'Fe', elevated: 45000,  high: 80000  },
+                { key: 'f',  label: 'F',  elevated: 600,    high: 1200   },
+                { key: 'cu', label: 'Cu', elevated: 30,     high: 70     },
+                { key: 'zn', label: 'Zn', elevated: 120,    high: 300    },
+                { key: 'co', label: 'Co', elevated: 15,     high: 40     },
+                { key: 'mo', label: 'Mo', elevated: 2,      high: 6      },
+                { key: 'v',  label: 'V',  elevated: 60,     high: 150    },
+                { key: 'ca', label: 'Ca', elevated: 25000,  high: 60000, note: 'buffert' },
+                { key: 'mg', label: 'Mg', elevated: 15000,  high: 35000, note: 'buffert' },
+              ];
+              const dot = (v: number | null, elevated: number, high: number, note?: string) => {
+                if (v == null) return <span className="text-muted-foreground/40">–</span>;
+                const isBuf = note === 'buffert';
+                if (v >= high) return <span className={`inline-block w-2 h-2 rounded-full mr-1 ${isBuf ? 'bg-blue-500' : 'bg-red-500'}`} />;
+                if (v >= elevated) return <span className={`inline-block w-2 h-2 rounded-full mr-1 ${isBuf ? 'bg-blue-400' : 'bg-orange-400'}`} />;
+                return <span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-1" />;
+              };
+              const hasAny = ELEMENTS.some(e => data.geokemi!.elements[e.key] != null);
               return (
-                <>
-                  <hr className="border-border" />
-                  <div>
-                    <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
-                      Brunnar med kapacitetsdata i närheten
-                      {data.brunnar.length > 8 && <span className="ml-1 font-normal">({data.brunnar.length} totalt, visar 8)</span>}
-                    </h3>
-                    <div className="space-y-1.5">
-                      {sorted.map((b, i) => (
-                        <div key={i} className="flex items-center justify-between bg-secondary/30 rounded px-2.5 py-1.5 text-xs">
-                          <div>
-                            <span className="font-medium">{b.id}</span>
-                            <span className="text-muted-foreground ml-1.5">{b.isBergborrad ? 'berg' : 'jord'}</span>
-                            {b.djup != null && <span className="text-muted-foreground ml-1.5">{b.djup} m</span>}
-                            {b.distKm != null && <span className="text-muted-foreground ml-1.5">{b.distKm.toFixed(1)} km fr. punkten</span>}
-                          </div>
-                          <div className="font-semibold text-blue-700 dark:text-blue-400 ml-2 shrink-0">{b.kapacitet} l/h</div>
-                        </div>
-                      ))}
-                    </div>
+                <div className="mb-3">
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1 flex items-center justify-between">
+                    <span>Markgeokemi morän</span>
+                    <span className="normal-case font-normal">
+                      MS {data.geokemi.distKm} km
+                      {data.geokemi.distKmAes != null ? ` · AES ${data.geokemi.distKmAes} km` : ''}
+                      {data.geokemi.artal ? ` · ${data.geokemi.artal}` : ''}
+                    </span>
                   </div>
-                </>
+                  {hasAny ? (
+                    <div className="grid grid-cols-3 gap-x-2 gap-y-0.5">
+                      {ELEMENTS.filter(e => data.geokemi!.elements[e.key] != null).map(e => {
+                        const v = data.geokemi!.elements[e.key]!;
+                        const isBuf = e.note === 'buffert';
+                        const isHigh = v >= e.high;
+                        const isElevated = v >= e.elevated;
+                        const labelColor = isBuf
+                          ? (isHigh || isElevated ? 'text-blue-600 dark:text-blue-400' : 'text-foreground')
+                          : (isHigh ? 'text-red-600 dark:text-red-400' : isElevated ? 'text-orange-500 dark:text-orange-400' : 'text-foreground');
+                        return (
+                          <div key={e.key} className="flex items-center text-[11px]">
+                            {dot(v, e.elevated, e.high, e.note)}
+                            <span className={`font-medium mr-1 ${labelColor}`}>{e.label}</span>
+                            <span className="text-muted-foreground truncate">{v < 1 ? v.toFixed(2) : v < 10 ? v.toFixed(1) : v < 1000 ? Math.round(v) : (v / 1000).toFixed(1) + 'k'}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Inga elementdata i provet</p>
+                  )}
+                  <p className="text-[10px] text-muted-foreground mt-1.5">mg/kg i morän · <span className="inline-flex items-center gap-0.5"><span className="inline-block w-1.5 h-1.5 rounded-full bg-orange-400" /> förhöjd</span> · <span className="inline-flex items-center gap-0.5"><span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500" /> hög</span> · <span className="inline-flex items-center gap-0.5"><span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500" /> hög buffert</span></p>
+                </div>
               );
             })()}
 
