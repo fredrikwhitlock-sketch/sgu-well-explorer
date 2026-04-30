@@ -1298,15 +1298,9 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
           const pd = await gvKemiProvRes.value.json().catch(() => null);
           const bboxFeatures: any[] = pd?.features ?? [];
 
-          // Extract EU groundwater body code from bbox stations (fallback for no-coord stations)
+          // Compute body bbox from the förekomst polygon fetched in parallel.
+          // bodyId is set ONLY when the click point is inside a förekomst (S_INTERSECTS).
           let bodyId: string | null = null;
-          for (const f of bboxFeatures) {
-            const p = f.properties ?? {};
-            const v = p.eucd_gwb || p.eu_cd_gwb || p.eu_cd || p.ms_cd_gwb || null;
-            if (v && typeof v === 'string') { bodyId = v; break; }
-          }
-
-          // Compute body bbox from the förekomst polygon fetched in parallel
           let bodyBbox: [number, number, number, number] | null = null;
           let forekomstMsCd: string | null = null;
           if (gvForekomstRes.status === 'fulfilled' && gvForekomstRes.value.ok) {
@@ -2708,11 +2702,15 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
                                 </span>
                               )}
                               <span className="text-[11px] font-medium truncate">{gv.provplatsnamn}</span>
-                              {gv.fromBody && (
+                              {gv.fromBody ? (
                                 <span className="shrink-0 text-[9px] font-semibold uppercase tracking-wide text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/50 px-1 py-0.5 rounded">
                                   Förekomst
                                 </span>
-                              )}
+                              ) : gv.eucdGwb ? (
+                                <span className="shrink-0 text-[9px] text-muted-foreground font-mono">
+                                  {gv.eucdGwb}
+                                </span>
+                              ) : null}
                               {gv.trend && (
                                 <span className="shrink-0 text-[9px] font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 px-1 py-0.5 rounded">
                                   Trend
