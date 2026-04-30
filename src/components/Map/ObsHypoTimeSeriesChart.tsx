@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { fmtMonthYear } from "@/lib/utils";
 import {
   LineChart,
   Line,
@@ -222,10 +223,6 @@ export const ObsHypoTimeSeriesChart = ({
     return <div className="text-xs text-muted-foreground">Ingen tidsseriedata tillgänglig.</div>;
   }
 
-  const tickFmt = (ts: number) => {
-    const d = new Date(ts);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-  };
 
   // Compute Y-axis domain for observations, inverted (depth grows downward)
   const allDepths: number[] = [];
@@ -264,7 +261,7 @@ export const ObsHypoTimeSeriesChart = ({
               dataKey="ts"
               type="number"
               domain={["dataMin", "dataMax"]}
-              tickFormatter={tickFmt}
+              tickFormatter={fmtMonthYear}
               tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
               scale="time"
             />

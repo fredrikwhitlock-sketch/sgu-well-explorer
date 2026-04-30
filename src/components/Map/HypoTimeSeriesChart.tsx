@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { fmtMonthYear } from "@/lib/utils";
 import {
   LineChart,
   Line,
@@ -125,11 +126,6 @@ export const HypoTimeSeriesChart = ({ omradeId, hasStora, years = 3 }: Props) =>
   const hasSitSma = data.some((d) => d.grundvattensituation_sma !== null);
   const hasSitStora = data.some((d) => d.grundvattensituation_stora !== null);
 
-  const tickFmt = (ts: number) => {
-    const d = new Date(ts);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-  };
-
   // Color per series (semantic-ish; HYPE has its own palette so use literal CSS vars where possible)
   const COLORS = {
     fyllSma: "hsl(var(--primary))",
@@ -165,7 +161,7 @@ export const HypoTimeSeriesChart = ({ omradeId, hasStora, years = 3 }: Props) =>
                 <ReferenceArea y1={80.5} y2={93.5} fill="rgba(42,122,104,0.13)"   stroke="none" />
                 <ReferenceArea y1={93.5} y2={100}  fill="rgba(13,79,66,0.15)"     stroke="none" />
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="ts" type="number" domain={["dataMin", "dataMax"]} tickFormatter={tickFmt} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} scale="time" />
+                <XAxis dataKey="ts" type="number" domain={["dataMin", "dataMax"]} tickFormatter={fmtMonthYear} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} scale="time" />
                 <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
                 <Tooltip labelFormatter={(ts: any) => new Date(Number(ts)).toISOString().slice(0, 10)} formatter={(v: any, name: any) => [v == null ? "—" : `${v}%`, name]} contentStyle={tooltipStyle} />
                 <Legend wrapperStyle={{ fontSize: 10 }} />
@@ -196,7 +192,7 @@ export const HypoTimeSeriesChart = ({ omradeId, hasStora, years = 3 }: Props) =>
                 <ReferenceArea y1={65} y2={85} fill="rgba(72,120,200,0.15)"   stroke="none" />
                 <ReferenceArea y1={85} y2={100} fill="rgba(30,58,144,0.15)"   stroke="none" />
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="ts" type="number" domain={["dataMin", "dataMax"]} tickFormatter={tickFmt} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} scale="time" />
+                <XAxis dataKey="ts" type="number" domain={["dataMin", "dataMax"]} tickFormatter={fmtMonthYear} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} scale="time" />
                 <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
                 <Tooltip labelFormatter={(ts: any) => new Date(Number(ts)).toISOString().slice(0, 10)} formatter={(v: any, name: any) => [v == null ? "—" : `${v}%`, name]} contentStyle={tooltipStyle} />
                 <Legend wrapperStyle={{ fontSize: 10 }} />
