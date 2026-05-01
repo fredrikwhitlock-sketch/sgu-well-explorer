@@ -35,6 +35,7 @@ import { toast } from "sonner";
 import { getSoilTypeColor } from "@/lib/soilTypeColors";
 import { getAquiferColorFor } from "@/lib/aquiferColors";
 import { exportWellsToCSV, exportFeaturesToCSV } from "@/lib/exportWells";
+import { downloadBlob } from "@/lib/utils";
 
 
 interface ChartLocation {
@@ -2425,14 +2426,7 @@ export const MapView = () => {
               return response.blob();
             })
             .then(blob => {
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.href = url;
-              a.download = `grundvattentillgang_sma_magasin_${Math.floor(ll[0])}_${Math.floor(ll[1])}.tif`;
-              document.body.appendChild(a);
-              a.click();
-              document.body.removeChild(a);
-              URL.revokeObjectURL(url);
+              downloadBlob(blob, `grundvattentillgang_sma_magasin_${Math.floor(ll[0])}_${Math.floor(ll[1])}.tif`);
               toast.success('GeoTIFF nedladdad!');
             })
             .catch(error => {

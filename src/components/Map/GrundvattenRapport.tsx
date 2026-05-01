@@ -322,9 +322,10 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
   // Detect mobile so we can render as a bottom sheet instead of a floating panel
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
   useEffect(() => {
-    const handler = () => setIsMobile(window.innerWidth < 640);
+    let t: ReturnType<typeof setTimeout>;
+    const handler = () => { clearTimeout(t); t = setTimeout(() => setIsMobile(window.innerWidth < 640), 100); };
     window.addEventListener('resize', handler);
-    return () => window.removeEventListener('resize', handler);
+    return () => { window.removeEventListener('resize', handler); clearTimeout(t); };
   }, []);
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -906,12 +907,16 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
               })
             );
 
+            const parsedAnalys = await Promise.all(
+              analysResponses.map(r =>
+                r.status === 'fulfilled' && r.value?.ok ? r.value.json().catch(() => null) : Promise.resolve(null)
+              )
+            );
+
             const kemiStations: NonNullable<ReportData['gvKemi']> = [];
             for (let i = 0; i < candidates.length; i++) {
               const cand = candidates[i];
-              const res = analysResponses[i];
-              if (res.status !== 'fulfilled' || !res.value?.ok) continue;
-              const ad = await res.value.json().catch(() => null);
+              const ad = parsedAnalys[i];
 
               // Group all results by date; within a date keep first (API-sorted newest) value per param
               const byDate = new Map<string, Map<string, { value: number; unit: string }>>();
@@ -1416,6 +1421,7 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
       medianBergKapacitet, medianJordKapacitet, jorddjupCapInfo, selectedDate]);
 
   // ── Render ────────────────────────────────────────────────────────────────
+  const desktopExpanded = desktopExpanded;
   return (
     <>
     {/* Floating chart popup */}
@@ -1574,7 +1580,7 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
         </button>
       </div>
 
-      <div className={`flex-1 min-h-0 ${expanded && !isMobile ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+      <div className={`flex-1 min-h-0 ${desktopExpanded ? 'overflow-hidden' : 'overflow-y-auto'}`}>
         {loading ? (
           <div className="flex items-center gap-2 p-6 text-muted-foreground">
             <Loader2 className="w-4 h-4 animate-spin shrink-0" />
@@ -1585,8 +1591,8 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" /><span>{error}</span>
           </div>
         ) : data ? (
-          <div className={expanded && !isMobile ? 'flex h-full divide-x divide-border' : 'p-4 space-y-4 text-sm'}>
-            <div className={expanded && !isMobile ? 'flex-1 min-w-0 p-4 space-y-4 text-sm overflow-y-auto' : 'contents'}>
+          <div className={desktopExpanded ? 'flex h-full divide-x divide-border' : 'p-4 space-y-4 text-sm'}>
+            <div className={desktopExpanded ? 'flex-1 min-w-0 p-4 space-y-4 text-sm overflow-y-auto' : 'contents'}>
 
             {/* Coordinates */}
             <div>
@@ -1753,8 +1759,8 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
             </div>
 
             </div>{/* end left col */}
-            <div className={expanded && !isMobile ? 'flex-1 min-w-0 p-4 space-y-4 text-sm overflow-y-auto' : 'contents'}>
-            {!(expanded && !isMobile) && <hr className="border-border" />}
+            <div className={desktopExpanded ? 'flex-1 min-w-0 p-4 space-y-4 text-sm overflow-y-auto' : 'contents'}>
+            {!(desktopExpanded) && <hr className="border-border" />}
 
             {/* ── GRUNDVATTENTILLGÅNG ── */}
             <div>
@@ -2148,8 +2154,8 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
             </div>{/* end col 2 */}
 
             {/* ── COL 3 – GRUNDVATTENKVALITET ── */}
-            <div className={expanded && !isMobile ? 'flex-1 min-w-0 p-4 space-y-4 text-sm overflow-y-auto' : 'contents'}>
-            {!(expanded && !isMobile) && <hr className="border-border" />}
+            <div className={desktopExpanded ? 'flex-1 min-w-0 p-4 space-y-4 text-sm overflow-y-auto' : 'contents'}>
+            {!(desktopExpanded) && <hr className="border-border" />}
             <div>
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Grundvattenkvalitet</h3>
 
