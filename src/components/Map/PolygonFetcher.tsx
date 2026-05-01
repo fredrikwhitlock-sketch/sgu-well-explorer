@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { X, Download, Loader2, Database, AlertTriangle, Package } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { CheckSquare, Square } from "lucide-react";
+import { escapeCSV, downloadBlob } from "@/lib/utils";
 
 interface DataSource {
   id: string;
@@ -69,14 +70,6 @@ interface PolygonFetcherProps {
   onClose: () => void;
 }
 
-function escapeCSV(v: any): string {
-  if (v === null || v === undefined) return '';
-  const s = String(v);
-  if (s.includes(';') || s.includes('"') || s.includes('\n') || s.includes('\r'))
-    return `"${s.replace(/"/g, '""')}"`;
-  return s;
-}
-
 function triggerCSV(features: any[], filename: string) {
   if (features.length === 0) return;
   const keys = Array.from(new Set(features.flatMap(f => Object.keys(f.properties || {}))));
@@ -84,12 +77,7 @@ function triggerCSV(features: any[], filename: string) {
     keys.join(';'),
     ...features.map(f => keys.map(k => escapeCSV(f.properties?.[k])).join(';')),
   ];
-  const blob = new Blob(['﻿' + rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = filename;
-  document.body.appendChild(a); a.click();
-  document.body.removeChild(a); URL.revokeObjectURL(url);
+  downloadBlob(new Blob(['﻿' + rows.join('\n')], { type: 'text/csv;charset=utf-8;' }), filename);
 }
 
 function encodeWkb(geom: any): Uint8Array | null {
@@ -119,14 +107,36 @@ function encodeWkb(geom: any): Uint8Array | null {
   const wRing = (coords: number[][]) => { dv.setUint32(o, coords.length, true); o += 4; coords.forEach(c => wPt(c[0], c[1])); };
   const wHdr = (t: string) => { dv.setUint8(o++, 1); dv.setUint32(o, TYPE[t], true); o += 4; };
 
+  const wCount = (n: number) => { dv.setUint32(o, n, true); o += 4; };
   wHdr(geom.type);
   switch (geom.type) {
-    case 'Point': wPt(geom.coordinates[0], geom.coordinates[1]); break;
-    case 'LineString': dv.setUint32(o, geom.coordinates.length, true); o += 4; geom.coordinates.forEach((c: number[]) => wPt(c[0], c[1])); break;
-    case 'Polygon': dv.setUint32(o, geom.coordinates.length, true); o += 4; geom.coordinates.forEach((r: number[][]) => wRing(r)); break;
-    case 'MultiPoint': dv.setUint32(o, geom.coordinates.length, true); o += 4; geom.coordinates.forEach((c: number[]) => { wHdr('Point'); wPt(c[0], c[1]); }); break;
-    case 'MultiLineString': dv.setUint32(o, geom.coordinates.length, true); o += 4; geom.coordinates.forEach((ls: number[][]) => { wHdr('LineString'); dv.setUint32(o, ls.length, true); o += 4; ls.forEach(c => wPt(c[0], c[1])); }); break;
-    case 'MultiPolygon': dv.setUint32(o, geom.coordinates.length, true); o += 4; geom.coordinates.forEach((poly: number[][][]) => { wHdr('Polygon'); dv.setUint32(o, poly.length, true); o += 4; poly.forEach(r => wRing(r)); }); break;
+    case 'Point':
+      wPt(geom.coordinates[0], geom.coordinates[1]);
+      break;
+    case 'LineString':
+      wCount(geom.coordinates.length);
+      geom.coordinates.forEach((c: number[]) => wPt(c[0], c[1]));
+      break;
+    case 'Polygon':
+      wCount(geom.coordinates.length);
+      geom.coordinates.forEach((r: number[][]) => wRing(r));
+      break;
+    case 'MultiPoint':
+      wCount(geom.coordinates.length);
+      geom.coordinates.forEach((c: number[]) => { wHdr('Point'); wPt(c[0], c[1]); });
+      break;
+    case 'MultiLineString':
+      wCount(geom.coordinates.length);
+      geom.coordinates.forEach((ls: number[][]) => {
+        wHdr('LineString'); wCount(ls.length); ls.forEach(c => wPt(c[0], c[1]));
+      });
+      break;
+    case 'MultiPolygon':
+      wCount(geom.coordinates.length);
+      geom.coordinates.forEach((poly: number[][][]) => {
+        wHdr('Polygon'); wCount(poly.length); poly.forEach(r => wRing(r));
+      });
+      break;
   }
   return new Uint8Array(buf);
 }
@@ -196,34 +206,27 @@ async function triggerGeoPackage(layers: Array<{ name: string; features: any[] }
     const colList = keys.length ? `, ${quotedCols.join(', ')}` : '';
     const placeholders = keys.length ? `, ${keys.map(() => '?').join(', ')}` : '';
     const stmt = db.prepare(`INSERT INTO "${name}" (geom${colList}) VALUES (?${placeholders})`);
+    db.run('BEGIN TRANSACTION');
     for (const f of features) {
       stmt.run([
         geojsonToGpkgBlob(f.geometry),
         ...keys.map(k => { const v = f.properties?.[k]; return v == null ? null : String(v); }),
       ]);
     }
+    db.run('COMMIT');
     stmt.free();
   }
 
   const data = db.export();
   db.close();
-  const blob = new Blob([data], { type: 'application/geopackage+sqlite3' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = filename;
-  document.body.appendChild(a); a.click();
-  document.body.removeChild(a); URL.revokeObjectURL(url);
+  downloadBlob(new Blob([data], { type: 'application/geopackage+sqlite3' }), filename);
 }
 
 function triggerGeoJSON(features: any[], filename: string) {
-  const blob = new Blob([JSON.stringify({ type: 'FeatureCollection', features }, null, 2)], {
-    type: 'application/geo+json',
-  });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = filename;
-  document.body.appendChild(a); a.click();
-  document.body.removeChild(a); URL.revokeObjectURL(url);
+  downloadBlob(
+    new Blob([JSON.stringify({ type: 'FeatureCollection', features }, null, 2)], { type: 'application/geo+json' }),
+    filename,
+  );
 }
 
 // Pure sequential link-following — guaranteed correct for CQL2-filtered SGU endpoints.
