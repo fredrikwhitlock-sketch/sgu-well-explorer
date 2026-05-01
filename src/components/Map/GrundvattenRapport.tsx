@@ -1421,7 +1421,7 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
       medianBergKapacitet, medianJordKapacitet, jorddjupCapInfo, selectedDate]);
 
   // ── Render ────────────────────────────────────────────────────────────────
-  const desktopExpanded = desktopExpanded;
+  const desktopExpanded = expanded && !isMobile;
   return (
     <>
     {/* Floating chart popup */}
