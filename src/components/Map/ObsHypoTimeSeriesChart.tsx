@@ -95,7 +95,7 @@ async function fetchHypoForOmrade(
   omradeId: number,
   fromDate: string,
   signal?: AbortSignal,
-): Promise<Array<{ ts: number; fyll: number | null }>> {
+): Promise<Array<{ ts: number; fyllSma: number | null; fyllStora: number | null }>> {
   const base = `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/grundvattennivaer-tidigare/items?f=json&limit=${PAGE_LIMIT}`;
   const filter = encodeURIComponent(`omrade_id=${omradeId} AND datum>='${fromDate}'`);
   let url: string | null = `${base}&filter=${filter}`;
@@ -121,7 +121,7 @@ async function fetchHypoForOmrade(
     safety++;
   }
   out.sort((a, b) => a.ts - b.ts);
-  return out as any;
+  return out;
 }
 
 export const ObsHypoTimeSeriesChart = ({
@@ -138,14 +138,16 @@ export const ObsHypoTimeSeriesChart = ({
   );
   const [hypoSeries, setHypoSeries] = useState<Array<{ ts: number; fyllSma: number | null; fyllStora: number | null }>>([]);
 
-  const stationsToShow = useMemo(
-    () => stations.slice(0, maxStations),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [stations.map(s => s.id).join(','), maxStations],
+  // Stable string key so a new array reference with same IDs doesn't re-trigger the fetch
+  const stationKey = useMemo(
+    () => stations.slice(0, maxStations).map(s => s.id).join(','),
+    [stations, maxStations],
   );
 
-  // Stable key so a new array reference with the same IDs doesn't re-trigger the fetch
-  const stationKey = stationsToShow.map((s) => s.id).join(',');
+  const stationsToShow = useMemo(
+    () => stations.slice(0, maxStations),
+    [stationKey], // eslint-disable-line react-hooks/exhaustive-deps
+  );
 
   useEffect(() => {
     const ctrl = new AbortController();

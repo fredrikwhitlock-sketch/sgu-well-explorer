@@ -149,7 +149,7 @@ export function classifyByJg2(jg2: number): AquiferClass {
       depthMin: 1, depthMax: 8, capacityLabel: 'Bergborrad brunn trolig', useStoraMagasin: false };
 
   // ── Isälvssediment ──────────────────────────────────────────────────────────
-  if (jg2 === 50 || jg2 === 51 || jg2 === 55 || jg2 === 57 || (jg2 > 50 && jg2 < 60))
+  if (jg2 >= 50 && jg2 < 60)
     return { type: 'porous-coarse', label: 'Isälvssediment – poröst grovkornigt magasin',
       depthMin: 0.5, depthMax: 4, capacityLabel: '500–10 000 l/h (grävd/borrad infiltrationsbrunn)', useStoraMagasin: true };
 
@@ -260,13 +260,23 @@ export function classifyByJg2(jg2: number): AquiferClass {
     depthMin: 2, depthMax: 15, capacityLabel: 'Okänd', useStoraMagasin: false };
 }
 
+const FYLLNAD_LEVELS = [
+  { max: 10, label: 'Mycket låg', color: 'text-red-700 dark:text-red-400',    bg: 'bg-red-50 dark:bg-red-950/30',    factor: 1.7, adj: 'mycket låg (+50–80% djupare än normalt)' },
+  { max: 25, label: 'Låg',        color: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-50 dark:bg-orange-950/30', factor: 1.3, adj: 'låg (+20–35% djupare än normalt)' },
+  { max: 75, label: 'Normal',     color: 'text-yellow-700 dark:text-yellow-400', bg: 'bg-yellow-50 dark:bg-yellow-950/30', factor: 1.0, adj: 'normal nivå' },
+  { max: 90, label: 'Hög',        color: 'text-green-600 dark:text-green-400',   bg: 'bg-green-50 dark:bg-green-950/30',   factor: 0.75, adj: 'hög (20–30% grundare än normalt)' },
+  { max: Infinity, label: 'Mycket hög', color: 'text-green-800 dark:text-green-300', bg: 'bg-green-100 dark:bg-green-900/30', factor: 0.55, adj: 'mycket hög (40–50% grundare än normalt)' },
+] as const;
+
+function fyllnadLevel(v: number | null | undefined) {
+  if (v == null || v === -1) return null;
+  return FYLLNAD_LEVELS.find(l => v < l.max)!;
+}
+
 export function depthAdjustment(fyllnad: number | null | undefined): { factor: number; label: string; color: string } {
-  if (fyllnad == null || fyllnad === -1) return { factor: 1.0, label: 'okänd nivå', color: 'text-muted-foreground' };
-  if (fyllnad < 10) return { factor: 1.7, label: 'mycket låg (+50–80% djupare än normalt)', color: 'text-red-700 dark:text-red-400' };
-  if (fyllnad < 25) return { factor: 1.3, label: 'låg (+20–35% djupare än normalt)', color: 'text-orange-600 dark:text-orange-400' };
-  if (fyllnad < 75) return { factor: 1.0, label: 'normal nivå', color: 'text-yellow-700 dark:text-yellow-400' };
-  if (fyllnad < 90) return { factor: 0.75, label: 'hög (20–30% grundare än normalt)', color: 'text-green-600 dark:text-green-400' };
-  return { factor: 0.55, label: 'mycket hög (40–50% grundare än normalt)', color: 'text-green-800 dark:text-green-300' };
+  const l = fyllnadLevel(fyllnad);
+  if (!l) return { factor: 1.0, label: 'okänd nivå', color: 'text-muted-foreground' };
+  return { factor: l.factor, label: l.adj, color: l.color };
 }
 
 export function estimatedDepth(aq: AquiferClass, fyllnad: number | null | undefined) {
@@ -275,30 +285,15 @@ export function estimatedDepth(aq: AquiferClass, fyllnad: number | null | undefi
 }
 
 export function fyllnadLabel(v: number | null | undefined): string {
-  if (v == null || v === -1) return 'Ingen data';
-  if (v < 10) return 'Mycket låg';
-  if (v < 25) return 'Låg';
-  if (v < 75) return 'Normal';
-  if (v < 90) return 'Hög';
-  return 'Mycket hög';
+  return fyllnadLevel(v)?.label ?? 'Ingen data';
 }
 
 export function fyllnadColor(v: number | null | undefined): string {
-  if (v == null || v === -1) return 'text-muted-foreground';
-  if (v < 10) return 'text-red-700 dark:text-red-400';
-  if (v < 25) return 'text-orange-600 dark:text-orange-400';
-  if (v < 75) return 'text-yellow-700 dark:text-yellow-400';
-  if (v < 90) return 'text-green-600 dark:text-green-400';
-  return 'text-green-800 dark:text-green-300';
+  return fyllnadLevel(v)?.color ?? 'text-muted-foreground';
 }
 
 export function fyllnadBg(v: number | null | undefined): string {
-  if (v == null || v === -1) return 'bg-secondary/40';
-  if (v < 10) return 'bg-red-50 dark:bg-red-950/30';
-  if (v < 25) return 'bg-orange-50 dark:bg-orange-950/30';
-  if (v < 75) return 'bg-yellow-50 dark:bg-yellow-950/30';
-  if (v < 90) return 'bg-green-50 dark:bg-green-950/30';
-  return 'bg-green-100 dark:bg-green-900/30';
+  return fyllnadLevel(v)?.bg ?? 'bg-secondary/40';
 }
 
 // Maps the classified aquifer type at the clicked point to provplatskat_bedgr (1–5).

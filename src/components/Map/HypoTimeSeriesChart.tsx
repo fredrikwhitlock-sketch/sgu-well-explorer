@@ -140,6 +140,11 @@ export const HypoTimeSeriesChart = ({ omradeId, hasStora, years = 3 }: Props) =>
     borderRadius: 6,
     fontSize: 11,
   };
+  const tooltipProps = {
+    labelFormatter: (ts: any) => new Date(Number(ts)).toISOString().slice(0, 10),
+    formatter: (v: any, name: any) => [v == null ? "—" : `${v}%`, name] as [string, string],
+    contentStyle: tooltipStyle,
+  };
 
   return (
     <div className="space-y-3">
@@ -163,7 +168,7 @@ export const HypoTimeSeriesChart = ({ omradeId, hasStora, years = 3 }: Props) =>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="ts" type="number" domain={["dataMin", "dataMax"]} tickFormatter={fmtMonthYear} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} scale="time" />
                 <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
-                <Tooltip labelFormatter={(ts: any) => new Date(Number(ts)).toISOString().slice(0, 10)} formatter={(v: any, name: any) => [v == null ? "—" : `${v}%`, name]} contentStyle={tooltipStyle} />
+                <Tooltip {...tooltipProps} />
                 <Legend wrapperStyle={{ fontSize: 10 }} />
                 {hasFyllSma && <Line type="monotone" dataKey="fyllnadsgrad_sma" name="Små magasin" stroke={COLORS.fyllSma} strokeWidth={1.5} dot={false} connectNulls isAnimationActive={false} />}
                 {hasFyllStora && <Line type="monotone" dataKey="fyllnadsgrad_stora" name="Stora magasin" stroke={COLORS.fyllStora} strokeWidth={1.5} dot={false} connectNulls isAnimationActive={false} />}
@@ -194,7 +199,7 @@ export const HypoTimeSeriesChart = ({ omradeId, hasStora, years = 3 }: Props) =>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="ts" type="number" domain={["dataMin", "dataMax"]} tickFormatter={fmtMonthYear} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} scale="time" />
                 <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
-                <Tooltip labelFormatter={(ts: any) => new Date(Number(ts)).toISOString().slice(0, 10)} formatter={(v: any, name: any) => [v == null ? "—" : `${v}%`, name]} contentStyle={tooltipStyle} />
+                <Tooltip {...tooltipProps} />
                 <Legend wrapperStyle={{ fontSize: 10 }} />
                 {hasSitSma && <Line type="monotone" dataKey="grundvattensituation_sma" name="Små magasin" stroke={COLORS.sitSma} strokeWidth={1.5} dot={false} connectNulls isAnimationActive={false} />}
                 {hasSitStora && <Line type="monotone" dataKey="grundvattensituation_stora" name="Stora magasin" stroke={COLORS.sitStora} strokeWidth={1.5} dot={false} connectNulls isAnimationActive={false} />}

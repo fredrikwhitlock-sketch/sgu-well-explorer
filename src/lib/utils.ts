@@ -21,7 +21,6 @@ export function downloadBlob(blob: Blob, filename: string): void {
   document.body.removeChild(a); URL.revokeObjectURL(url);
 }
 
-/** Formats a Unix-ms timestamp as "YYYY-MM" for chart X-axis ticks. */
 export function fmtMonthYear(ts: number): string {
   const d = new Date(ts);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;

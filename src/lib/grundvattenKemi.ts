@@ -79,7 +79,7 @@ export function getSeason(month: number): 'winter' | 'spring' | 'summer' | 'autu
 }
 
 // Abramowitz & Stegun approximation for standard normal CDF
-export function normalCdf(z: number): number {
+function normalCdf(z: number): number {
   const t = 1 / (1 + 0.2316419 * Math.abs(z));
   const d = 0.3989423 * Math.exp((-z * z) / 2);
   const p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.7814779 + t * (-1.8212560 + t * 1.3302744))));
@@ -97,12 +97,21 @@ export function mannKendall(series: Array<{ datum: string; value: number }>): {
   const n = pts.length;
   if (n < 4) return { trend: 'no trend', significant: false, slope: 0, n };
 
+  // Pre-compute timestamps once (avoids n²/2 Date allocations in the pair loop)
+  const times = pts.map(p => new Date(p.datum).getTime());
+  const MS_PER_YEAR = 365.25 * 86400e3;
+
+  // Single pass over all pairs: accumulate S and Sen's slope list simultaneously
   let S = 0;
-  for (let i = 0; i < n - 1; i++)
+  const slopes: number[] = [];
+  for (let i = 0; i < n - 1; i++) {
     for (let j = i + 1; j < n; j++) {
       const d = pts[j].value - pts[i].value;
       if (d > 0) S++; else if (d < 0) S--;
+      const dt = (times[j] - times[i]) / MS_PER_YEAR;
+      if (dt > 0) slopes.push(d / dt);
     }
+  }
 
   // Variance with tie correction
   const counts = new Map<number, number>();
@@ -114,13 +123,6 @@ export function mannKendall(series: Array<{ datum: string; value: number }>): {
   const z = S === 0 ? 0 : (S > 0 ? S - 1 : S + 1) / Math.sqrt(varS);
   const p = 2 * (1 - normalCdf(Math.abs(z)));
 
-  // Sen's slope: median of all pairwise slopes
-  const slopes: number[] = [];
-  for (let i = 0; i < n - 1; i++)
-    for (let j = i + 1; j < n; j++) {
-      const dt = (new Date(pts[j].datum).getTime() - new Date(pts[i].datum).getTime()) / (365.25 * 86400e3);
-      if (dt > 0) slopes.push((pts[j].value - pts[i].value) / dt);
-    }
   slopes.sort((a, b) => a - b);
   const slope = slopes.length > 0 ? slopes[Math.floor(slopes.length / 2)] : 0;
 
