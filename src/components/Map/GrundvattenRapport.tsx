@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from "react";
-import { Droplets, Loader2, MapPin, AlertCircle, RefreshCw, Info, ChevronDown, Bot, Download, Maximize2, Minimize2 } from "lucide-react";
+import { Droplets, Loader2, MapPin, AlertCircle, RefreshCw, Info, ChevronDown, Bot, Download, Maximize2, Minimize2, X } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, ReferenceArea } from "recharts";
 import proj4 from "proj4";
 import { getSoilTypeColor } from "../../lib/soilTypeColors";
