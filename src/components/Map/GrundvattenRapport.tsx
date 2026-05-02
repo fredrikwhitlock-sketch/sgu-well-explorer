@@ -24,6 +24,7 @@ import {
   GV_KLASS_COLORS,
 } from "../../lib/grundvattenKemi";
 import { FloatingChartPopup, ChartPopupState } from "./FloatingChartPopup";
+import { escapeHtml } from "../../lib/utils";
 
 interface Props {
   coordinate: [number, number]; // Web Mercator EPSG:3857
@@ -1234,6 +1235,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
   // ── Export ────────────────────────────────────────────────────────────────
   const exportReport = useCallback(() => {
     if (!data) return;
+    const e = escapeHtml;
     const today = new Date().toISOString().split('T')[0];
     const kCol = (k: number) => GV_KLASS_COLORS[k] ?? '#6b7280';
     const sitPctLabel = (v: number) =>
@@ -1272,7 +1274,7 @@ td{padding:4px 8px;border:1px solid #e5e7eb}
 <body>
 <button class="pbtn" onclick="window.print()">Skriv ut / Spara PDF</button>
 <h1>Grundvattenanalys</h1>
-<div class="sub">Genererad ${today} · Analyserat datum: ${selectedDate}</div>`;
+<div class="sub">Genererad ${today} · Analyserat datum: ${e(selectedDate)}</div>`;
 
     // Coordinates
     html += `<h2>Koordinater</h2>
@@ -1283,43 +1285,43 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
     // Jordart & akvifer
     if (data.jordartNamn || (aquifer && aquifer.type !== 'unknown')) {
       html += `<h2>Jordart & Akvifer</h2>`;
-      if (data.jordartNamn) html += `<div class="row"><span class="lbl">Jordart${data.jordartKalla && data.jordartKalla !== 'grundlager' ? ` (${data.jordartKalla})` : ''}</span><span class="val">${data.jordartNamn}</span></div>`;
+      if (data.jordartNamn) html += `<div class="row"><span class="lbl">Jordart${data.jordartKalla && data.jordartKalla !== 'grundlager' ? ` (${e(data.jordartKalla)})` : ''}</span><span class="val">${e(data.jordartNamn)}</span></div>`;
       if (data.jorddjup) html += `<div class="row"><span class="lbl">Jorddjup (10×10 m raster)</span><span class="val">${data.jorddjup.djup.toFixed(1)} m</span></div>`;
-      if (aquifer && aquifer.type !== 'unknown') html += `<div class="row"><span class="lbl">Akvifertyp (yta)</span><span class="val">${aquifer.label}</span></div>`;
-      if (effectiveAquifer && effectiveAquifer !== aquifer) html += `<div class="row"><span class="lbl">Effektiv akvifer (under täcklager)</span><span class="val">${effectiveAquifer.label}</span></div>`;
+      if (aquifer && aquifer.type !== 'unknown') html += `<div class="row"><span class="lbl">Akvifertyp (yta)</span><span class="val">${e(aquifer.label)}</span></div>`;
+      if (effectiveAquifer && effectiveAquifer !== aquifer) html += `<div class="row"><span class="lbl">Effektiv akvifer (under täcklager)</span><span class="val">${e(effectiveAquifer.label)}</span></div>`;
     }
 
     // Magasin
     if (data.magasin) {
       const m = data.magasin;
       html += `<h2>Grundvattenmagasin</h2>`;
-      html += `<div class="row"><span class="lbl">Namn</span><span class="val">${m.namn}</span></div>`;
-      if (m.akvifertyp) html += `<div class="row"><span class="lbl">Akvifertyp</span><span class="val">${m.akvifertyp}</span></div>`;
-      if (m.genes) html += `<div class="row"><span class="lbl">Genesis</span><span class="val">${m.genes}</span></div>`;
+      html += `<div class="row"><span class="lbl">Namn</span><span class="val">${e(m.namn)}</span></div>`;
+      if (m.akvifertyp) html += `<div class="row"><span class="lbl">Akvifertyp</span><span class="val">${e(m.akvifertyp)}</span></div>`;
+      if (m.genes) html += `<div class="row"><span class="lbl">Genesis</span><span class="val">${e(m.genes)}</span></div>`;
       if (m.geomAreaKm2) html += `<div class="row"><span class="lbl">Area</span><span class="val">${m.geomAreaKm2.toFixed(1)} km²</span></div>`;
       if (m.tillrinningLs != null) html += `<div class="row"><span class="lbl">Tillrinning</span><span class="val">${m.tillrinningLs} l/s</span></div>`;
-      if (m.medelmaktighetMattad) html += `<div class="row"><span class="lbl">Medelm. mättad zon</span><span class="val">${m.medelmaktighetMattad}</span></div>`;
-      if (m.medelmaktighetOmattad) html += `<div class="row"><span class="lbl">Medelm. omättad zon</span><span class="val">${m.medelmaktighetOmattad}</span></div>`;
-      if (m.magasinsposition) html += `<div class="row"><span class="lbl">Position</span><span class="val">${m.magasinsposition}</span></div>`;
+      if (m.medelmaktighetMattad) html += `<div class="row"><span class="lbl">Medelm. mättad zon</span><span class="val">${e(m.medelmaktighetMattad)}</span></div>`;
+      if (m.medelmaktighetOmattad) html += `<div class="row"><span class="lbl">Medelm. omättad zon</span><span class="val">${e(m.medelmaktighetOmattad)}</span></div>`;
+      if (m.magasinsposition) html += `<div class="row"><span class="lbl">Position</span><span class="val">${e(m.magasinsposition)}</span></div>`;
     }
 
     // Delomrade
     if (data.delomrade) {
       const d2 = data.delomrade;
       html += `<h2>Magasinsdelområde</h2>`;
-      if (d2.namn) html += `<div class="row"><span class="lbl">Delområde</span><span class="val">${d2.namn}</span></div>`;
-      if (d2.magasinsnamn) html += `<div class="row"><span class="lbl">Magasin</span><span class="val">${d2.magasinsnamn}</span></div>`;
-      if (d2.uttagsmojligheter) html += `<div class="row"><span class="lbl">Uttagsmöjligheter</span><span class="val">${d2.uttagsmojligheter}</span></div>`;
-      if (d2.kornstorlek) html += `<div class="row"><span class="lbl">Kornstorlek</span><span class="val">${d2.kornstorlek}</span></div>`;
-      if (d2.artesiskt) html += `<div class="row"><span class="lbl">Artesiskt</span><span class="val">${d2.artesiskt}</span></div>`;
-      if (d2.nivaforhallande) html += `<div class="row"><span class="lbl">Nivåförhållande</span><span class="val">${d2.nivaforhallande}</span></div>`;
-      if (d2.vattenkemi) html += `<div class="row"><span class="lbl">Vattenkemi</span><span class="val">${d2.vattenkemi}</span></div>`;
+      if (d2.namn) html += `<div class="row"><span class="lbl">Delområde</span><span class="val">${e(d2.namn)}</span></div>`;
+      if (d2.magasinsnamn) html += `<div class="row"><span class="lbl">Magasin</span><span class="val">${e(d2.magasinsnamn)}</span></div>`;
+      if (d2.uttagsmojligheter) html += `<div class="row"><span class="lbl">Uttagsmöjligheter</span><span class="val">${e(d2.uttagsmojligheter)}</span></div>`;
+      if (d2.kornstorlek) html += `<div class="row"><span class="lbl">Kornstorlek</span><span class="val">${e(d2.kornstorlek)}</span></div>`;
+      if (d2.artesiskt) html += `<div class="row"><span class="lbl">Artesiskt</span><span class="val">${e(d2.artesiskt)}</span></div>`;
+      if (d2.nivaforhallande) html += `<div class="row"><span class="lbl">Nivåförhållande</span><span class="val">${e(d2.nivaforhallande)}</span></div>`;
+      if (d2.vattenkemi) html += `<div class="row"><span class="lbl">Vattenkemi</span><span class="val">${e(d2.vattenkemi)}</span></div>`;
     }
 
     // HYPE nivå
     if (data.fyllnadsgradSma != null || data.fyllnadsgradStora != null) {
       html += `<h2>Grundvattennivå (HYPE-modell)</h2>`;
-      if (data.hypoDate) html += `<div class="row"><span class="lbl">Modelldata${data.hypoDateIsFallback ? ' (närmaste tillgängliga)' : ''}</span><span class="val">${data.hypoDate}</span></div>`;
+      if (data.hypoDate) html += `<div class="row"><span class="lbl">Modelldata${data.hypoDateIsFallback ? ' (närmaste tillgängliga)' : ''}</span><span class="val">${e(data.hypoDate)}</span></div>`;
       if (data.fyllnadsgradSma != null) html += `<div class="row"><span class="lbl">Fyllnadsgrad, små magasin</span><span class="val">${Math.round(data.fyllnadsgradSma)}% — ${sitPctLabel(data.fyllnadsgradSma)}</span></div>`;
       if (data.fyllnadsgradStora != null) html += `<div class="row"><span class="lbl">Fyllnadsgrad, stora magasin</span><span class="val">${Math.round(data.fyllnadsgradStora)}% — ${sitPctLabel(data.fyllnadsgradStora)}</span></div>`;
       if (data.sitSma != null) html += `<div class="row"><span class="lbl">Situation, små magasin</span><span class="val">${Math.round(data.sitSma)}% — ${sitPctLabel(data.sitSma)}</span></div>`;
@@ -1334,7 +1336,7 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
         html += `<div class="row"><span class="lbl">Observerat median</span><span class="val">${obsKalibr!.medianDjup.toFixed(1)} m</span></div>`;
         html += `<div class="row"><span class="lbl">Kvartilar P25–P75</span><span class="val">${obsKalibr!.p25.toFixed(1)}–${obsKalibr!.p75.toFixed(1)} m</span></div>`;
         html += `<div class="row"><span class="lbl">Stationer</span><span class="val">${obsKalibr!.antal} st · ${obsKalibr!.matchLabel}</span></div>`;
-        html += `<div class="row"><span class="lbl">HYPE-situationsfaktor</span><span class="val">${depth.adj.factor}× · ${depth.adj.label}</span></div>`;
+        html += `<div class="row"><span class="lbl">HYPE-situationsfaktor</span><span class="val">${depth.adj.factor}× · ${e(depth.adj.label)}</span></div>`;
       } else {
         html += `<div class="row"><span class="lbl">Uppskattning (ej kalibrerad)</span><span class="val" style="font-size:16px;font-weight:700">${depth.lo}–${depth.hi} m u. markytan</span></div>`;
         html += `<p class="note">Baserat på akvifertyp + HYPE-nivå – inga observationsstationer för kalibrering</p>`;
@@ -1345,7 +1347,7 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
     // Capacity
     if (medianBergKapacitet != null || medianJordKapacitet != null || data.gvTillgangLdha != null) {
       html += `<h2>Kapacitet</h2>`;
-      if (aquifer && aquifer.type !== 'unknown') html += `<div class="row"><span class="lbl">Typisk (${aquifer.label.split('–')[0].trim()})</span><span class="val">${aquifer.capacityLabel}</span></div>`;
+      if (aquifer && aquifer.type !== 'unknown') html += `<div class="row"><span class="lbl">Typisk (${e(aquifer.label.split('–')[0].trim())})</span><span class="val">${e(aquifer.capacityLabel)}</span></div>`;
       if (medianBergKapacitet != null) html += `<div class="row"><span class="lbl">Bergborrade brunnar nära (median, ${bergBrunnar.length} st)</span><span class="val">${medianBergKapacitet} l/h</span></div>`;
       if (medianJordKapacitet != null) html += `<div class="row"><span class="lbl">Grävda/rörbrunnars kapacitet nära (median, ${jordBrunnar.length} st)</span><span class="val">${medianJordKapacitet} l/h</span></div>`;
       if (data.gvTillgangLdha != null) html += `<div class="row"><span class="lbl">Grundvattentillgång, små magasin</span><span class="val">${Math.round(data.gvTillgangLdha)} l/dygn/ha</span></div>`;
@@ -1354,7 +1356,7 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
     // Geokemi
     if (data.geokemi) {
       html += `<h2>Markgeokemi (morän)</h2>`;
-      html += `<div class="row"><span class="lbl">Avstånd</span><span class="val">MS ${data.geokemi.distKm} km${data.geokemi.distKmAes != null ? ` · AES ${data.geokemi.distKmAes} km` : ''}${data.geokemi.artal ? ` · ${data.geokemi.artal}` : ''}</span></div>`;
+      html += `<div class="row"><span class="lbl">Avstånd</span><span class="val">MS ${data.geokemi.distKm} km${data.geokemi.distKmAes != null ? ` · AES ${data.geokemi.distKmAes} km` : ''}${data.geokemi.artal ? ` · ${e(data.geokemi.artal)}` : ''}</span></div>`;
       const GEO_KEYS = ['as','u','ni','pb','cr','cd','mn','fe','f','cu','zn','co','mo','v','ca','mg'];
       const GEO_LBL: Record<string,string> = {as:'As',u:'U',ni:'Ni',pb:'Pb',cr:'Cr',cd:'Cd',mn:'Mn',fe:'Fe',f:'F',cu:'Cu',zn:'Zn',co:'Co',mo:'Mo',v:'V',ca:'Ca',mg:'Mg'};
       const geoPresent = GEO_KEYS.filter(k => data.geokemi!.elements[k] != null);
@@ -1367,7 +1369,7 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
     // Förekomst
     if (data.gvForekomstId) {
       html += `<h2>Grundvattenförekomst (WFD)</h2>`;
-      html += `<div class="row"><span class="lbl">Nationell kod</span><span class="val">${data.gvForekomstId}</span></div>`;
+      html += `<div class="row"><span class="lbl">Nationell kod</span><span class="val">${e(data.gvForekomstId)}</span></div>`;
     }
 
     // GV Kemi
@@ -1380,14 +1382,14 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
         ].join('');
         const meta = [
           st.distKm != null ? `${st.distKm} km` : '',
-          st.senasteprov ? `${st.senasteprov}${st.seasonalSelection ? ' (årstidsval)' : ''}` : '',
+          st.senasteprov ? `${e(st.senasteprov)}${st.seasonalSelection ? ' (årstidsval)' : ''}` : '',
         ].filter(Boolean).join(' · ');
-        html += `<div class="sh">${st.provplatsnamn} <span style="font-weight:400;font-size:11px;color:#6b7280">(ID: ${st.provplatsid})</span>${badges}${meta ? `<span style="font-weight:400;font-size:11px;color:#9ca3af;margin-left:8px">${meta}</span>` : ''}</div>`;
+        html += `<div class="sh">${e(st.provplatsnamn)} <span style="font-weight:400;font-size:11px;color:#6b7280">(ID: ${e(st.provplatsid)})</span>${badges}${meta ? `<span style="font-weight:400;font-size:11px;color:#9ca3af;margin-left:8px">${meta}</span>` : ''}</div>`;
         html += `<div class="sb">`;
         if (st.params.length > 0) {
           html += `<table><tr><th>Parameter</th><th>Värde</th><th>Enhet</th><th>Klass</th><th>Datum</th></tr>`;
           for (const p of st.params) {
-            html += `<tr><td>${p.label || p.name}</td><td>${p.value}</td><td>${p.unit}</td><td><span class="dot" style="background:${kCol(p.klass)}"></span>${p.klass}</td><td>${p.datum}</td></tr>`;
+            html += `<tr><td>${e(p.label || p.name)}</td><td>${e(p.value)}</td><td>${e(p.unit)}</td><td><span class="dot" style="background:${kCol(p.klass)}"></span>${p.klass}</td><td>${e(p.datum)}</td></tr>`;
           }
           html += `</table>`;
         }
@@ -1398,11 +1400,11 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
           for (const tp of t.params) {
             const tLbl = tp.mk.trend === 'increasing' ? '↑ Ökande' : tp.mk.trend === 'decreasing' ? '↓ Minskande' : '→ Ingen';
             const tCol = tp.mk.trend === 'increasing' ? '#dc2626' : tp.mk.trend === 'decreasing' ? '#2563eb' : '#6b7280';
-            html += `<tr><td>${tp.label || tp.name}</td><td>${tp.latestValue} ${tp.unit}</td><td style="color:${tCol};font-weight:600">${tLbl}</td><td>${tp.mk.significant ? 'Ja (p<0.05)' : 'Nej'}</td><td>${tp.mk.slope >= 0 ? '+' : ''}${tp.mk.slope.toFixed(4)} ${tp.unit}/år</td><td>${tp.hasSeasonality ? `Ja (${Math.round(tp.seasonalAmplitudePct)}%)` : 'Nej'}</td></tr>`;
+            html += `<tr><td>${e(tp.label || tp.name)}</td><td>${e(tp.latestValue)} ${e(tp.unit)}</td><td style="color:${tCol};font-weight:600">${tLbl}</td><td>${tp.mk.significant ? 'Ja (p<0.05)' : 'Nej'}</td><td>${tp.mk.slope >= 0 ? '+' : ''}${tp.mk.slope.toFixed(4)} ${e(tp.unit)}/år</td><td>${tp.hasSeasonality ? `Ja (${Math.round(tp.seasonalAmplitudePct)}%)` : 'Nej'}</td></tr>`;
           }
           html += `</table></div>`;
         }
-        const stMeta = [st.eucdGwb ? `Förekomst: ${st.eucdGwb}` : '', st.provplatskat ? `Kategori: ${st.provplatskat}` : '', st.region ? `Region: ${st.region}` : ''].filter(Boolean);
+        const stMeta = [st.eucdGwb ? `Förekomst: ${e(st.eucdGwb)}` : '', st.provplatskat ? `Kategori: ${e(st.provplatskat)}` : '', st.region ? `Region: ${e(st.region)}` : ''].filter(Boolean);
         if (stMeta.length > 0) html += `<div style="padding:4px 12px 8px;font-size:11px;color:#9ca3af">${stMeta.join(' · ')}</div>`;
         html += `</div>`;
       }
