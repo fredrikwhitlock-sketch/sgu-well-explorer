@@ -13,6 +13,20 @@ export function escapeCSV(v: unknown): string {
   return s;
 }
 
+export function escapeHtml(v: unknown): string {
+  return String(v ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
+}
+
+export function safeHref(url: unknown): string {
+  if (typeof url !== 'string') return '#';
+  return url.startsWith('https://') || url.startsWith('http://') ? url : '#';
+}
+
 export function downloadBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

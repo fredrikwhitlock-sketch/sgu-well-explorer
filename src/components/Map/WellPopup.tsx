@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { X, ExternalLink, Download, BarChart3, PlusCircle, ChevronLeft, ChevronRight, GripHorizontal, Layers, Loader2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { HypoTimeSeriesChart } from "./HypoTimeSeriesChart";
+import { safeHref } from "@/lib/utils";
 
 interface LagerItem {
   lagernr: number;
@@ -167,7 +168,7 @@ export const WellPopup = ({
       parts.push(
         <a
           key={keyIndex++}
-          href={href}
+          href={safeHref(href)}
           target="_blank"
           rel="noopener noreferrer"
           className="text-sgu-link hover:underline inline-flex items-center gap-1"
@@ -700,7 +701,7 @@ export const WellPopup = ({
             {properties.url_viss && (
               <div className="mt-2">
                 <a 
-                  href={properties.url_viss} 
+                  href={safeHref(properties.url_viss)}
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="text-sm text-sgu-link hover:underline inline-flex items-center gap-1"
@@ -790,7 +791,7 @@ export const WellPopup = ({
             {properties.url && (
               <div className="mt-2">
                 <a 
-                  href={properties.url} 
+                  href={safeHref(properties.url)}
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="text-sm text-sgu-link hover:underline inline-flex items-center gap-1"
@@ -1222,7 +1223,7 @@ export const WellPopup = ({
               <div>
                 <dt className="text-xs font-medium text-muted-foreground">Foto</dt>
                 <dd className="text-sm mt-1">
-                  <a href={properties.foto_url} target="_blank" rel="noopener noreferrer" className="text-sgu-link hover:underline inline-flex items-center gap-1">
+                  <a href={safeHref(properties.foto_url)} target="_blank" rel="noopener noreferrer" className="text-sgu-link hover:underline inline-flex items-center gap-1">
                     Visa foto <ExternalLink className="w-3 h-3" />
                   </a>
                 </dd>
@@ -1477,7 +1478,7 @@ export const WellPopup = ({
             {properties.url_tidsserie && (
               <div>
                 <a
-                  href={properties.url_tidsserie}
+                  href={safeHref(properties.url_tidsserie)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-sm text-sgu-link hover:underline inline-flex items-center gap-1"
@@ -1646,7 +1647,7 @@ export const WellPopup = ({
             {properties.lank_magasinsbeskrivning && (
               <div className="mt-1">
                 <a
-                  href={properties.lank_magasinsbeskrivning}
+                  href={safeHref(properties.lank_magasinsbeskrivning)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-sm text-sgu-link hover:underline inline-flex items-center gap-1"
