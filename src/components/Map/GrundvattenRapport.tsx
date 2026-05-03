@@ -26,6 +26,7 @@ import {
 import { FloatingChartPopup, ChartPopupState } from "./FloatingChartPopup";
 import { escapeHtml } from "../../lib/utils";
 import { exportAnalysisGeoPackage } from "../../lib/exportGeoPackage";
+import { fetchAnalysCSV, type AnalysRow } from "../../lib/parseCSV";
 import { toast } from "sonner";
 
 interface Props {
@@ -906,18 +907,12 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
           }
 
           if (candidates.length > 0) {
-            const analysResponses = await Promise.allSettled(
-              candidates.map(({ p }) => {
-                const pid = p.nationellt_provplatsid;
-                const url = `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/analysresultat/items?f=json&filter=nationellt_provplatsid=${pid}&filter-lang=cql2-text&sortby=-provtagningsdatum&limit=2000`;
-                return fetch(url, { signal }).catch(() => null);
-              })
+            const analysResults = await Promise.allSettled(
+              candidates.map(({ p }) => fetchAnalysCSV(p.nationellt_provplatsid, signal))
             );
 
-            const parsedAnalys = await Promise.all(
-              analysResponses.map(r =>
-                r.status === 'fulfilled' && r.value?.ok ? r.value.json().catch(() => null) : Promise.resolve(null)
-              )
+            const parsedAnalys: (AnalysRow[] | null)[] = analysResults.map(r =>
+              r.status === 'fulfilled' ? r.value : null
             );
 
             const kemiStations: NonNullable<ReportData['gvKemi']> = [];
@@ -925,17 +920,15 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
               const cand = candidates[i];
               const ad = parsedAnalys[i];
 
-              // Group all results by date; within a date keep first (API-sorted newest) value per param
               const byDate = new Map<string, Map<string, { value: number; unit: string }>>();
-              for (const f of ad?.features ?? []) {
-                const p = f.properties ?? {};
-                const pname: string = p.parameternamn ?? '';
-                const datum = (p.provtagningsdatum ?? '').slice(0, 10);
-                const rawVal = parseFloat(p.matvardetal ?? '');
+              for (const row of ad ?? []) {
+                const pname = row.parameternamn;
+                const datum = row.datum;
+                const rawVal = parseFloat(row.matvardetal);
                 if (!datum || !pname || isNaN(rawVal) || rawVal < 0) continue;
                 if (!byDate.has(datum)) byDate.set(datum, new Map());
                 if (!byDate.get(datum)!.has(pname))
-                  byDate.get(datum)!.set(pname, { value: rawVal, unit: p.enhet_tx ?? p.enhet ?? '' });
+                  byDate.get(datum)!.set(pname, { value: rawVal, unit: row.enhet });
               }
 
               // Dates sorted newest first; keep only those with at least one classifiable parameter

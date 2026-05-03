@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { fetchAnalysCSV, type AnalysRow } from "@/lib/parseCSV";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { X, Trash2, Loader2, ExternalLink, GripHorizontal, TrendingDown, TrendingUp, Minus } from "lucide-react";
@@ -74,6 +75,7 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef<{ startX: number; startY: number; initialX: number; initialY: number } | null>(null);
+  const qualityCacheRef = useRef<Map<string, AnalysRow[]>>(new Map());
 
   const chartType = initialLocation.type;
 
@@ -156,37 +158,6 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
     }
   };
 
-  // Helper function to fetch all pages from OGC API
-  const fetchAllPages = async (baseUrl: string): Promise<any[]> => {
-    const allFeatures: any[] = [];
-    let nextUrl: string | null = `${baseUrl}&limit=1000`;
-
-    while (nextUrl) {
-      const response = await fetch(nextUrl);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const data = await response.json();
-
-      if (data.features) {
-        allFeatures.push(...data.features);
-      }
-
-      // Check for next page link
-      nextUrl = null;
-      if (data.links) {
-        const nextLink = data.links.find((l: any) => l.rel === 'next');
-        if (nextLink) {
-          nextUrl = nextLink.href;
-        }
-      }
-    }
-
-    return allFeatures;
-  };
-
-  // NOTE: encodeURIComponent does NOT encode apostrophes (') which SGU's OGC API examples use as %27.
-  const encodeOgcFilter = (filter: string) => encodeURIComponent(filter).replace(/'/g, "%27");
 
   /** Minimal RFC 4180 CSV row parser – handles quoted fields with embedded commas/newlines. */
   const parseCSVRow = (line: string): string[] => {
@@ -245,74 +216,34 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
   };
 
   const fetchQualityData = async (location: ChartLocation, parameter: string): Promise<{ date: string; value: number }[]> => {
-    // API v2 uses nationellt_provplatsid as the key between provplatser and analysresultat
     const nationelltProvplatsid = location.provplatsid;
-    const locationName = location.name;
+    if (!nationelltProvplatsid) return [];
 
-    if (!nationelltProvplatsid) {
-      console.warn("No nationellt_provplatsid available for location:", locationName);
-      return [];
-    }
+    let rows = qualityCacheRef.current.get(nationelltProvplatsid);
+    if (!rows) {
+      rows = await fetchAnalysCSV(nationelltProvplatsid);
+      qualityCacheRef.current.set(nationelltProvplatsid, rows);
 
-    // Build filter using nationellt_provplatsid (integer in v2)
-    const siteClause = `nationellt_provplatsid = ${nationelltProvplatsid}`;
-
-    // Populate parameter dropdown from real API values
-    // API v2 uses 'parameternamn' instead of 'parameter'
-    if (availableQualityParameters.length === 0) {
-      const paramsUrl = `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/analysresultat/items?f=json&limit=1000&filter=${encodeOgcFilter(siteClause)}`;
-      try {
-        const resp = await fetch(paramsUrl);
-        if (resp.ok) {
-          const json = await resp.json();
-          const features = json.features || [];
-          const unique = Array.from(
-            new Set<string>(
-              features
-                .map((f: any) => String(f?.properties?.parameternamn ?? "").trim())
-                .filter(Boolean)
-            )
-          ).sort((a: string, b: string) => a.localeCompare(b, "sv"));
-
-          const mapped: Array<{ value: string; label: string }> = unique.map((p: string) => {
-            const known = QUALITY_PARAMETERS.find((kp) => kp.value === p);
-            return { value: p, label: known?.label ?? p };
-          });
-
-          if (mapped.length > 0) {
-            setAvailableQualityParameters(mapped);
-            if (!unique.includes(parameter)) {
-              setSelectedParameter(unique[0]);
-            }
-          }
-        }
-      } catch (e) {
-        // Non-fatal – chart can still load using current selection
-        console.warn("Failed to build parameter list for quality chart", e);
+      const unique = Array.from(new Set(rows.map(r => r.parameternamn).filter(Boolean)))
+        .sort((a, b) => a.localeCompare(b, 'sv'));
+      const mapped = unique.map(p => {
+        const known = QUALITY_PARAMETERS.find(kp => kp.value === p);
+        return { value: p, label: known?.label ?? p };
+      });
+      if (mapped.length > 0) {
+        setAvailableQualityParameters(mapped);
+        if (!unique.includes(parameter)) setSelectedParameter(unique[0]);
       }
     }
 
-    // API v2 uses 'parameternamn' instead of 'parameter'
-    const filter = `${siteClause} AND parameternamn = '${parameter}'`;
-    const baseUrl = `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/analysresultat/items?f=json&sortby=provtagningsdatum&filter=${encodeOgcFilter(filter)}`;
-    const allFeatures = await fetchAllPages(baseUrl);
-    console.log("Quality data received:", allFeatures.length, "features for", locationName, "parameter", parameter);
-
-    return allFeatures
-      .map((f: any) => {
-        const raw = String(f?.properties?.matvardetal ?? "").trim();
-        const normalizedNumber = raw
-          .replace(/^</, "") // handle values like "<0,1"
-          .replace(/\s/g, "")
-          .replace(",", ".");
-
-        return {
-          // API v2 uses 'provtagningsdatum' instead of 'provdat'
-          date: f?.properties?.provtagningsdatum?.split("T")[0] || "",
-          value: Number.parseFloat(normalizedNumber)
-        };
-      })
-      .filter((d: any) => d.date && d.value !== null && !Number.isNaN(d.value));
+    return rows
+      .filter(r => r.parameternamn === parameter)
+      .flatMap(r => {
+        const raw = r.matvardetal.replace(/^</, '').replace(/\s/g, '').replace(',', '.');
+        const value = Number.parseFloat(raw);
+        if (!r.datum || isNaN(value)) return [];
+        return [{ date: r.datum, value }];
+      });
   };
 
   // Compute per-station statistics whenever chartData or locations change
