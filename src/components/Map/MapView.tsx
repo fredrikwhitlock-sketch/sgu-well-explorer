@@ -151,6 +151,8 @@ export const MapView = () => {
   const loadJorddjupObsForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
   const loadJorddjupKartorForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
   const loadJorddjupSprickForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
+  const loadGwLevelsForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
+  const loadGwQualityForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
   const clearAquifersRef = useRef<(() => void) | null>(null);
   const clearSoilTypesRef = useRef<(() => void) | null>(null);
   const clearWaterBodiesRef = useRef<(() => void) | null>(null);
@@ -933,48 +935,43 @@ export const MapView = () => {
     waterBodiesLayerRef.current = waterBodiesLayer;
 
     // OGC API Features layer for Grundvattennivåer observerade (observed groundwater levels)
-    const gwLevelsObservedSource = new VectorSource({
-      format: new GeoJSON(),
-      loader: async () => {
-        try {
-          setLoadingGwLevelsObserved(true);
-          setGwLevelsObservedLoaded(0);
-          console.log("Loading observed groundwater levels from OGC API...");
-          
-          const allFeatures = await fetchAllPages(
-            `https://api.sgu.se/oppnadata/grundvattennivaer-observerade/ogc/features/v1/collections/stationer/items?f=json`,
-            (count) => setGwLevelsObservedLoaded(count)
-          );
-          
-          console.log(`Received ${allFeatures.length} groundwater level stations`);
-          
-          if (allFeatures.length > 0) {
-            const features = new GeoJSON().readFeatures(
-              { type: "FeatureCollection", features: allFeatures },
-              {
-                dataProjection: "EPSG:4326",
-                featureProjection: "EPSG:3857",
-              }
-            );
-            
-            gwLevelsObservedSource.addFeatures(features);
-            setGwLevelsObservedLoaded(features.length);
-            
-            if (gwLevelsObservedLayerRef.current) {
-              gwLevelsObservedLayerRef.current.setVisible(true);
-              gwLevelsObservedLayerRef.current.changed();
-            }
-            
-            toast.success(`Laddade ${features.length} grundvattennivåstationer`);
-          }
-        } catch (error) {
-          console.error("Error loading observed groundwater levels:", error);
-          toast.error("Kunde inte ladda observerade grundvattennivåer");
-        } finally {
-          setLoadingGwLevelsObserved(false);
+    const gwLevelsObservedSource = new VectorSource({ format: new GeoJSON() });
+    const loadedGwLevelsExtentsRef: string[] = [];
+
+    const loadGwLevelsForExtent = async (extent: number[]) => {
+      const gridKey = extentToGridKey(extent);
+      if (loadedGwLevelsExtentsRef.includes(gridKey)) return;
+      loadedGwLevelsExtentsRef.push(gridKey);
+
+      const minLon = (extent[0] / 20037508.34) * 180;
+      const maxLon = (extent[2] / 20037508.34) * 180;
+      const minLat = (Math.atan(Math.exp((extent[1] / 20037508.34) * Math.PI)) * 360 / Math.PI) - 90;
+      const maxLat = (Math.atan(Math.exp((extent[3] / 20037508.34) * Math.PI)) * 360 / Math.PI) - 90;
+      const bbox = `${minLon},${minLat},${maxLon},${maxLat}`;
+
+      setLoadingGwLevelsObserved(true);
+      try {
+        const allFeatures = await fetchAllPages(
+          `https://api.sgu.se/oppnadata/grundvattennivaer-observerade/ogc/features/v1/collections/stationer/items?f=json&bbox=${bbox}`,
+          (count) => setGwLevelsObservedLoaded(gwLevelsObservedSource.getFeatures().length + count)
+        );
+        if (allFeatures.length > 0) {
+          const existingIds = new Set(gwLevelsObservedSource.getFeatures().map(f => f.get('platsbeteckning')));
+          const features = new GeoJSON()
+            .readFeatures({ type: 'FeatureCollection', features: allFeatures.filter(f => !existingIds.has(f.properties?.platsbeteckning)) },
+              { dataProjection: 'EPSG:4326', featureProjection: 'EPSG:3857' });
+          if (features.length > 0) gwLevelsObservedSource.addFeatures(features);
         }
-      },
-    });
+        setGwLevelsObservedLoaded(gwLevelsObservedSource.getFeatures().length);
+      } catch {
+        toast.error('Kunde inte ladda observerade grundvattennivåer');
+        const idx = loadedGwLevelsExtentsRef.indexOf(gridKey);
+        if (idx >= 0) loadedGwLevelsExtentsRef.splice(idx, 1);
+      } finally {
+        setLoadingGwLevelsObserved(false);
+      }
+    };
+    loadGwLevelsForExtentRef.current = loadGwLevelsForExtent;
 
     const gwLevelsObservedLayer = new VectorLayer({
       source: gwLevelsObservedSource,
@@ -996,51 +993,44 @@ export const MapView = () => {
     gwLevelsObservedLayerRef.current = gwLevelsObservedLayer;
 
     // OGC API Features layer for Grundvattenkvalitet (groundwater quality sampling sites)
-    const gwQualitySource = new VectorSource({
-      format: new GeoJSON(),
-      loader: async () => {
-        try {
-          setLoadingGwQuality(true);
-          setGwQualityLoaded(0);
-          console.log("Loading groundwater quality sites from OGC API...");
-          
-          // Use API v2 for groundwater quality
-          const allFeatures = await fetchAllPages(
-            `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/provplatser/items?f=json`,
-            (count) => setGwQualityLoaded(count)
-          );
-          
-          // Filter out features without geometry
-          const featuresWithGeometry = allFeatures.filter(f => f.geometry !== null);
-          console.log(`Received ${featuresWithGeometry.length} groundwater quality sites with geometry`);
-          
-          if (featuresWithGeometry.length > 0) {
-            const features = new GeoJSON().readFeatures(
-              { type: "FeatureCollection", features: featuresWithGeometry },
-              {
-                dataProjection: "EPSG:4326",
-                featureProjection: "EPSG:3857",
-              }
-            );
-            
-            gwQualitySource.addFeatures(features);
-            setGwQualityLoaded(features.length);
-            
-            if (gwQualityLayerRef.current) {
-              gwQualityLayerRef.current.setVisible(true);
-              gwQualityLayerRef.current.changed();
-            }
-            
-            toast.success(`Laddade ${features.length} provplatser för grundvattenkvalitet`);
-          }
-        } catch (error) {
-          console.error("Error loading groundwater quality sites:", error);
-          toast.error("Kunde inte ladda grundvattenkvalitet");
-        } finally {
-          setLoadingGwQuality(false);
+    const gwQualitySource = new VectorSource({ format: new GeoJSON() });
+    const loadedGwQualityExtentsRef: string[] = [];
+
+    const loadGwQualityForExtent = async (extent: number[]) => {
+      const gridKey = extentToGridKey(extent);
+      if (loadedGwQualityExtentsRef.includes(gridKey)) return;
+      loadedGwQualityExtentsRef.push(gridKey);
+
+      const minLon = (extent[0] / 20037508.34) * 180;
+      const maxLon = (extent[2] / 20037508.34) * 180;
+      const minLat = (Math.atan(Math.exp((extent[1] / 20037508.34) * Math.PI)) * 360 / Math.PI) - 90;
+      const maxLat = (Math.atan(Math.exp((extent[3] / 20037508.34) * Math.PI)) * 360 / Math.PI) - 90;
+      const bbox = `${minLon},${minLat},${maxLon},${maxLat}`;
+
+      setLoadingGwQuality(true);
+      try {
+        const allFeatures = await fetchAllPages(
+          `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/provplatser/items?f=json&bbox=${bbox}`,
+          (count) => setGwQualityLoaded(gwQualitySource.getFeatures().length + count)
+        );
+        const withGeom = allFeatures.filter(f => f.geometry !== null);
+        if (withGeom.length > 0) {
+          const existingIds = new Set(gwQualitySource.getFeatures().map(f => f.get('nationellt_provplatsid')));
+          const features = new GeoJSON()
+            .readFeatures({ type: 'FeatureCollection', features: withGeom.filter(f => !existingIds.has(f.properties?.nationellt_provplatsid)) },
+              { dataProjection: 'EPSG:4326', featureProjection: 'EPSG:3857' });
+          if (features.length > 0) gwQualitySource.addFeatures(features);
         }
-      },
-    });
+        setGwQualityLoaded(gwQualitySource.getFeatures().length);
+      } catch {
+        toast.error('Kunde inte ladda grundvattenkvalitet');
+        const idx = loadedGwQualityExtentsRef.indexOf(gridKey);
+        if (idx >= 0) loadedGwQualityExtentsRef.splice(idx, 1);
+      } finally {
+        setLoadingGwQuality(false);
+      }
+    };
+    loadGwQualityForExtentRef.current = loadGwQualityForExtent;
 
     const gwQualityLayer = new VectorLayer({
       source: gwQualitySource,
@@ -1770,6 +1760,14 @@ export const MapView = () => {
         loadSourcesForExtentRef.current(extent);
       }
 
+      // Station layers load at any zoom
+      if (gwLevelsObservedLayerRef.current?.getVisible() && loadGwLevelsForExtentRef.current) {
+        loadGwLevelsForExtentRef.current(extent);
+      }
+      if (gwQualityLayerRef.current?.getVisible() && loadGwQualityForExtentRef.current) {
+        loadGwQualityForExtentRef.current(extent);
+      }
+
       // Other vector layers load at zoom >= 12
       if (zoom >= 12) {
         if (wellsLayerRef.current?.getVisible() && loadWellsForExtentRef.current) {
@@ -1956,28 +1954,26 @@ export const MapView = () => {
   // Update Observed GW Levels visibility and load data when enabled
   useEffect(() => {
     const layer = gwLevelsObservedLayerRef.current;
-    if (layer) {
-      if (!gwLevelsObservedVisible) {
-        layer.setVisible(false);
-        layer.getSource()?.refresh();
-        setGwLevelsObservedLoaded(0);
-      } else {
-        layer.setVisible(true);
-      }
+    if (!layer) return;
+    layer.setVisible(gwLevelsObservedVisible);
+    if (gwLevelsObservedVisible && mapInstanceRef.current && loadGwLevelsForExtentRef.current) {
+      loadGwLevelsForExtentRef.current(mapInstanceRef.current.getView().calculateExtent());
+    } else if (!gwLevelsObservedVisible) {
+      layer.getSource()?.clear();
+      setGwLevelsObservedLoaded(0);
     }
   }, [gwLevelsObservedVisible]);
 
   // Update Groundwater Quality visibility and load data when enabled
   useEffect(() => {
     const layer = gwQualityLayerRef.current;
-    if (layer) {
-      if (!gwQualityVisible) {
-        layer.setVisible(false);
-        layer.getSource()?.refresh();
-        setGwQualityLoaded(0);
-      } else {
-        layer.setVisible(true);
-      }
+    if (!layer) return;
+    layer.setVisible(gwQualityVisible);
+    if (gwQualityVisible && mapInstanceRef.current && loadGwQualityForExtentRef.current) {
+      loadGwQualityForExtentRef.current(mapInstanceRef.current.getView().calculateExtent());
+    } else if (!gwQualityVisible) {
+      layer.getSource()?.clear();
+      setGwQualityLoaded(0);
     }
   }, [gwQualityVisible]);
 
