@@ -505,19 +505,28 @@ export const MapView = () => {
       const maxLat = (Math.atan(Math.exp((maxY / 20037508.34) * Math.PI)) * 360 / Math.PI) - 90;
 
       try {
-        const wellsQueryUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wells-query?minLon=${minLon}&maxLon=${maxLon}&minLat=${minLat}&maxLat=${maxLat}&limit=50000`;
-        const cacheResponse = await fetch(wellsQueryUrl);
-        const cacheData = cacheResponse.ok ? await cacheResponse.json() : null;
-
         let geojsonFeatures: any[] = [];
-        if (cacheData && cacheData.wells && cacheData.wells.length > 0) {
-          geojsonFeatures = cacheData.wells.map((w: any) => ({
-            type: "Feature",
-            geometry: { type: "Point", coordinates: [w.lon, w.lat] },
-            properties: { ...w.properties, brunnsid: w.brunnsid, obsplatsid: w.obsplatsid },
-          }));
-        } else {
-          // Fallback to SGU API
+
+        // Try Supabase cache first — wrapped separately so a failure falls through to SGU API
+        if (import.meta.env.VITE_SUPABASE_URL) {
+          try {
+            const wellsQueryUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wells-query?minLon=${minLon}&maxLon=${maxLon}&minLat=${minLat}&maxLat=${maxLat}&limit=50000`;
+            const cacheResponse = await fetch(wellsQueryUrl);
+            const cacheData = cacheResponse.ok ? await cacheResponse.json() : null;
+            if (cacheData?.wells?.length > 0) {
+              geojsonFeatures = cacheData.wells.map((w: any) => ({
+                type: "Feature",
+                geometry: { type: "Point", coordinates: [w.lon, w.lat] },
+                properties: { ...w.properties, brunnsid: w.brunnsid, obsplatsid: w.obsplatsid },
+              }));
+            }
+          } catch {
+            // Supabase unavailable — fall through to SGU API
+          }
+        }
+
+        // SGU API fallback (always used when cache is empty or unavailable)
+        if (geojsonFeatures.length === 0) {
           const bbox = `${minLon},${minLat},${maxLon},${maxLat}`;
           const url = `https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar/items?f=json&bbox=${bbox}&limit=50000`;
           const response = await fetch(url);
