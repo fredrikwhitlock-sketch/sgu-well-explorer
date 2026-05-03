@@ -25,6 +25,8 @@ import {
 } from "../../lib/grundvattenKemi";
 import { FloatingChartPopup, ChartPopupState } from "./FloatingChartPopup";
 import { escapeHtml } from "../../lib/utils";
+import { exportAnalysisGeoPackage } from "../../lib/exportGeoPackage";
+import { toast } from "sonner";
 
 interface Props {
   coordinate: [number, number]; // Web Mercator EPSG:3857
@@ -36,6 +38,7 @@ interface Props {
 
 interface BrunnInfo {
   id: string;
+  lon?: number; lat?: number;
   kapacitet?: number;
   djup?: number;
   jorddjup?: number;
@@ -89,6 +92,7 @@ interface ReportData {
   };
   gvKemi?: Array<{
     provplatsid: string;
+    lon?: number; lat?: number;
     provplatsnamn: string;
     distKm?: number;
     senasteprov?: string;
@@ -125,7 +129,7 @@ interface ReportData {
   // Nearby observed groundwater levels for calibration pool
   obsFeatures?: Array<{ djup: number; jordart?: string; aquiferGroup?: 'rock' | 'jord'; aquiferSize?: 'large' | 'small' }>;
   // Nearby observed stations sorted by distance — shown in level analysis section
-  obsStationer?: Array<{ id: string; namn: string; djup: number; obsdatum: string; distKm: number; aquiferGroup?: 'rock' | 'jord'; jordart?: string }>;
+  obsStationer?: Array<{ id: string; lon?: number; lat?: number; namn: string; djup: number; obsdatum: string; distKm: number; aquiferGroup?: 'rock' | 'jord'; jordart?: string }>;
   // Magasinsdelområde – withdrawal capacity and sub-area properties
   delomrade?: {
     namn?: string;
@@ -697,6 +701,8 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
               : undefined;
             return {
               id: p.brunnsid || p.id || f.id || '?',
+              lon: coords ? coords[0] : undefined,
+              lat: coords ? coords[1] : undefined,
               kapacitet: p.kapacitet,
               djup: totaldjup,
               jorddjup,
@@ -855,7 +861,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
             if (id && !seen.has(id)) { seen.add(id); merged.push(f); }
           }
 
-          type Cand = { dist: number | null; p: any };
+          type Cand = { dist: number | null; p: any; lon?: number; lat?: number };
           const bodyIds = new Set(bodyFeatures.map(f => String(f.properties?.nationellt_provplatsid ?? '')));
 
           let candidates: Cand[];
@@ -867,7 +873,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                 const coords = f.geometry?.coordinates;
                 const id = String(f.properties?.nationellt_provplatsid ?? '');
                 const dist = coords ? haversineKm(lat, lon, coords[1], coords[0]) : null;
-                return { dist: bodyIds.has(id) || (dist !== null && dist <= 50) ? dist : -1, p: f.properties ?? {} };
+                return { dist: bodyIds.has(id) || (dist !== null && dist <= 50) ? dist : -1, p: f.properties ?? {}, lon: coords?.[0], lat: coords?.[1] };
               })
               .filter(x => x.dist !== -1)
               .sort((a, b) => {
@@ -884,9 +890,9 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
                 const coords = f.geometry?.coordinates;
                 if (!coords) return null;
                 const dist = haversineKm(lat, lon, coords[1], coords[0]);
-                return dist <= 50 ? { dist, p: f.properties ?? {} } : null;
+                return dist <= 50 ? { dist, p: f.properties ?? {}, lon: coords[0], lat: coords[1] } : null;
               })
-              .filter((x): x is { dist: number; p: any } => x !== null);
+              .filter((x): x is { dist: number; p: any; lon: number; lat: number } => x !== null);
             const locAq = result.jordartKod
               ? classifyByJg2(Number(result.jordartKod))
               : classifyAquifer(result.jordartNamn);
@@ -1023,6 +1029,8 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
 
               kemiStations.push({
                 provplatsid: String(cand.p.nationellt_provplatsid),
+                lon: cand.lon,
+                lat: cand.lat,
                 provplatsnamn: cand.p.provplatsnamn ?? '',
                 distKm: cand.dist != null ? Math.round(cand.dist * 10) / 10 : undefined,
                 senasteprov: snapshotDate,
@@ -1070,6 +1078,8 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
             const distKm = Math.round(haversineKm(lat, lon, coords[1], coords[0]) * 10) / 10;
             (result.obsStationer ??= []).push({
               id:           sid,
+              lon:          coords[0],
+              lat:          coords[1],
               namn:         stNamn.get(sid) ?? sid,
               djup,
               obsdatum,
@@ -1422,6 +1432,38 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
   }, [data, aquifer, effectiveAquifer, depth, calibratedDepth, obsKalibr, bergBrunnar, jordBrunnar,
       medianBergKapacitet, medianJordKapacitet, jorddjupCapInfo, selectedDate]);
 
+  const exportGeoPackage = useCallback(async () => {
+    if (!data) return;
+    const tid = toast.loading('Skapar GeoPackage…');
+    try {
+      await exportAnalysisGeoPackage({
+        lon: data.lon, lat: data.lat, sweref: data.sweref,
+        elevation: data.elevation,
+        jordartNamn: data.jordartNamn, jordartKod: data.jordartKod, jordartKalla: data.jordartKalla,
+        jorddjup: data.jorddjup?.djup,
+        aquiferLabel: aquifer && aquifer.type !== 'unknown' ? aquifer.label : undefined,
+        hypoDate: data.hypoDate,
+        fyllnadsgradSma: data.fyllnadsgradSma, fyllnadsgradStora: data.fyllnadsgradStora,
+        sitSma: data.sitSma, sitStora: data.sitStora,
+        gvTillgangLdha: data.gvTillgangLdha,
+        depthLo: calibratedDepth?.lo ?? depth?.lo,
+        depthHi: calibratedDepth?.hi ?? depth?.hi,
+        depthCalibrated: !!calibratedDepth,
+        magasin: data.magasin,
+        delomrade: data.delomrade,
+        gvForekomstId: data.gvForekomstId,
+        brunnar: data.brunnar,
+        obsStationer: data.obsStationer,
+        gvKemi: data.gvKemi?.map(st => ({ ...st, hasTrend: !!st.trend })),
+        hypoSeries: data.hypoSeries,
+        analysisDate: selectedDate,
+      });
+      toast.success('GeoPackage nedladdat', { id: tid });
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Kunde inte skapa GeoPackage', { id: tid });
+    }
+  }, [data, aquifer, depth, calibratedDepth, selectedDate]);
+
   // ── Render ────────────────────────────────────────────────────────────────
   const desktopExpanded = expanded && !isMobile;
   return (
@@ -1576,9 +1618,17 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
           onClick={exportReport}
           disabled={!data || loading}
           className="shrink-0 p-1.5 rounded hover:bg-secondary transition-colors disabled:opacity-50"
-          title="Exportera rapport"
+          title="Exportera rapport (HTML)"
         >
           <Download className="w-3.5 h-3.5 text-muted-foreground" />
+        </button>
+        <button
+          onClick={exportGeoPackage}
+          disabled={!data || loading}
+          className="shrink-0 px-2 py-1 rounded hover:bg-secondary transition-colors disabled:opacity-50 text-[10px] font-mono font-semibold text-muted-foreground"
+          title="Exportera GeoPackage (.gpkg) – öppnas i QGIS"
+        >
+          .gpkg
         </button>
       </div>
 
