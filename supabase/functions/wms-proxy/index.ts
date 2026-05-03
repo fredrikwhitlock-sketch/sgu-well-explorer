@@ -27,7 +27,7 @@ serve(async (req) => {
     const allowedHosts = ['resource.sgu.se', 'maps3.sgu.se', 'api.sgu.se', 'image.discomap.eea.europa.eu'];
     const targetUrl = new URL(baseUrl);
 
-    if (!allowedHosts.some((host) => targetUrl.hostname.includes(host))) {
+    if (!allowedHosts.some((host) => targetUrl.hostname === host || targetUrl.hostname.endsWith('.' + host))) {
       return new Response(
         JSON.stringify({ error: 'URL not allowed' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
