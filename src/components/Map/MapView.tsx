@@ -1614,6 +1614,14 @@ export const MapView = () => {
 
     mapInstanceRef.current = map;
 
+    // ImageWMS won't issue its initial request until the map knows its pixel size.
+    // Call updateSize() after the first browser paint when the container is laid out.
+    requestAnimationFrame(() => map.updateSize());
+
+    // Re-sync size on container resize (e.g. browser window resize, sidebar open/close)
+    const resizeObserver = new ResizeObserver(() => map.updateSize());
+    resizeObserver.observe(mapRef.current!);
+
     // Draw interaction for polygon data export
     const drawInteraction = new Draw({ source: drawSource, type: 'Polygon' });
     drawInteraction.setActive(false);
@@ -1795,6 +1803,7 @@ export const MapView = () => {
     toast.success("Karta laddad!");
 
     return () => {
+      resizeObserver.disconnect();
       map.setTarget(undefined);
       // Clean up geolocation watch
       if (geolocationWatchRef.current !== null) {
