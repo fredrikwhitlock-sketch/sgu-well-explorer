@@ -51,7 +51,7 @@ export async function fetchAnalysCSV(
 ): Promise<AnalysRow[]> {
   const url =
     `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/analysresultat/items` +
-    `?f=text/csv&filter=nationellt_provplatsid=${nationelltProvplatsid}&filter-lang=cql2-text&sortby=provtagningsdatum`;
+    `?f=text/csv&limit=10000&filter=nationellt_provplatsid=${nationelltProvplatsid}&filter-lang=cql2-text&sortby=provtagningsdatum`;
   const resp = await fetch(url, signal ? { signal } : undefined);
   if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
   return parseAnalysCSV(await resp.text());
