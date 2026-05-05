@@ -468,8 +468,8 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
            omradeIdCapture = id;
            const safeJson = (r: Response) => r.ok ? r.json().catch(() => null) : null;
            levelsPromise = Promise.all([
-             fetch(`${levelBase}&filter=${encodeURIComponent(`omrade_id=${id} AND datum='${selectedDate}'`)}&limit=1`, { signal }).then(safeJson).catch(() => null),
-             fetch(`${levelBase}&filter=${encodeURIComponent(`omrade_id=${id}`)}&sortby=-datum&limit=1`, { signal }).then(safeJson).catch(() => null),
+             fetchWithTimeout(`${levelBase}&filter=${encodeURIComponent(`omrade_id=${id} AND datum='${selectedDate}'`)}&limit=1`, 10_000).then(safeJson).catch(() => null),
+             fetchWithTimeout(`${levelBase}&filter=${encodeURIComponent(`omrade_id=${id}`)}&sortby=-datum&limit=1`, 10_000).then(safeJson).catch(() => null),
            ]);
            // hypoSeries (600 records) is loaded lazily by a useEffect after data is set
          }
@@ -576,7 +576,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
         fetch(delomradeUrl, { signal }),
         fetchWithTimeout(jorddjupWmsUrl, 10_000),     // WMS proxy – may cold-start
         obsStationerChain,
-        fetchWithTimeout(`https://api.opentopodata.org/v1/eudem25m?locations=${lat},${lon}`, 8_000),
+        fetchWithTimeout(`${wmsProxyUrl}?url=${encodeURIComponent(`https://api.opentopodata.org/v1/eudem25m?locations=${lat},${lon}`)}`, 8_000),
         fetch(ytlagerCql2Url, { signal }),
         fetch(overstaCql2Url, { signal }),
         fetch(geokemiAesBboxUrl, { signal }),
