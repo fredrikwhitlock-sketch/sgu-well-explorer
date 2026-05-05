@@ -192,6 +192,31 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
 
   useEffect(() => { setExpandedGvKemi(new Set([0])); }, [coordinate]);
 
+  // Lazy-load HYPE time series (600 records) after the initial report is shown
+  useEffect(() => {
+    if (!data?.omradeId || data.hypoSeries) return;
+    const ac = new AbortController();
+    const levelBase = `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/grundvattennivaer-tidigare/items?f=json`;
+    fetch(
+      `${levelBase}&filter=${encodeURIComponent(`omrade_id=${data.omradeId}`)}&sortby=-datum&limit=600`,
+      { signal: ac.signal }
+    )
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (!d?.features?.length) return;
+        const parsed = (d.features as any[])
+          .map((f: any) => {
+            const p = f.properties ?? {};
+            return { datum: String(p.datum ?? '').slice(0, 10), fyllnadSma: typeof p.fyllnadsgrad_sma === 'number' ? p.fyllnadsgrad_sma : null, fyllnadStora: typeof p.fyllnadsgrad_stora === 'number' ? p.fyllnadsgrad_stora : null, sitSma: typeof p.grundvattensituation_sma === 'number' ? p.grundvattensituation_sma : null, sitStora: typeof p.grundvattensituation_stora === 'number' ? p.grundvattensituation_stora : null };
+          })
+          .filter((s: any) => s.datum)
+          .sort((a: any, b: any) => a.datum.localeCompare(b.datum));
+        if (parsed.length >= 2) setData(prev => prev ? { ...prev, hypoSeries: parsed } : prev);
+      })
+      .catch(() => {});
+    return () => ac.abort();
+  }, [data?.omradeId]);
+
   // Build a plain-text AI summary whenever analysis data changes
   useEffect(() => {
     if (!onAnalysisData) return;
@@ -548,9 +573,8 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
 
       if (signal.aborted) return;
 
-      const [[dateResult, latestResult], seriesData, nivaerData, brunnarData] = await Promise.all([
+      const [[dateResult, latestResult], nivaerData, brunnarData] = await Promise.all([
         levelsPromise ?? Promise.resolve([null, null]),
-        seriesPromise ?? Promise.resolve(null),
         nivaerPromise ?? Promise.resolve(null),
         brunnarChain,
       ]);
@@ -573,16 +597,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
         result.sitSma = p.grundvattensituation_sma;
         result.sitStora = p.grundvattensituation_stora;
       }
-      if (seriesData?.features?.length > 0) {
-        const parsed = (seriesData.features as any[])
-          .map((f: any) => {
-            const p = f.properties ?? {};
-            return { datum: String(p.datum ?? '').slice(0, 10), fyllnadSma: typeof p.fyllnadsgrad_sma === 'number' ? p.fyllnadsgrad_sma : null, fyllnadStora: typeof p.fyllnadsgrad_stora === 'number' ? p.fyllnadsgrad_stora : null, sitSma: typeof p.grundvattensituation_sma === 'number' ? p.grundvattensituation_sma : null, sitStora: typeof p.grundvattensituation_stora === 'number' ? p.grundvattensituation_stora : null };
-          })
-          .filter((s: any) => s.datum)
-          .sort((a: any, b: any) => a.datum.localeCompare(b.datum));
-        if (parsed.length >= 2) result.hypoSeries = parsed;
-      }
+      // hypoSeries (600 records) is deferred — loaded lazily after setData via useEffect below
 
       // GV Tillgång små magasin (raster, l/dygn/ha)
       if (gvTillgangRes.status === 'fulfilled' && gvTillgangRes.value.ok) {
@@ -909,7 +924,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
             const analysResponses = await Promise.allSettled(
               candidates.map(({ p }) => {
                 const pid = p.nationellt_provplatsid;
-                const url = `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/analysresultat/items?f=json&filter=nationellt_provplatsid=${pid}&filter-lang=cql2-text&sortby=-provtagningsdatum&limit=2000`;
+                const url = `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/analysresultat/items?f=json&filter=nationellt_provplatsid=${pid}&filter-lang=cql2-text&sortby=-provtagningsdatum&limit=500`;
                 return fetch(url, { signal }).catch(() => null);
               })
             );
