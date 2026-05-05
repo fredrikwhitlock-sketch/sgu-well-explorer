@@ -445,9 +445,17 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
       const ytlagerCql2Url     = `${jordartApiBase}/ytlager/items?f=json&${jordartCqlFilter}`;
       const overstaCql2Url     = `${jordartApiBase}/oversta-ytlager/items?f=json&${jordartCqlFilter}`;
 
+      // Fetch wrapper that aborts after `ms` ms even if the main signal is still live.
+      // Used for non-critical, potentially-slow external services.
+      const fetchWithTimeout = (url: string, ms: number) => {
+        const tc = new AbortController();
+        const timer = setTimeout(() => tc.abort(), ms);
+        signal.addEventListener('abort', () => { clearTimeout(timer); tc.abort(); }, { once: true });
+        return fetch(url, { signal: tc.signal }).finally(() => clearTimeout(timer));
+      };
+
       // HYPE: chain levels fetch onto omraden response
       let levelsPromise: Promise<[any, any]> | null = null;
-      let seriesPromise: Promise<any> | null = null;
       let omradeIdCapture: number | undefined;
       const levelBase = `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/grundvattennivaer-tidigare/items?f=json`;
       const omradenChain = fetch(
@@ -463,10 +471,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
              fetch(`${levelBase}&filter=${encodeURIComponent(`omrade_id=${id} AND datum='${selectedDate}'`)}&limit=1`, { signal }).then(safeJson).catch(() => null),
              fetch(`${levelBase}&filter=${encodeURIComponent(`omrade_id=${id}`)}&sortby=-datum&limit=1`, { signal }).then(safeJson).catch(() => null),
            ]);
-           seriesPromise = fetch(
-             `${levelBase}&filter=${encodeURIComponent(`omrade_id=${id}`)}&sortby=-datum&limit=600`,
-             { signal }
-           ).then(safeJson).catch(() => null);
+           // hypoSeries (600 records) is loaded lazily by a useEffect after data is set
          }
          return d;
        }).catch(() => null);
@@ -515,8 +520,18 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
            ids.push(String(id));
          }
          if (ids.length > 0) {
-           // Limit IN list to avoid very long URLs
-           const idList = ids.slice(0, 200).map(id => `'${id.replace(/'/g, "''")}'`).join(',');
+           // Sort by distance to click point, keep the 50 closest → shorter IN filter
+           const haversine = (aLon: number, aLat: number, bLon: number, bLat: number) => {
+             const R = 6371, dLat = (bLat - aLat) * Math.PI / 180, dLon = (bLon - aLon) * Math.PI / 180;
+             const a = Math.sin(dLat / 2) ** 2 + Math.cos(aLat * Math.PI / 180) * Math.cos(bLat * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+             return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+           };
+           const sorted = ids
+             .map(id => ({ id, dist: stCoords.has(id) ? haversine(lon, lat, stCoords.get(id)![0], stCoords.get(id)![1]) : 999 }))
+             .sort((a, b) => a.dist - b.dist)
+             .slice(0, 50)
+             .map(x => x.id);
+           const idList = sorted.map(id => `'${id.replace(/'/g, "''")}'`).join(',');
            // Use a tight ±7-day window around selectedDate for temporal coherence:
            // ensures all stations contribute readings from the same week.
            const targetMs = new Date(selectedDate).getTime();
@@ -525,7 +540,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
            const hiDate = new Date(targetMs + wMs).toISOString().split('T')[0];
            const filter = `platsbeteckning IN (${idList}) AND obsdatum >= '${loDate}' AND obsdatum <= '${hiDate}'`;
            nivaerPromise = fetch(
-             `${obsBase}/nivaer/items?f=json&filter=${encodeURIComponent(filter)}&filter-lang=cql2-text&sortby=obsdatum&limit=3000`,
+             `${obsBase}/nivaer/items?f=json&filter=${encodeURIComponent(filter)}&filter-lang=cql2-text&sortby=obsdatum&limit=500`,
              { signal }
            ).then(r => r.ok ? r.json().catch(() => null) : null).catch(() => null);
          }
@@ -554,14 +569,14 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
 
       const allResults = await Promise.allSettled([
         omradenChain,
-        fetch(gvTillgangUrl, { signal }),
+        fetchWithTimeout(gvTillgangUrl, 10_000),      // WMS proxy – may cold-start
         fetch(jordartCql2Url, { signal }),
         fetch(jordartBboxUrl, { signal }),
         fetch(gvmCql2Url, { signal }),
         fetch(delomradeUrl, { signal }),
-        fetch(jorddjupWmsUrl, { signal }),
+        fetchWithTimeout(jorddjupWmsUrl, 10_000),     // WMS proxy – may cold-start
         obsStationerChain,
-        fetch(`https://api.opentopodata.org/v1/eudem25m?locations=${lat},${lon}`, { signal }),
+        fetchWithTimeout(`https://api.opentopodata.org/v1/eudem25m?locations=${lat},${lon}`, 8_000),
         fetch(ytlagerCql2Url, { signal }),
         fetch(overstaCql2Url, { signal }),
         fetch(geokemiAesBboxUrl, { signal }),
