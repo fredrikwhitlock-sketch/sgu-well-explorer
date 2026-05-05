@@ -576,7 +576,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
         fetch(delomradeUrl, { signal }),
         fetchWithTimeout(jorddjupWmsUrl, 10_000),     // WMS proxy – may cold-start
         obsStationerChain,
-        fetchWithTimeout(`https://api.opentopodata.org/v1/eudem25m?locations=${lat},${lon}`, 8_000),
+        fetchWithTimeout(`${wmsProxyUrl}?url=${encodeURIComponent(`https://api.opentopodata.org/v1/eudem25m?locations=${lat},${lon}`)}`, 8_000),
         fetch(ytlagerCql2Url, { signal }),
         fetch(overstaCql2Url, { signal }),
         fetch(geokemiAesBboxUrl, { signal }),
