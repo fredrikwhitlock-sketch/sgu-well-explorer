@@ -498,37 +498,30 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
          const id = d?.features?.[0]?.properties?.omrade_id;
          if (id !== undefined) {
            omradeIdCapture = id;
-           const safeJson = (r: Response) => r.ok ? r.json().catch(() => null) : null;
-           // Mirror the map layer: filter by date only (indexed), find our area in JS.
-           // Filtering by omrade_id+datum combined causes a full table scan on SGU's API.
-           const findArea = (d: any) =>
-             (d?.features ?? []).find((f: any) => f.properties?.omrade_id === id) ?? null;
+
+           // Combined filter: datum is indexed so the API narrows to one snapshot (~3k–8k
+           // rows), then filters by omrade_id in-memory → returns 1 feature, no pagination.
+           // No sortby clause avoids the full-table-scan that caused 504s with omrade_id alone.
+           const fetchAreaForDate = async (date: string) => {
+             const filter = encodeURIComponent(`datum='${date}' AND omrade_id=${id}`);
+             const r = await fetchWithTimeout(`${levelBase}&filter=${filter}&limit=1`, 30_000).catch(() => null);
+             return r?.ok ? (await r.json().catch(() => null))?.features?.[0] ?? null : null;
+           };
 
            levelsPromise = (async (): Promise<[any, any]> => {
-             // Fetch all areas for selected date, find ours in JS
-             const dateAll = await fetchWithTimeout(
-               `${levelBase}&filter=${encodeURIComponent(`datum='${selectedDate}'`)}&limit=5000`,
-               30_000
-             ).then(safeJson).catch(() => null);
-             const dateFeature = findArea(dateAll);
+             const dateFeature = await fetchAreaForDate(selectedDate);
              if (dateFeature) return [{ features: [dateFeature] }, null];
 
-             // No data for selected date — find globally latest date (fast, no area filter)
-             const latestMeta = await fetchWithTimeout(
-               `${levelBase}&sortby=-datum&limit=1`, 30_000
-             ).then(safeJson).catch(() => null);
-             const latestDate = String(latestMeta?.features?.[0]?.properties?.datum ?? '').split('T')[0];
+             // No data for selected date — get latest available date (fast: datum-indexed sort)
+             const latestMeta = await fetchWithTimeout(`${levelBase}&sortby=-datum&limit=1`, 30_000)
+               .then(r => r.ok ? r.json().catch(() => null) : null).catch(() => null);
+             const latestDate = String(latestMeta?.features?.[0]?.properties?.datum ?? '').slice(0, 10);
              if (!latestDate || latestDate === selectedDate) return [null, null];
 
-             // Fetch all areas for latest date, find ours in JS
-             const latestAll = await fetchWithTimeout(
-               `${levelBase}&filter=${encodeURIComponent(`datum='${latestDate}'`)}&limit=5000`,
-               30_000
-             ).then(safeJson).catch(() => null);
-             const latestFeature = findArea(latestAll);
+             const latestFeature = await fetchAreaForDate(latestDate);
              return [null, latestFeature ? { features: [latestFeature] } : null];
            })();
-           // hypoSeries (600 records) is loaded lazily by a useEffect after data is set
+           // hypoSeries is loaded lazily after setData via useEffect
          }
          return d;
        }).catch(() => null);
