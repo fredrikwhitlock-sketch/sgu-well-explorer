@@ -467,10 +467,22 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
          if (id !== undefined) {
            omradeIdCapture = id;
            const safeJson = (r: Response) => r.ok ? r.json().catch(() => null) : null;
-           levelsPromise = Promise.all([
-             fetchWithTimeout(`${levelBase}&filter=${encodeURIComponent(`omrade_id=${id} AND datum='${selectedDate}'`)}&limit=1`, 30_000).then(safeJson).catch(() => null),
-             fetchWithTimeout(`${levelBase}&filter=${encodeURIComponent(`omrade_id=${id}`)}&sortby=-datum&limit=1`, 30_000).then(safeJson).catch(() => null),
-           ]);
+           levelsPromise = (async (): Promise<[any, any]> => {
+             // Two fast parallel fetches: exact date match + global latest date (no area filter)
+             const [dateResult, latestMeta] = await Promise.all([
+               fetchWithTimeout(`${levelBase}&filter=${encodeURIComponent(`omrade_id=${id} AND datum='${selectedDate}'`)}&limit=1`, 30_000).then(safeJson).catch(() => null),
+               fetchWithTimeout(`${levelBase}&sortby=-datum&limit=1`, 30_000).then(safeJson).catch(() => null),
+             ]);
+             const latestDate = String(latestMeta?.features?.[0]?.properties?.datum ?? '').split('T')[0];
+             // Only fetch area-specific latest if it differs from selected date
+             let latestResult: any = null;
+             if (latestDate && latestDate !== selectedDate) {
+               latestResult = await fetchWithTimeout(
+                 `${levelBase}&filter=${encodeURIComponent(`omrade_id=${id} AND datum='${latestDate}'`)}&limit=1`, 30_000
+               ).then(safeJson).catch(() => null);
+             }
+             return [dateResult, latestResult];
+           })();
            // hypoSeries (600 records) is loaded lazily by a useEffect after data is set
          }
          return d;
