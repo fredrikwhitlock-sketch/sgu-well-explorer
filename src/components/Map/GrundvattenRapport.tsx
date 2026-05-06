@@ -224,22 +224,32 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
         dates.push(d.toISOString().slice(0, 10));
       }
 
+      const PAGE = 1000;
+
+      // Paginate through one date's snapshot until our area is found or pages exhausted.
+      const findAreaInPages = async (date: string): Promise<any | null> => {
+        let offset = 0;
+        while (!ac.signal.aborted) {
+          const resp = await fetch(
+            `${base}&filter=${encodeURIComponent(`datum='${date}'`)}&limit=${PAGE}&offset=${offset}`,
+            { signal: ac.signal }
+          ).catch(() => null);
+          if (!resp?.ok) return null;
+          const feats: any[] = (await resp.json().catch(() => null))?.features ?? [];
+          const found = feats.find((f: any) => f.properties?.omrade_id === id);
+          if (found) return found;
+          if (feats.length < PAGE) return null; // last page, area absent for this date
+          offset += PAGE;
+        }
+        return null;
+      };
+
       // Fetch all areas for each date (datum filter is indexed → fast), find ours in JS.
       const features: any[] = [];
       const BATCH = 20;
       for (let i = 0; i < dates.length && !ac.signal.aborted; i += BATCH) {
         const batch = dates.slice(i, i + BATCH);
-        const results = await Promise.all(
-          batch.map(async (date) => {
-            const resp = await fetch(
-              `${base}&filter=${encodeURIComponent(`datum='${date}'`)}&limit=10000`,
-              { signal: ac.signal }
-            ).catch(() => null);
-            if (!resp?.ok) return null;
-            const d = await resp.json().catch(() => null);
-            return (d?.features ?? []).find((f: any) => f.properties?.omrade_id === id) ?? null;
-          })
-        );
+        const results = await Promise.all(batch.map(date => findAreaInPages(date)));
         features.push(...results.filter(Boolean));
       }
 
@@ -508,33 +518,39 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
            omradeIdCapture = id;
 
            const safeJson = (r: Response) => r.ok ? r.json().catch(() => null) : null;
-           // Fetch all areas for a given date (datum filter is indexed → fast), then find
-           // our area in JS. Avoids combining AND omrade_id in the filter — the SGU API
-           // ignores unknown CQL2 AND predicates and returns unfiltered records from 1968.
-           const findArea = (d: any) =>
-             (d?.features ?? []).find((f: any) => f.properties?.omrade_id === id) ?? null;
+
+           // Search pages of 1000 until the area is found or all pages exhausted.
+           // The SGU API caps limit at ~1000, so limit=10000 only ever returns the
+           // first page. We must paginate to reliably find any given omrade_id.
+           const findAreaInPages = async (dateFilter: string): Promise<any | null> => {
+             let offset = 0;
+             const PAGE = 1000;
+             while (true) {
+               const r = await fetchWithTimeout(
+                 `${levelBase}&filter=${encodeURIComponent(dateFilter)}&limit=${PAGE}&offset=${offset}`,
+                 30_000
+               ).catch(() => null);
+               const d = r ? await safeJson(r as Response) : null;
+               const features: any[] = d?.features ?? [];
+               const found = features.find((f: any) => f.properties?.omrade_id === id);
+               if (found) return found;
+               if (features.length < PAGE) return null; // last page, area not in this date
+               offset += PAGE;
+             }
+           };
 
            levelsPromise = (async (): Promise<[any, any]> => {
-             const dateAll = await fetchWithTimeout(
-               `${levelBase}&filter=${encodeURIComponent(`datum='${selectedDate}'`)}&limit=10000`,
-               30_000
-             ).then(safeJson).catch(() => null);
-             const dateFeature = findArea(dateAll);
+             const dateFeature = await findAreaInPages(`datum='${selectedDate}'`);
              if (dateFeature) return [{ features: [dateFeature] }, null];
 
              // selectedDate has no data — find the latest available date.
-             // sortby=-datum&limit=1 with no filter uses the datum index and is fast.
              const latestMeta = await fetchWithTimeout(
                `${levelBase}&sortby=-datum&limit=1`, 30_000
              ).then(safeJson).catch(() => null);
              const latestDate = String(latestMeta?.features?.[0]?.properties?.datum ?? '').slice(0, 10);
              if (!latestDate || latestDate === selectedDate) return [null, null];
 
-             const latestAll = await fetchWithTimeout(
-               `${levelBase}&filter=${encodeURIComponent(`datum='${latestDate}'`)}&limit=10000`,
-               30_000
-             ).then(safeJson).catch(() => null);
-             const latestFeature = findArea(latestAll);
+             const latestFeature = await findAreaInPages(`datum='${latestDate}'`);
              return [null, latestFeature ? { features: [latestFeature] } : null];
            })();
            // hypoSeries is loaded lazily after setData via useEffect
