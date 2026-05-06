@@ -181,7 +181,13 @@ function SourceRow({ label, source, note, url }: {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysisData, onOpenAI }: Props) => {
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(() => {
+    // Match MapView's default: last Sunday — HYPE data is published on Tuesdays
+    // covering up to the Sunday 2 days before, so last Sunday always has data.
+    const d = new Date();
+    d.setDate(d.getDate() - ((d.getDay() + 7) % 7));
+    return d.toISOString().split('T')[0];
+  });
   const [expandedObsStation, setExpandedObsStation] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<ReportData | null>(null);
@@ -192,25 +198,25 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
 
   useEffect(() => { setExpandedGvKemi(new Set([0])); }, [coordinate]);
 
-  // Lazy-load HYPE time series after the initial report is shown.
-  // Uses datum='DATE' AND omrade_id=ID per date: datum is indexed so each request is fast
-  // and returns only 1 feature. Avoids the slow omrade_id-only filter that causes 504s.
+  // Lazy-load HYPE time series (2 years of weekly data) after the initial report is shown.
+  // Uses datum='DATE'&limit=10000 per date (datum is indexed → fast), then finds our area in JS.
+  // Does NOT use combined AND filter — the SGU API ignores unknown CQL2 predicates and returns
+  // unfiltered records (starting from 1968) instead of an error.
   useEffect(() => {
     if (!data?.omradeId || data.hypoSeries) return;
     const ac = new AbortController();
     const id = data.omradeId;
     const base = `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/grundvattennivaer-tidigare/items?f=json`;
 
-    (async () => {
-      // Get latest available date — sortby on datum alone is fast (indexed, no area filter)
-      const metaResp = await fetch(`${base}&sortby=-datum&limit=1`, { signal: ac.signal }).catch(() => null);
-      if (!metaResp?.ok || ac.signal.aborted) return;
-      const meta = await metaResp.json().catch(() => null);
-      const latestDate = String(meta?.features?.[0]?.properties?.datum ?? '').slice(0, 10);
-      if (!latestDate) return;
+    // Start from the already-fetched observation date — no extra API call needed.
+    // Falls back to last Sunday (same default as selectedDate) if observation date is absent.
+    const knownDate = data.hypoDate
+      ? String(data.hypoDate).slice(0, 10)
+      : (() => { const d = new Date(); d.setDate(d.getDate() - ((d.getDay() + 7) % 7)); return d.toISOString().split('T')[0]; })();
 
-      // Generate weekly dates going back 2 years from the latest available date
-      const latest = new Date(latestDate);
+    (async () => {
+      // Generate weekly dates going back 2 years from the observation date
+      const latest = new Date(knownDate);
       const dates: string[] = [];
       for (let i = 0; i < 104; i++) {
         const d = new Date(latest);
@@ -218,18 +224,20 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
         dates.push(d.toISOString().slice(0, 10));
       }
 
-      // Fetch each date in batches; combined filter datum+omrade_id uses datum index then
-      // filters the small result set (~3000 rows) by area in memory — tiny response, fast.
+      // Fetch all areas for each date (datum filter is indexed → fast), find ours in JS.
       const features: any[] = [];
-      const BATCH = 26;
+      const BATCH = 20;
       for (let i = 0; i < dates.length && !ac.signal.aborted; i += BATCH) {
         const batch = dates.slice(i, i + BATCH);
         const results = await Promise.all(
           batch.map(async (date) => {
-            const filter = encodeURIComponent(`datum='${date}' AND omrade_id=${id}`);
-            const resp = await fetch(`${base}&filter=${filter}&limit=1`, { signal: ac.signal }).catch(() => null);
+            const resp = await fetch(
+              `${base}&filter=${encodeURIComponent(`datum='${date}'`)}&limit=10000`,
+              { signal: ac.signal }
+            ).catch(() => null);
             if (!resp?.ok) return null;
-            return (await resp.json().catch(() => null))?.features?.[0] ?? null;
+            const d = await resp.json().catch(() => null);
+            return (d?.features ?? []).find((f: any) => f.properties?.omrade_id === id) ?? null;
           })
         );
         features.push(...results.filter(Boolean));
@@ -499,26 +507,34 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
          if (id !== undefined) {
            omradeIdCapture = id;
 
-           // Combined filter: datum is indexed so the API narrows to one snapshot (~3k–8k
-           // rows), then filters by omrade_id in-memory → returns 1 feature, no pagination.
-           // No sortby clause avoids the full-table-scan that caused 504s with omrade_id alone.
-           const fetchAreaForDate = async (date: string) => {
-             const filter = encodeURIComponent(`datum='${date}' AND omrade_id=${id}`);
-             const r = await fetchWithTimeout(`${levelBase}&filter=${filter}&limit=1`, 30_000).catch(() => null);
-             return r?.ok ? (await r.json().catch(() => null))?.features?.[0] ?? null : null;
-           };
+           const safeJson = (r: Response) => r.ok ? r.json().catch(() => null) : null;
+           // Fetch all areas for a given date (datum filter is indexed → fast), then find
+           // our area in JS. Avoids combining AND omrade_id in the filter — the SGU API
+           // ignores unknown CQL2 AND predicates and returns unfiltered records from 1968.
+           const findArea = (d: any) =>
+             (d?.features ?? []).find((f: any) => f.properties?.omrade_id === id) ?? null;
 
            levelsPromise = (async (): Promise<[any, any]> => {
-             const dateFeature = await fetchAreaForDate(selectedDate);
+             const dateAll = await fetchWithTimeout(
+               `${levelBase}&filter=${encodeURIComponent(`datum='${selectedDate}'`)}&limit=10000`,
+               30_000
+             ).then(safeJson).catch(() => null);
+             const dateFeature = findArea(dateAll);
              if (dateFeature) return [{ features: [dateFeature] }, null];
 
-             // No data for selected date — get latest available date (fast: datum-indexed sort)
-             const latestMeta = await fetchWithTimeout(`${levelBase}&sortby=-datum&limit=1`, 30_000)
-               .then(r => r.ok ? r.json().catch(() => null) : null).catch(() => null);
+             // selectedDate has no data — find the latest available date.
+             // sortby=-datum&limit=1 with no filter uses the datum index and is fast.
+             const latestMeta = await fetchWithTimeout(
+               `${levelBase}&sortby=-datum&limit=1`, 30_000
+             ).then(safeJson).catch(() => null);
              const latestDate = String(latestMeta?.features?.[0]?.properties?.datum ?? '').slice(0, 10);
              if (!latestDate || latestDate === selectedDate) return [null, null];
 
-             const latestFeature = await fetchAreaForDate(latestDate);
+             const latestAll = await fetchWithTimeout(
+               `${levelBase}&filter=${encodeURIComponent(`datum='${latestDate}'`)}&limit=10000`,
+               30_000
+             ).then(safeJson).catch(() => null);
+             const latestFeature = findArea(latestAll);
              return [null, latestFeature ? { features: [latestFeature] } : null];
            })();
            // hypoSeries is loaded lazily after setData via useEffect
