@@ -213,77 +213,82 @@ async function fetchHypeForArea(
     return (await r.json().catch(() => null))?.features ?? null;
   };
 
-  // Phase 1: Binary-search to find a chunk containing targetId (up to 6 probes)
+  // Phase 1: Find a chunk containing targetId.
+  // Starts from the interpolated estimate and adjusts using local ID density
+  // (records per ID unit) rather than pure binary search — converges in 2–4 probes
+  // instead of 13+ for a 100 M record collection.
   let lo = 0, hi = 150_000_000;
   let estimate = estimateHypeStartIdx(targetId);
   let foundAt = -1;
   let foundFeatures: any[] = [];
+  let foundFirstIdx = 0;
 
-  for (let attempt = 0; attempt < 6 && !signal.aborted; attempt++) {
-    const si = Math.max(lo, Math.min(estimate, Math.max(0, hi - LIMIT)));
+  for (let attempt = 0; attempt < 8 && !signal.aborted; attempt++) {
+    const si = Math.max(lo, Math.min(estimate, Math.max(lo, hi - LIMIT)));
     const features = await fetchAt(si);
     if (!features || features.length === 0) {
-      hi = si;
-      estimate = Math.round((lo + hi) / 2);
-      continue;
+      hi = si; estimate = Math.round((lo + hi) / 2); continue;
     }
     const ids = features.map((f: any) => f.properties?.omrade_id as number).filter(Boolean);
     const minId = Math.min(...ids);
     const maxId = Math.max(...ids);
-    if (ids.includes(targetId)) { foundAt = si; foundFeatures = features; break; }
-    if (targetId < minId) { hi = si; } else { lo = si + LIMIT; }
-    estimate = Math.round((lo + hi) / 2);
+
+    if (ids.includes(targetId)) {
+      foundAt = si;
+      foundFeatures = features;
+      foundFirstIdx = features.findIndex((f: any) => f.properties?.omrade_id === targetId);
+      break;
+    }
+
+    // Use local ID density to estimate the correct jump direction and size
+    const idRange = Math.max(maxId - minId, 1);
+    if (targetId < minId) {
+      hi = si;
+      estimate = idRange > 5
+        ? Math.max(lo, si - Math.round((minId - targetId) * LIMIT / idRange) - LIMIT)
+        : Math.round((lo + hi) / 2);
+    } else {
+      lo = si + LIMIT;
+      estimate = idRange > 5
+        ? Math.min(hi, si + Math.round((targetId - maxId) * LIMIT / idRange) + LIMIT)
+        : Math.round((lo + hi) / 2);
+    }
   }
 
   if (foundAt < 0) return empty;
 
-  // Phase 2: Find the absolute start index and start date of this area's block
-  const firstAreaIdx = foundFeatures.findIndex((f: any) => f.properties?.omrade_id === targetId);
-  let areaAbsStart: number;
-  let areaStartDate: string;
+  // Phase 2: Jump to records near selectedDate using the date of found records.
+  // We avoid finding the area's absolute start — instead we read the date at
+  // foundAt and calculate how many days to advance to reach selectedDate - 750 d.
+  // This is correct regardless of where in the area's block we landed.
+  const firstAreaRecord = foundFeatures[foundFirstIdx];
+  const firstAreaDatum = String(firstAreaRecord?.properties?.datum ?? '').slice(0, 10);
+  const selDate = selectedDate.slice(0, 10);
 
-  if (firstAreaIdx > 0) {
-    // Previous record in this chunk belongs to a different area → area starts here
-    areaAbsStart = foundAt + firstAreaIdx;
-    areaStartDate = String(foundFeatures[firstAreaIdx].properties?.datum ?? '').slice(0, 10);
+  // Target the fetch window to start ~750 days before selectedDate so the
+  // 1000-record window covers both the 2-year chart and the current observation.
+  const daysFromFirstToTarget = Math.round(
+    (new Date(selDate).getTime() - new Date(firstAreaDatum).getTime()) / 86_400_000
+  ) - 750;
+
+  let pool: any[];
+
+  if (daysFromFirstToTarget > 0) {
+    // Found records are too old — jump forward by the calculated offset
+    const recentSi = foundAt + foundFirstIdx + daysFromFirstToTarget;
+    const recentFeatures = await fetchAt(Math.max(0, recentSi));
+    const recentPool = (recentFeatures ?? []).filter(
+      (f: any) => f.properties?.omrade_id === targetId
+    );
+    // Fall back to foundFeatures if the jump overshot (different area returned)
+    pool = recentPool.length >= 5
+      ? recentPool
+      : foundFeatures.filter((f: any) => f.properties?.omrade_id === targetId);
   } else {
-    // Area may begin before this chunk — check the preceding chunk
-    const prevFeatures = await fetchAt(Math.max(0, foundAt - LIMIT));
-    if (prevFeatures?.some((f: any) => f.properties?.omrade_id === targetId)) {
-      const prevFirst = prevFeatures.findIndex((f: any) => f.properties?.omrade_id === targetId);
-      if (prevFirst > 0) {
-        areaAbsStart = (foundAt - LIMIT) + prevFirst;
-        areaStartDate = String(prevFeatures[prevFirst].properties?.datum ?? '').slice(0, 10);
-      } else {
-        // Extends further back — use a conservative fallback
-        areaAbsStart = Math.max(0, foundAt - 20_000);
-        areaStartDate = '1967-01-01';
-      }
-    } else {
-      // Previous chunk has no records for this area → area starts at foundAt
-      areaAbsStart = foundAt;
-      areaStartDate = String(foundFeatures[0]?.properties?.datum ?? '').slice(0, 10);
-    }
+    // Found records are already within the desired window
+    pool = foundFeatures.filter((f: any) => f.properties?.omrade_id === targetId);
   }
 
-  // Phase 3: Jump to the most recent ~730 days of records for this area.
-  // HYPE runs daily from areaStartDate to roughly today, so the last 730 records
-  // are at offset (totalDays - 730) from the area's first record.
-  const daysSinceStart = Math.max(
-    0,
-    Math.round((Date.now() - new Date(areaStartDate).getTime()) / 86_400_000)
-  );
-  const jumpOffset = Math.max(0, daysSinceStart - 730);
-  const recentSi = areaAbsStart + jumpOffset;
-
-  let recentFeatures: any[] | null = null;
-  if (jumpOffset > 0) {
-    recentFeatures = await fetchAt(recentSi);
-  }
-
-  const pool = (recentFeatures ?? foundFeatures).filter(
-    (f: any) => f.properties?.omrade_id === targetId
-  );
   if (pool.length === 0) return empty;
 
   // Build the 2-year time series
@@ -304,7 +309,6 @@ async function fetchHypeForArea(
     .sort((a, b) => a.datum.localeCompare(b.datum));
 
   // Pick the record closest to selectedDate as the current observation
-  const selDate = selectedDate.slice(0, 10);
   const obs = pool.reduce((best: any, f: any) => {
     const d = String(f.properties?.datum ?? '').slice(0, 10);
     if (!best) return f;
