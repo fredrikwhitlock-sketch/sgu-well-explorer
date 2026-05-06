@@ -192,28 +192,60 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
 
   useEffect(() => { setExpandedGvKemi(new Set([0])); }, [coordinate]);
 
-  // Lazy-load HYPE time series (600 records) after the initial report is shown
+  // Lazy-load HYPE time series after the initial report is shown.
+  // Uses datum='DATE' AND omrade_id=ID per date: datum is indexed so each request is fast
+  // and returns only 1 feature. Avoids the slow omrade_id-only filter that causes 504s.
   useEffect(() => {
     if (!data?.omradeId || data.hypoSeries) return;
     const ac = new AbortController();
-    const levelBase = `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/grundvattennivaer-tidigare/items?f=json`;
-    fetch(
-      `${levelBase}&filter=${encodeURIComponent(`omrade_id=${data.omradeId}`)}&sortby=-datum&limit=600`,
-      { signal: ac.signal }
-    )
-      .then(r => r.ok ? r.json() : null)
-      .then(d => {
-        if (!d?.features?.length) return;
-        const parsed = (d.features as any[])
-          .map((f: any) => {
-            const p = f.properties ?? {};
-            return { datum: String(p.datum ?? '').slice(0, 10), fyllnadSma: typeof p.fyllnadsgrad_sma === 'number' ? p.fyllnadsgrad_sma : null, fyllnadStora: typeof p.fyllnadsgrad_stora === 'number' ? p.fyllnadsgrad_stora : null, sitSma: typeof p.grundvattensituation_sma === 'number' ? p.grundvattensituation_sma : null, sitStora: typeof p.grundvattensituation_stora === 'number' ? p.grundvattensituation_stora : null };
+    const id = data.omradeId;
+    const base = `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/grundvattennivaer-tidigare/items?f=json`;
+
+    (async () => {
+      // Get latest available date — sortby on datum alone is fast (indexed, no area filter)
+      const metaResp = await fetch(`${base}&sortby=-datum&limit=1`, { signal: ac.signal }).catch(() => null);
+      if (!metaResp?.ok || ac.signal.aborted) return;
+      const meta = await metaResp.json().catch(() => null);
+      const latestDate = String(meta?.features?.[0]?.properties?.datum ?? '').slice(0, 10);
+      if (!latestDate) return;
+
+      // Generate weekly dates going back 2 years from the latest available date
+      const latest = new Date(latestDate);
+      const dates: string[] = [];
+      for (let i = 0; i < 104; i++) {
+        const d = new Date(latest);
+        d.setDate(d.getDate() - i * 7);
+        dates.push(d.toISOString().slice(0, 10));
+      }
+
+      // Fetch each date in batches; combined filter datum+omrade_id uses datum index then
+      // filters the small result set (~3000 rows) by area in memory — tiny response, fast.
+      const features: any[] = [];
+      const BATCH = 26;
+      for (let i = 0; i < dates.length && !ac.signal.aborted; i += BATCH) {
+        const batch = dates.slice(i, i + BATCH);
+        const results = await Promise.all(
+          batch.map(async (date) => {
+            const filter = encodeURIComponent(`datum='${date}' AND omrade_id=${id}`);
+            const resp = await fetch(`${base}&filter=${filter}&limit=1`, { signal: ac.signal }).catch(() => null);
+            if (!resp?.ok) return null;
+            return (await resp.json().catch(() => null))?.features?.[0] ?? null;
           })
-          .filter((s: any) => s.datum)
-          .sort((a: any, b: any) => a.datum.localeCompare(b.datum));
-        if (parsed.length >= 2) setData(prev => prev ? { ...prev, hypoSeries: parsed } : prev);
-      })
-      .catch(() => {});
+        );
+        features.push(...results.filter(Boolean));
+      }
+
+      const parsed = features
+        .map((f: any) => {
+          const p = f.properties ?? {};
+          return { datum: String(p.datum ?? '').slice(0, 10), fyllnadSma: typeof p.fyllnadsgrad_sma === 'number' ? p.fyllnadsgrad_sma : null, fyllnadStora: typeof p.fyllnadsgrad_stora === 'number' ? p.fyllnadsgrad_stora : null, sitSma: typeof p.grundvattensituation_sma === 'number' ? p.grundvattensituation_sma : null, sitStora: typeof p.grundvattensituation_stora === 'number' ? p.grundvattensituation_stora : null };
+        })
+        .filter((s: any) => s.datum)
+        .sort((a: any, b: any) => a.datum.localeCompare(b.datum));
+
+      if (parsed.length >= 2) setData(prev => prev ? { ...prev, hypoSeries: parsed } : prev);
+    })().catch(() => {});
+
     return () => ac.abort();
   }, [data?.omradeId]);
 
