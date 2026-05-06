@@ -157,6 +157,167 @@ function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): nu
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+// ── HYPE startIndex-based navigation ─────────────────────────────────────────
+// All server-side filters on grundvattennivaer-tidigare time out (>60 s).
+// The only working access is unfiltered startIndex= pagination.
+// Records are ordered by omrade_id (roughly ascending), and all records for one
+// area are consecutive. We interpolate from four known anchor points to estimate
+// the area's position, then binary-search with up to 6 probes to pin it down.
+
+const HYPE_LEVEL_BASE = `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/grundvattennivaer-tidigare/items?f=json`;
+// [startIndex, omrade_id] — empirically measured anchor points
+const HYPE_ANCHORS: [number, number][] = [
+  [0, 82278],
+  [5_000_000, 83242],
+  [50_000_000, 90259],
+  [100_000_000, 98094],
+];
+
+function estimateHypeStartIdx(targetId: number): number {
+  for (let i = 0; i < HYPE_ANCHORS.length - 1; i++) {
+    const [aIdx, aId] = HYPE_ANCHORS[i];
+    const [bIdx, bId] = HYPE_ANCHORS[i + 1];
+    if (targetId >= aId && targetId <= bId) {
+      return Math.round(aIdx + (bIdx - aIdx) * (targetId - aId) / (bId - aId));
+    }
+  }
+  if (targetId < HYPE_ANCHORS[0][1]) return 0;
+  const [aIdx, aId] = HYPE_ANCHORS[HYPE_ANCHORS.length - 2];
+  const [bIdx, bId] = HYPE_ANCHORS[HYPE_ANCHORS.length - 1];
+  return Math.max(0, Math.round(aIdx + (bIdx - aIdx) * (targetId - aId) / (bId - aId)));
+}
+
+type HypoPoint = {
+  datum: string;
+  fyllnadSma: number | null;
+  fyllnadStora: number | null;
+  sitSma: number | null;
+  sitStora: number | null;
+};
+
+async function fetchHypeForArea(
+  targetId: number,
+  selectedDate: string,
+  signal: AbortSignal
+): Promise<{ obs: any | null; series: HypoPoint[]; isFallback: boolean }> {
+  const LIMIT = 1000;
+  const empty = { obs: null, series: [], isFallback: false };
+
+  const fetchAt = async (si: number): Promise<any[] | null> => {
+    if (signal.aborted) return null;
+    const r = await fetch(
+      `${HYPE_LEVEL_BASE}&startIndex=${Math.max(0, si)}&limit=${LIMIT}`,
+      { signal }
+    ).catch(() => null);
+    if (!r?.ok) return null;
+    return (await r.json().catch(() => null))?.features ?? null;
+  };
+
+  // Phase 1: Binary-search to find a chunk containing targetId (up to 6 probes)
+  let lo = 0, hi = 150_000_000;
+  let estimate = estimateHypeStartIdx(targetId);
+  let foundAt = -1;
+  let foundFeatures: any[] = [];
+
+  for (let attempt = 0; attempt < 6 && !signal.aborted; attempt++) {
+    const si = Math.max(lo, Math.min(estimate, Math.max(0, hi - LIMIT)));
+    const features = await fetchAt(si);
+    if (!features || features.length === 0) {
+      hi = si;
+      estimate = Math.round((lo + hi) / 2);
+      continue;
+    }
+    const ids = features.map((f: any) => f.properties?.omrade_id as number).filter(Boolean);
+    const minId = Math.min(...ids);
+    const maxId = Math.max(...ids);
+    if (ids.includes(targetId)) { foundAt = si; foundFeatures = features; break; }
+    if (targetId < minId) { hi = si; } else { lo = si + LIMIT; }
+    estimate = Math.round((lo + hi) / 2);
+  }
+
+  if (foundAt < 0) return empty;
+
+  // Phase 2: Find the absolute start index and start date of this area's block
+  const firstAreaIdx = foundFeatures.findIndex((f: any) => f.properties?.omrade_id === targetId);
+  let areaAbsStart: number;
+  let areaStartDate: string;
+
+  if (firstAreaIdx > 0) {
+    // Previous record in this chunk belongs to a different area → area starts here
+    areaAbsStart = foundAt + firstAreaIdx;
+    areaStartDate = String(foundFeatures[firstAreaIdx].properties?.datum ?? '').slice(0, 10);
+  } else {
+    // Area may begin before this chunk — check the preceding chunk
+    const prevFeatures = await fetchAt(Math.max(0, foundAt - LIMIT));
+    if (prevFeatures?.some((f: any) => f.properties?.omrade_id === targetId)) {
+      const prevFirst = prevFeatures.findIndex((f: any) => f.properties?.omrade_id === targetId);
+      if (prevFirst > 0) {
+        areaAbsStart = (foundAt - LIMIT) + prevFirst;
+        areaStartDate = String(prevFeatures[prevFirst].properties?.datum ?? '').slice(0, 10);
+      } else {
+        // Extends further back — use a conservative fallback
+        areaAbsStart = Math.max(0, foundAt - 20_000);
+        areaStartDate = '1967-01-01';
+      }
+    } else {
+      // Previous chunk has no records for this area → area starts at foundAt
+      areaAbsStart = foundAt;
+      areaStartDate = String(foundFeatures[0]?.properties?.datum ?? '').slice(0, 10);
+    }
+  }
+
+  // Phase 3: Jump to the most recent ~730 days of records for this area.
+  // HYPE runs daily from areaStartDate to roughly today, so the last 730 records
+  // are at offset (totalDays - 730) from the area's first record.
+  const daysSinceStart = Math.max(
+    0,
+    Math.round((Date.now() - new Date(areaStartDate).getTime()) / 86_400_000)
+  );
+  const jumpOffset = Math.max(0, daysSinceStart - 730);
+  const recentSi = areaAbsStart + jumpOffset;
+
+  let recentFeatures: any[] | null = null;
+  if (jumpOffset > 0) {
+    recentFeatures = await fetchAt(recentSi);
+  }
+
+  const pool = (recentFeatures ?? foundFeatures).filter(
+    (f: any) => f.properties?.omrade_id === targetId
+  );
+  if (pool.length === 0) return empty;
+
+  // Build the 2-year time series
+  const cutoff = new Date(Date.now() - 2 * 365.25 * 86_400_000).toISOString().slice(0, 10);
+  const series: HypoPoint[] = pool
+    .map((f: any) => {
+      const p = f.properties ?? {};
+      return {
+        datum: String(p.datum ?? '').slice(0, 10),
+        fyllnadSma: typeof p.fyllnadsgrad_sma === 'number' ? p.fyllnadsgrad_sma : null,
+        fyllnadStora: typeof p.fyllnadsgrad_stora === 'number' ? p.fyllnadsgrad_stora : null,
+        sitSma: typeof p.grundvattensituation_sma === 'number' ? p.grundvattensituation_sma : null,
+        sitStora:
+          typeof p.grundvattensituation_stora === 'number' ? p.grundvattensituation_stora : null,
+      };
+    })
+    .filter((s) => s.datum >= cutoff)
+    .sort((a, b) => a.datum.localeCompare(b.datum));
+
+  // Pick the record closest to selectedDate as the current observation
+  const selDate = selectedDate.slice(0, 10);
+  const obs = pool.reduce((best: any, f: any) => {
+    const d = String(f.properties?.datum ?? '').slice(0, 10);
+    if (!best) return f;
+    const bestD = String(best.properties?.datum ?? '').slice(0, 10);
+    const dDiff = Math.abs(new Date(d).getTime() - new Date(selDate).getTime());
+    const bestDiff = Math.abs(new Date(bestD).getTime() - new Date(selDate).getTime());
+    return dDiff < bestDiff ? f : best;
+  }, null as any);
+
+  const obsDate = obs ? String(obs.properties?.datum ?? '').slice(0, 10) : '';
+  return { obs, series, isFallback: !!obsDate && obsDate !== selDate };
+}
+
 // ── Source documentation helper ───────────────────────────────────────────────
 
 function SourceRow({ label, source, note, url }: {
@@ -198,49 +359,6 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
 
   useEffect(() => { setExpandedGvKemi(new Set([0])); }, [coordinate]);
 
-  // Lazy-load HYPE time series after the initial report is shown.
-  // Queries only for this specific area (omrade_id=X, no sortby) and follows
-  // OGC API next-links for pagination — same cursor pattern as MapView fetchAllPages.
-  useEffect(() => {
-    if (!data?.omradeId || data.hypoSeries) return;
-    const ac = new AbortController();
-    const id = data.omradeId;
-    const base = `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/grundvattennivaer-tidigare/items?f=json`;
-
-    (async () => {
-      // Fetch all records for this area. No sortby — that was what caused the 504.
-      // The API returns records in its own order; we sort by datum in JS afterwards.
-      const allFeatures: any[] = [];
-      let url: string | null =
-        `${base}&filter=${encodeURIComponent(`omrade_id=${id}`)}&limit=1000`;
-      while (url && !ac.signal.aborted) {
-        const resp = await fetch(url, { signal: ac.signal }).catch(() => null);
-        if (!resp?.ok) break;
-        const d = await resp.json().catch(() => null);
-        allFeatures.push(...(d?.features ?? []));
-        url = (d?.links ?? []).find((l: any) => l.rel === 'next')?.href ?? null;
-      }
-
-      if (ac.signal.aborted) return;
-
-      // Filter for the last 2 years and sort chronologically
-      const cutoff = new Date(data.hypoDate ? String(data.hypoDate).slice(0, 10) : new Date());
-      cutoff.setFullYear(cutoff.getFullYear() - 2);
-      const cutoffStr = cutoff.toISOString().slice(0, 10);
-
-      const parsed = allFeatures
-        .map((f: any) => {
-          const p = f.properties ?? {};
-          return { datum: String(p.datum ?? '').slice(0, 10), fyllnadSma: typeof p.fyllnadsgrad_sma === 'number' ? p.fyllnadsgrad_sma : null, fyllnadStora: typeof p.fyllnadsgrad_stora === 'number' ? p.fyllnadsgrad_stora : null, sitSma: typeof p.grundvattensituation_sma === 'number' ? p.grundvattensituation_sma : null, sitStora: typeof p.grundvattensituation_stora === 'number' ? p.grundvattensituation_stora : null };
-        })
-        .filter((s: any) => s.datum >= cutoffStr)
-        .sort((a: any, b: any) => a.datum.localeCompare(b.datum));
-
-      if (parsed.length >= 2) setData(prev => prev ? { ...prev, hypoSeries: parsed } : prev);
-    })().catch(() => {});
-
-    return () => ac.abort();
-  }, [data?.omradeId]);
 
   // Build a plain-text AI summary whenever analysis data changes
   useEffect(() => {
@@ -479,10 +597,9 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
         return fetch(url, { signal: tc.signal }).finally(() => clearTimeout(timer));
       };
 
-      // HYPE: chain levels fetch onto omraden response
-      let levelsPromise: Promise<[any, any]> | null = null;
+      // HYPE: resolve the area ID first, then start startIndex-based data fetch
+      let hypePromise: Promise<{ obs: any | null; series: HypoPoint[]; isFallback: boolean }> | null = null;
       let omradeIdCapture: number | undefined;
-      const levelBase = `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/grundvattennivaer-tidigare/items?f=json`;
       const omradenChain = fetch(
         `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/omraden/items?f=json&bbox=${bbox}&limit=1`,
         { signal }
@@ -491,44 +608,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
          const id = d?.features?.[0]?.properties?.omrade_id;
          if (id !== undefined) {
            omradeIdCapture = id;
-
-           const safeJson = (r: Response) => r.ok ? r.json().catch(() => null) : null;
-
-           // Follow OGC API cursor-based 'next' links (same as MapView fetchAllPages).
-           // Manual offset= is silently ignored by this API — every page returns the same
-           // first 1000 results. We must use the href from links[rel=next].
-           const findAreaViaNextLinks = async (firstUrl: string): Promise<any | null> => {
-             let url: string | null = firstUrl;
-             while (url && !signal.aborted) {
-               const r = await fetchWithTimeout(url, 30_000).catch(() => null);
-               const d = r ? await safeJson(r as Response) : null;
-               if (!d) return null;
-               const found = (d.features ?? []).find((f: any) => f.properties?.omrade_id === id);
-               if (found) return found;
-               url = (d.links ?? []).find((l: any) => l.rel === 'next')?.href ?? null;
-             }
-             return null;
-           };
-
-           levelsPromise = (async (): Promise<[any, any]> => {
-             const dateFeature = await findAreaViaNextLinks(
-               `${levelBase}&filter=${encodeURIComponent(`datum='${selectedDate}'`)}&limit=1000`
-             );
-             if (dateFeature) return [{ features: [dateFeature] }, null];
-
-             // selectedDate has no data — find the latest available date.
-             const latestMeta = await fetchWithTimeout(
-               `${levelBase}&sortby=-datum&limit=1`, 30_000
-             ).then(safeJson).catch(() => null);
-             const latestDate = String(latestMeta?.features?.[0]?.properties?.datum ?? '').slice(0, 10);
-             if (!latestDate || latestDate === selectedDate) return [null, null];
-
-             const latestFeature = await findAreaViaNextLinks(
-               `${levelBase}&filter=${encodeURIComponent(`datum='${latestDate}'`)}&limit=1000`
-             );
-             return [null, latestFeature ? { features: [latestFeature] } : null];
-           })();
-           // hypoSeries is loaded lazily after setData via useEffect
+           hypePromise = fetchHypeForArea(id, selectedDate, signal);
          }
          return d;
        }).catch(() => null);
@@ -645,8 +725,8 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
 
       if (signal.aborted) return;
 
-      const [[dateResult, latestResult], nivaerData, brunnarData] = await Promise.all([
-        levelsPromise ?? Promise.resolve([null, null]),
+      const [hypeResult, nivaerData, brunnarData] = await Promise.all([
+        hypePromise ?? Promise.resolve({ obs: null, series: [] as HypoPoint[], isFallback: false }),
         nivaerPromise ?? Promise.resolve(null),
         brunnarChain,
       ]);
@@ -658,18 +738,18 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
       if (omradenRes.status === 'fulfilled' && omradeIdCapture !== undefined) {
         result.omradeId = omradeIdCapture;
       }
-      const usedLatest = !(dateResult?.features?.length > 0);
-      const levelFeature = (usedLatest ? latestResult : dateResult)?.features?.[0];
-      if (levelFeature) {
-        const p = levelFeature.properties;
-        result.hypoDate = p.datum;
-        result.hypoDateIsFallback = usedLatest;
+      if (hypeResult?.obs) {
+        const p = hypeResult.obs.properties;
+        result.hypoDate = String(p.datum ?? '').slice(0, 10);
+        result.hypoDateIsFallback = hypeResult.isFallback;
         result.fyllnadsgradSma = p.fyllnadsgrad_sma;
         result.fyllnadsgradStora = p.fyllnadsgrad_stora;
         result.sitSma = p.grundvattensituation_sma;
         result.sitStora = p.grundvattensituation_stora;
       }
-      // hypoSeries (600 records) is deferred — loaded lazily after setData via useEffect below
+      if (hypeResult?.series && hypeResult.series.length >= 2) {
+        result.hypoSeries = hypeResult.series;
+      }
 
       // GV Tillgång små magasin (raster, l/dygn/ha)
       if (gvTillgangRes.status === 'fulfilled' && gvTillgangRes.value.ok) {
