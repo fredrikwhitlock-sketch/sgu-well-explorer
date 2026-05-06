@@ -127,7 +127,6 @@ interface ReportData {
     vattenkemi?: string;
     delomradeskvalitet?: string;
   };
-  hypeOmradeId?: number;
 }
 
 function mercatorToWGS84(x: number, y: number): [number, number] {
@@ -472,14 +471,6 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
          return d;
        }).catch(() => null);
 
-      // HYPE area ID – bbox query on omraden resolves quickly (no filter timeout)
-      const hypeOmradenChain = fetch(
-        `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/omraden/items?f=json&bbox=${bbox}&limit=1`,
-        { signal },
-      ).then(r => r.ok ? r.json() : null)
-       .then(d => d?.features?.[0]?.properties?.omrade_id as number | undefined)
-       .catch(() => undefined);
-
       // All fetches at t=0 (brunnarChain runs concurrently as its own cascade)
       const geokemiBase = `https://api.sgu.se/oppnadata/markgeokemi-regional/ogc/features/v1/collections`;
       const geokemiBbox = `bbox=${lon - 0.5},${lat - 0.35},${lon + 0.5},${lat + 0.35}&limit=30`;
@@ -520,10 +511,9 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
 
       if (signal.aborted) return;
 
-      const [nivaerData, brunnarData, hypeOmradeId] = await Promise.all([
+      const [nivaerData, brunnarData] = await Promise.all([
         nivaerPromise ?? Promise.resolve(null),
         brunnarChain,
-        hypeOmradenChain,
       ]);
 
       if (signal.aborted) return;
@@ -1037,7 +1027,6 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
         result.obsStationer?.sort((a, b) => a.distKm - b.distKm);
       } catch { /* ignore */ }
       if (obsArr.length) result.obsFeatures = obsArr;
-      if (hypeOmradeId != null) result.hypeOmradeId = hypeOmradeId;
 
       setData(result);
     } catch (e: any) {
@@ -1395,7 +1384,6 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
         {chartPopup.kind === 'obs' && (
           <ObsHypoTimeSeriesChart
             stations={[{ id: chartPopup.stationId, namn: chartPopup.namn, distKm: chartPopup.distKm }]}
-            omradeId={data?.hypeOmradeId}
             useStora={!!(effectiveAquifer?.useStoraMagasin)}
             years={5}
             maxStations={1}
@@ -1718,7 +1706,6 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
                               </div>
                               <ObsHypoTimeSeriesChart
                                 stations={[{ id: st.id, namn: st.namn, distKm: st.distKm }]}
-                                omradeId={data.hypeOmradeId}
                                 useStora={!!(effectiveAquifer?.useStoraMagasin)}
                                 years={2}
                                 maxStations={1}
