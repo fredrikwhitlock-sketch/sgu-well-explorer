@@ -468,8 +468,8 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
            omradeIdCapture = id;
            const safeJson = (r: Response) => r.ok ? r.json().catch(() => null) : null;
            levelsPromise = Promise.all([
-             fetchWithTimeout(`${levelBase}&filter=${encodeURIComponent(`omrade_id=${id} AND datum='${selectedDate}'`)}&limit=1`, 10_000).then(safeJson).catch(() => null),
-             fetchWithTimeout(`${levelBase}&filter=${encodeURIComponent(`omrade_id=${id}`)}&sortby=-datum&limit=1`, 10_000).then(safeJson).catch(() => null),
+             fetchWithTimeout(`${levelBase}&filter=${encodeURIComponent(`omrade_id=${id} AND datum='${selectedDate}'`)}&limit=1`, 30_000).then(safeJson).catch(() => null),
+             fetchWithTimeout(`${levelBase}&filter=${encodeURIComponent(`omrade_id=${id}`)}&sortby=-datum&limit=1`, 30_000).then(safeJson).catch(() => null),
            ]);
            // hypoSeries (600 records) is loaded lazily by a useEffect after data is set
          }
