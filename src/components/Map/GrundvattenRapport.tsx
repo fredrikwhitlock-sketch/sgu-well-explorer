@@ -198,67 +198,42 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
 
   useEffect(() => { setExpandedGvKemi(new Set([0])); }, [coordinate]);
 
-  // Lazy-load HYPE time series (2 years of weekly data) after the initial report is shown.
-  // Uses datum='DATE'&limit=10000 per date (datum is indexed → fast), then finds our area in JS.
-  // Does NOT use combined AND filter — the SGU API ignores unknown CQL2 predicates and returns
-  // unfiltered records (starting from 1968) instead of an error.
+  // Lazy-load HYPE time series after the initial report is shown.
+  // Queries only for this specific area (omrade_id=X, no sortby) and follows
+  // OGC API next-links for pagination — same cursor pattern as MapView fetchAllPages.
   useEffect(() => {
     if (!data?.omradeId || data.hypoSeries) return;
     const ac = new AbortController();
     const id = data.omradeId;
     const base = `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/grundvattennivaer-tidigare/items?f=json`;
 
-    // Start from the already-fetched observation date — no extra API call needed.
-    // Falls back to last Sunday (same default as selectedDate) if observation date is absent.
-    const knownDate = data.hypoDate
-      ? String(data.hypoDate).slice(0, 10)
-      : (() => { const d = new Date(); d.setDate(d.getDate() - ((d.getDay() + 7) % 7)); return d.toISOString().split('T')[0]; })();
-
     (async () => {
-      // Generate weekly dates going back 2 years from the observation date
-      const latest = new Date(knownDate);
-      const dates: string[] = [];
-      for (let i = 0; i < 104; i++) {
-        const d = new Date(latest);
-        d.setDate(d.getDate() - i * 7);
-        dates.push(d.toISOString().slice(0, 10));
+      // Fetch all records for this area. No sortby — that was what caused the 504.
+      // The API returns records in its own order; we sort by datum in JS afterwards.
+      const allFeatures: any[] = [];
+      let url: string | null =
+        `${base}&filter=${encodeURIComponent(`omrade_id=${id}`)}&limit=1000`;
+      while (url && !ac.signal.aborted) {
+        const resp = await fetch(url, { signal: ac.signal }).catch(() => null);
+        if (!resp?.ok) break;
+        const d = await resp.json().catch(() => null);
+        allFeatures.push(...(d?.features ?? []));
+        url = (d?.links ?? []).find((l: any) => l.rel === 'next')?.href ?? null;
       }
 
-      const PAGE = 1000;
+      if (ac.signal.aborted) return;
 
-      // Paginate through one date's snapshot until our area is found or pages exhausted.
-      const findAreaInPages = async (date: string): Promise<any | null> => {
-        let offset = 0;
-        while (!ac.signal.aborted) {
-          const resp = await fetch(
-            `${base}&filter=${encodeURIComponent(`datum='${date}'`)}&limit=${PAGE}&offset=${offset}`,
-            { signal: ac.signal }
-          ).catch(() => null);
-          if (!resp?.ok) return null;
-          const feats: any[] = (await resp.json().catch(() => null))?.features ?? [];
-          const found = feats.find((f: any) => f.properties?.omrade_id === id);
-          if (found) return found;
-          if (feats.length < PAGE) return null; // last page, area absent for this date
-          offset += PAGE;
-        }
-        return null;
-      };
+      // Filter for the last 2 years and sort chronologically
+      const cutoff = new Date(data.hypoDate ? String(data.hypoDate).slice(0, 10) : new Date());
+      cutoff.setFullYear(cutoff.getFullYear() - 2);
+      const cutoffStr = cutoff.toISOString().slice(0, 10);
 
-      // Fetch all areas for each date (datum filter is indexed → fast), find ours in JS.
-      const features: any[] = [];
-      const BATCH = 20;
-      for (let i = 0; i < dates.length && !ac.signal.aborted; i += BATCH) {
-        const batch = dates.slice(i, i + BATCH);
-        const results = await Promise.all(batch.map(date => findAreaInPages(date)));
-        features.push(...results.filter(Boolean));
-      }
-
-      const parsed = features
+      const parsed = allFeatures
         .map((f: any) => {
           const p = f.properties ?? {};
           return { datum: String(p.datum ?? '').slice(0, 10), fyllnadSma: typeof p.fyllnadsgrad_sma === 'number' ? p.fyllnadsgrad_sma : null, fyllnadStora: typeof p.fyllnadsgrad_stora === 'number' ? p.fyllnadsgrad_stora : null, sitSma: typeof p.grundvattensituation_sma === 'number' ? p.grundvattensituation_sma : null, sitStora: typeof p.grundvattensituation_stora === 'number' ? p.grundvattensituation_stora : null };
         })
-        .filter((s: any) => s.datum)
+        .filter((s: any) => s.datum >= cutoffStr)
         .sort((a: any, b: any) => a.datum.localeCompare(b.datum));
 
       if (parsed.length >= 2) setData(prev => prev ? { ...prev, hypoSeries: parsed } : prev);
@@ -519,28 +494,26 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
 
            const safeJson = (r: Response) => r.ok ? r.json().catch(() => null) : null;
 
-           // Search pages of 1000 until the area is found or all pages exhausted.
-           // The SGU API caps limit at ~1000, so limit=10000 only ever returns the
-           // first page. We must paginate to reliably find any given omrade_id.
-           const findAreaInPages = async (dateFilter: string): Promise<any | null> => {
-             let offset = 0;
-             const PAGE = 1000;
-             while (true) {
-               const r = await fetchWithTimeout(
-                 `${levelBase}&filter=${encodeURIComponent(dateFilter)}&limit=${PAGE}&offset=${offset}`,
-                 30_000
-               ).catch(() => null);
+           // Follow OGC API cursor-based 'next' links (same as MapView fetchAllPages).
+           // Manual offset= is silently ignored by this API — every page returns the same
+           // first 1000 results. We must use the href from links[rel=next].
+           const findAreaViaNextLinks = async (firstUrl: string): Promise<any | null> => {
+             let url: string | null = firstUrl;
+             while (url && !signal.aborted) {
+               const r = await fetchWithTimeout(url, 30_000).catch(() => null);
                const d = r ? await safeJson(r as Response) : null;
-               const features: any[] = d?.features ?? [];
-               const found = features.find((f: any) => f.properties?.omrade_id === id);
+               if (!d) return null;
+               const found = (d.features ?? []).find((f: any) => f.properties?.omrade_id === id);
                if (found) return found;
-               if (features.length < PAGE) return null; // last page, area not in this date
-               offset += PAGE;
+               url = (d.links ?? []).find((l: any) => l.rel === 'next')?.href ?? null;
              }
+             return null;
            };
 
            levelsPromise = (async (): Promise<[any, any]> => {
-             const dateFeature = await findAreaInPages(`datum='${selectedDate}'`);
+             const dateFeature = await findAreaViaNextLinks(
+               `${levelBase}&filter=${encodeURIComponent(`datum='${selectedDate}'`)}&limit=1000`
+             );
              if (dateFeature) return [{ features: [dateFeature] }, null];
 
              // selectedDate has no data — find the latest available date.
@@ -550,7 +523,9 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
              const latestDate = String(latestMeta?.features?.[0]?.properties?.datum ?? '').slice(0, 10);
              if (!latestDate || latestDate === selectedDate) return [null, null];
 
-             const latestFeature = await findAreaInPages(`datum='${latestDate}'`);
+             const latestFeature = await findAreaViaNextLinks(
+               `${levelBase}&filter=${encodeURIComponent(`datum='${latestDate}'`)}&limit=1000`
+             );
              return [null, latestFeature ? { features: [latestFeature] } : null];
            })();
            // hypoSeries is loaded lazily after setData via useEffect
