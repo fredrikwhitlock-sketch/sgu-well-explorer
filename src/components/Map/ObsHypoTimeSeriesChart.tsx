@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { fmtMonthYear } from "@/lib/utils";
 import {
   LineChart,
@@ -234,8 +235,33 @@ export const ObsHypoTimeSeriesChart = ({
 
     const ids = stationsToShow.map((s) => s.id).filter(Boolean);
 
+    // Try Supabase cache first; fall back to SGU API if no rows returned
+    const fetchNivaer = async (): Promise<Map<string, Array<{ ts: number; djup: number }>>> => {
+      if (ids.length === 0) return new Map();
+      const { data: sbRows } = await supabase
+        .from('obs_nivaer')
+        .select('platsbeteckning, obsdatum, nivaer_m')
+        .in('platsbeteckning', ids)
+        .gte('obsdatum', fromStr)
+        .order('obsdatum');
+      if (sbRows && sbRows.length > 0) {
+        const out = new Map<string, Array<{ ts: number; djup: number }>>();
+        for (const r of sbRows) {
+          if (r.nivaer_m == null) continue;
+          const ts = new Date(r.obsdatum).getTime();
+          if (!Number.isFinite(ts)) continue;
+          const arr = out.get(r.platsbeteckning) ?? [];
+          arr.push({ ts, djup: r.nivaer_m });
+          out.set(r.platsbeteckning, arr);
+        }
+        for (const arr of out.values()) arr.sort((a, b) => a.ts - b.ts);
+        return out;
+      }
+      return fetchNivaerForStations(ids, fromStr, ctrl.signal);
+    };
+
     Promise.all([
-      ids.length ? fetchNivaerForStations(ids, fromStr, ctrl.signal) : Promise.resolve(new Map()),
+      fetchNivaer(),
       omradeId != null ? fetchHypeSeriesForArea(omradeId, years, ctrl.signal) : Promise.resolve([]),
     ])
       .then(([obs, hypo]: any) => {
