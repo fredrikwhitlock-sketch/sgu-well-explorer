@@ -2249,6 +2249,26 @@ export const MapView = () => {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [drawModeActive]);
 
+  // Refresh all visible WMS layers when the browser regains network access.
+  // ImageWMS caches failed requests and won't retry on its own — updateParams({})
+  // clears the cached image and triggers a new GetMap request.
+  useEffect(() => {
+    const refreshWmsLayers = () => {
+      [
+        topoWebbLayerRef, ortofotoLayerRef, terrangskuggningLayerRef,
+        sguBerggrund1MLayerRef, sguBerggrund50kLayerRef,
+        sguJordarter1MLayerRef, sguJordarter25kLayerRef,
+        sguGvTillgangLayerRef, sguJorddjupLayerRef,
+        clcLayerRef, waterWetnessLayerRef,
+      ].forEach(ref => {
+        if (ref.current?.getVisible()) ref.current.getSource()?.updateParams({});
+      });
+      mapInstanceRef.current?.render();
+    };
+    window.addEventListener('online', refreshWmsLayers);
+    return () => window.removeEventListener('online', refreshWmsLayers);
+  }, []);
+
   const openPanel = (panel: 'search' | 'locate' | 'layers') => {
     setActivePanel(prev => prev === panel ? null : panel);
   };
