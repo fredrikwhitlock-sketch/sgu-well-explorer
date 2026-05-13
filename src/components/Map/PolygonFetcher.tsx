@@ -219,7 +219,7 @@ async function triggerGeoPackage(layers: Array<{ name: string; features: any[] }
 
   const data = db.export();
   db.close();
-  downloadBlob(new Blob([data], { type: 'application/geopackage+sqlite3' }), filename);
+  downloadBlob(new Blob([data as BlobPart], { type: 'application/geopackage+sqlite3' }), filename);
 }
 
 function triggerGeoJSON(features: any[], filename: string) {

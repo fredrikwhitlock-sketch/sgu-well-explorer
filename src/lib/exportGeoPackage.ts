@@ -247,7 +247,7 @@ export async function exportAnalysisGeoPackage(d: GpkgExportData): Promise<void>
   const bytes = db.export();
   db.close();
   downloadBlob(
-    new Blob([bytes], { type: 'application/geopackage+sqlite3' }),
+    new Blob([bytes as BlobPart], { type: 'application/geopackage+sqlite3' }),
     `grundvattenanalys_${d.lat.toFixed(4)}N_${d.lon.toFixed(4)}E_${d.analysisDate}.gpkg`,
   );
 }
