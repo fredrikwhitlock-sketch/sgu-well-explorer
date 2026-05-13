@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { Droplets, Loader2, MapPin, AlertCircle, RefreshCw, Info, ChevronDown, Bot, Download, Maximize2, Minimize2, X } from "lucide-react";
 import proj4 from "proj4";
 import { getSoilTypeColor } from "../../lib/soilTypeColors";
@@ -406,9 +407,13 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
       const obs50Bbox = `${lon - lonD50},${lat - latD50},${lon + lonD50},${lat + latD50}`;
       const obsBase = 'https://api.sgu.se/oppnadata/grundvattennivaer-observerade/ogc/features/v1/collections';
 
-      // Chain: nivaer has no geometry so bbox filtering fails with 400.
-      // Fetch stationer spatially first → extract platsbeteckning IDs → query
-      // nivaer via CQL2 IN filter.
+      // ±7-day window around selectedDate (hoisted so both SGU and Supabase paths use it)
+      const nivaerTargetMs2 = new Date(selectedDate).getTime();
+      const nivaerWMs = 7 * 24 * 60 * 60 * 1000;
+      const nivaerLoDate = new Date(nivaerTargetMs2 - nivaerWMs).toISOString().split('T')[0];
+      const nivaerHiDate = new Date(nivaerTargetMs2 + nivaerWMs).toISOString().split('T')[0];
+
+      // Station metadata maps – populated by whichever source resolves first
       const stJordart    = new Map<string, string>();
       const stAkvifer    = new Map<string, 'rock' | 'jord'>();
       const stAkvifSize  = new Map<string, 'large' | 'small'>();
@@ -416,6 +421,17 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
       const stCoords     = new Map<string, [number, number]>(); // WGS84 [lon, lat]
       let nivaerPromise: Promise<any> | null = null;
 
+      // Supabase cache: start concurrently with SGU chain
+      const sbStationerPromise = supabase
+        .from('obs_stationer')
+        .select('platsbeteckning, stationsnamn, jordart_tx, akvifer, lon, lat')
+        .gte('lon', lon - lonD50).lte('lon', lon + lonD50)
+        .gte('lat', lat - latD50).lte('lat', lat + latD50)
+        .limit(500);
+
+      // SGU fallback chain: nivaer has no geometry so bbox filtering fails with 400.
+      // Fetch stationer spatially first → extract platsbeteckning IDs → query
+      // nivaer via CQL2 IN filter.
       const obsStationerChain = fetch(
         `${obsBase}/stationer/items?f=json&bbox=${obs50Bbox}&limit=500`,
         { signal }
@@ -433,18 +449,15 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
            if (geom?.type === 'Point' && Array.isArray(geom.coordinates)) {
              stCoords.set(String(id), [geom.coordinates[0], geom.coordinates[1]]);
            }
-           // akvifer code: B* = berg (rock), J* = jord (soil), XX = unknown
            const akv = String(p.akvifer ?? '').toUpperCase();
            if (akv.startsWith('B')) stAkvifer.set(String(id), 'rock');
            else if (akv.startsWith('J')) {
              stAkvifer.set(String(id), 'jord');
-             const stAq = classifyAquifer(jordartTx);
-             stAkvifSize.set(String(id), stAq.useStoraMagasin ? 'large' : 'small');
+             stAkvifSize.set(String(id), classifyAquifer(jordartTx).useStoraMagasin ? 'large' : 'small');
            }
            ids.push(String(id));
          }
          if (ids.length > 0) {
-           // Sort by distance to click point, keep the 50 closest → shorter IN filter
            const haversine = (aLon: number, aLat: number, bLon: number, bLat: number) => {
              const R = 6371, dLat = (bLat - aLat) * Math.PI / 180, dLon = (bLon - aLon) * Math.PI / 180;
              const a = Math.sin(dLat / 2) ** 2 + Math.cos(aLat * Math.PI / 180) * Math.cos(bLat * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
@@ -456,13 +469,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
              .slice(0, 50)
              .map(x => x.id);
            const idList = sorted.map(id => `'${id.replace(/'/g, "''")}'`).join(',');
-           // Use a tight ±7-day window around selectedDate for temporal coherence:
-           // ensures all stations contribute readings from the same week.
-           const targetMs = new Date(selectedDate).getTime();
-           const wMs = 7 * 24 * 60 * 60 * 1000;
-           const loDate = new Date(targetMs - wMs).toISOString().split('T')[0];
-           const hiDate = new Date(targetMs + wMs).toISOString().split('T')[0];
-           const filter = `platsbeteckning IN (${idList}) AND obsdatum >= '${loDate}' AND obsdatum <= '${hiDate}'`;
+           const filter = `platsbeteckning IN (${idList}) AND obsdatum >= '${nivaerLoDate}' AND obsdatum <= '${nivaerHiDate}'`;
            nivaerPromise = fetch(
              `${obsBase}/nivaer/items?f=json&filter=${encodeURIComponent(filter)}&filter-lang=cql2-text&sortby=obsdatum&limit=500`,
              { signal }
@@ -511,10 +518,44 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
 
       if (signal.aborted) return;
 
-      const [nivaerData, brunnarData] = await Promise.all([
-        nivaerPromise ?? Promise.resolve(null),
-        brunnarChain,
-      ]);
+      // Check Supabase station cache; override Maps if data is available
+      const { data: sbStationer } = await sbStationerPromise;
+      const useSbStationer = (sbStationer?.length ?? 0) > 0;
+      if (useSbStationer) {
+        for (const s of sbStationer!) {
+          stNamn.set(s.platsbeteckning, s.stationsnamn ?? s.platsbeteckning);
+          stJordart.set(s.platsbeteckning, s.jordart_tx ?? '');
+          stCoords.set(s.platsbeteckning, [s.lon, s.lat]);
+          const akv = String(s.akvifer ?? '').toUpperCase();
+          if (akv.startsWith('B')) stAkvifer.set(s.platsbeteckning, 'rock');
+          else if (akv.startsWith('J')) {
+            stAkvifer.set(s.platsbeteckning, 'jord');
+            stAkvifSize.set(s.platsbeteckning, classifyAquifer(s.jordart_tx ?? '').useStoraMagasin ? 'large' : 'small');
+          }
+        }
+      }
+
+      // Supabase nivaer when cache has stations; otherwise fall back to SGU API
+      const nivaerFetch = useSbStationer
+        ? supabase
+            .from('obs_nivaer')
+            .select('platsbeteckning, obsdatum, nivaer_m')
+            .in('platsbeteckning', sbStationer!.map(s => s.platsbeteckning))
+            .gte('obsdatum', nivaerLoDate)
+            .lte('obsdatum', nivaerHiDate)
+            .limit(500)
+            .then(({ data }) => ({
+              features: (data ?? []).map(r => ({
+                properties: {
+                  platsbeteckning: r.platsbeteckning,
+                  obsdatum: r.obsdatum,
+                  grundvattenniva_m_u_markyta: r.nivaer_m,
+                },
+              })),
+            }))
+        : nivaerPromise ?? Promise.resolve(null);
+
+      const [nivaerData, brunnarData] = await Promise.all([nivaerFetch, brunnarChain]);
 
       if (signal.aborted) return;
 
