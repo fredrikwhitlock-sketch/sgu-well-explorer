@@ -132,6 +132,7 @@ export const MapView = () => {
   const [chartLocation, setChartLocation] = useState<ChartLocation | null>(null);
   const [chartLocations, setChartLocations] = useState<ChartLocation[]>([]);
   const [currentZoom, setCurrentZoom] = useState(11);
+  const [mapRotation, setMapRotation] = useState(0);
   const sourcesLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const wellsLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const aquifersLayerRef = useRef<VectorImageLayer<VectorSource> | null>(null);
@@ -1757,6 +1758,10 @@ export const MapView = () => {
       const zoom = map.getView().getZoom() || 0;
       setCurrentZoom(zoom);
     });
+
+    map.getView().on('change:rotation', () => {
+      setMapRotation(map.getView().getRotation());
+    });
     
     // Load data when map movement ends (panning or zooming)
     map.on('moveend', () => {
@@ -2263,6 +2268,24 @@ export const MapView = () => {
       {/* Right-side icon toolbar */}
       <div className="absolute right-0 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-1 pr-0">
         <div className="flex flex-col bg-card/95 backdrop-blur-sm shadow-lg border border-border rounded-l-xl overflow-hidden">
+          {/* Norr */}
+          <button
+            onClick={() => mapInstanceRef.current?.getView().animate({ rotation: 0, duration: 400 })}
+            className="w-12 h-12 flex items-center justify-center hover:bg-secondary transition-colors"
+            title="Vrida kartan mot norr"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="22"
+              height="22"
+              style={{ transform: `rotate(${mapRotation}rad)`, transition: 'transform 0.1s linear' }}
+            >
+              <polygon points="12,3 9,12 12,10.5 15,12" fill="#dc2626" />
+              <polygon points="12,21 9,12 12,13.5 15,12" fill="#9ca3af" />
+              <circle cx="12" cy="12" r="1.5" fill="#6b7280" />
+            </svg>
+          </button>
+          <div className="h-px bg-border mx-2" />
           {/* Sök */}
           <button
             onClick={() => openPanel('search')}
