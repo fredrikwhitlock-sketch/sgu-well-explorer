@@ -14,6 +14,65 @@ export type Database = {
   }
   public: {
     Tables: {
+      obs_nivaer: {
+        Row: {
+          cached_at: string
+          nivaer_m: number | null
+          obsdatum: string
+          platsbeteckning: string
+        }
+        Insert: {
+          cached_at?: string
+          nivaer_m?: number | null
+          obsdatum: string
+          platsbeteckning: string
+        }
+        Update: {
+          cached_at?: string
+          nivaer_m?: number | null
+          obsdatum?: string
+          platsbeteckning?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "obs_nivaer_platsbeteckning_fkey"
+            columns: ["platsbeteckning"]
+            isOneToOne: false
+            referencedRelation: "obs_stationer"
+            referencedColumns: ["platsbeteckning"]
+          },
+        ]
+      }
+      obs_stationer: {
+        Row: {
+          akvifer: string | null
+          cached_at: string
+          jordart_tx: string | null
+          lat: number
+          lon: number
+          platsbeteckning: string
+          stationsnamn: string | null
+        }
+        Insert: {
+          akvifer?: string | null
+          cached_at?: string
+          jordart_tx?: string | null
+          lat: number
+          lon: number
+          platsbeteckning: string
+          stationsnamn?: string | null
+        }
+        Update: {
+          akvifer?: string | null
+          cached_at?: string
+          jordart_tx?: string | null
+          lat?: number
+          lon?: number
+          platsbeteckning?: string
+          stationsnamn?: string | null
+        }
+        Relationships: []
+      }
       sync_status: {
         Row: {
           id: string
