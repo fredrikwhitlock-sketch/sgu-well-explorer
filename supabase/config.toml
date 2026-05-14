@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.sync-obs-nivaer]
 verify_jwt = false
+
+[functions.sync-well-lager]
+verify_jwt = false
