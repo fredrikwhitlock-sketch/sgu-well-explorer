@@ -203,10 +203,10 @@ const SGU_WELLS_BASE =
   "https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar/items";
 
 async function handleSyncWells(request: Request, env: Env): Promise<Response> {
-  const body: { startIndex?: number } = await request.json().catch(() => ({}));
+  const body: { startIndex?: number; maxPages?: number } = await request.json().catch(() => ({}));
   const startIndex = body.startIndex ?? 0;
   const LIMIT = 1000;
-  const MAX_PAGES = 20;
+  const MAX_PAGES = body.maxPages ?? 20;
 
   let currentIndex = startIndex;
   let totalInserted = 0;
@@ -272,10 +272,10 @@ const SGU_LAGER_BASE =
   "https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar-lager/items";
 
 async function handleSyncWellLager(request: Request, env: Env): Promise<Response> {
-  const body: { startIndex?: number } = await request.json().catch(() => ({}));
+  const body: { startIndex?: number; maxPages?: number } = await request.json().catch(() => ({}));
   const startIndex = body.startIndex ?? 0;
   const LIMIT = 1000;
-  const MAX_PAGES = 20;
+  const MAX_PAGES = body.maxPages ?? 5;
 
   let currentIndex = startIndex;
   let totalInserted = 0;
