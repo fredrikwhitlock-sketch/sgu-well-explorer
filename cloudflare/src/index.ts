@@ -24,29 +24,35 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname;
 
-    // ── GET /wells ─────────────────────────────────────────────────────────────
+    // ── GET /wells ──────────────────────────────────────────────────────────────
+    // Same response shape as Supabase wells-query: { wells: [{brunnsid, obsplatsid, lon, lat, properties}] }
     if (path === "/wells" && request.method === "GET") {
-      const lonMin = url.searchParams.get("lon_min");
-      const lonMax = url.searchParams.get("lon_max");
-      const latMin = url.searchParams.get("lat_min");
-      const latMax = url.searchParams.get("lat_max");
-      const limit = Math.min(Number(url.searchParams.get("limit") ?? 2000), 5000);
+      const minLon = url.searchParams.get("minLon") ?? url.searchParams.get("lon_min");
+      const maxLon = url.searchParams.get("maxLon") ?? url.searchParams.get("lon_max");
+      const minLat = url.searchParams.get("minLat") ?? url.searchParams.get("lat_min");
+      const maxLat = url.searchParams.get("maxLat") ?? url.searchParams.get("lat_max");
+      const limit = Math.min(Number(url.searchParams.get("limit") ?? 50000), 50000);
 
-      if (!lonMin || !lonMax || !latMin || !latMax) {
-        return json({ error: "lon_min, lon_max, lat_min, lat_max required" }, 400);
+      if (!minLon || !maxLon || !minLat || !maxLat) {
+        return json({ error: "minLon, maxLon, minLat, maxLat required" }, 400);
       }
 
       const { results } = await env.DB.prepare(
-        `SELECT obsplatsid, omradesnamn, lan, kommunnamn, jordart, bergart,
-                senaste_nivamaetning, latitude, longitude, borrdjup, rordjup, hammarniva, referensniva
+        `SELECT brunnsid, obsplatsid, lon, lat, properties
          FROM wells_cache
-         WHERE longitude >= ? AND longitude <= ? AND latitude >= ? AND latitude <= ?
+         WHERE lon >= ? AND lon <= ? AND lat >= ? AND lat <= ?
          LIMIT ?`
       )
-        .bind(lonMin, lonMax, latMin, latMax, limit)
+        .bind(minLon, maxLon, minLat, maxLat, limit)
         .all();
 
-      return json({ wells: results });
+      // Parse stored JSON properties
+      const wells = results.map((r: Record<string, unknown>) => ({
+        ...r,
+        properties: typeof r.properties === "string" ? JSON.parse(r.properties as string) : r.properties,
+      }));
+
+      return json({ wells, count: wells.length });
     }
 
     // ── GET /well-lager ─────────────────────────────────────────────────────────
@@ -65,33 +71,29 @@ export default {
     }
 
     // ── GET /obs-nivaer ─────────────────────────────────────────────────────────
+    // Response: { nivaer: [{platsbeteckning, obsdatum, nivaer_m}] } — matches Supabase schema
     if (path === "/obs-nivaer" && request.method === "GET") {
-      const ids = url.searchParams.get("ids"); // comma-separated obsplatsid
-      const from = url.searchParams.get("from"); // ISO date
+      const ids = url.searchParams.get("ids"); // comma-separated platsbeteckning
+      const from = url.searchParams.get("from");
+      const to = url.searchParams.get("to");
       if (!ids) return json({ error: "ids required" }, 400);
 
-      const idList = ids
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean);
+      const idList = ids.split(",").map((s) => s.trim()).filter(Boolean);
       if (idList.length === 0) return json({ nivaer: [] });
 
       const placeholders = idList.map(() => "?").join(",");
       const bindings: (string | number)[] = [...idList];
-      let sql = `SELECT obsplatsid, obsdatum, nivaer_m_u_markyta, nivaer_m_o_h
-                 FROM obs_nivaer WHERE obsplatsid IN (${placeholders})`;
-      if (from) {
-        sql += " AND obsdatum >= ?";
-        bindings.push(from);
-      }
-      sql += " ORDER BY obsplatsid, obsdatum";
+      let sql = `SELECT platsbeteckning, obsdatum, nivaer_m
+                 FROM obs_nivaer WHERE platsbeteckning IN (${placeholders})`;
+      if (from) { sql += " AND obsdatum >= ?"; bindings.push(from); }
+      if (to)   { sql += " AND obsdatum <= ?"; bindings.push(to); }
+      sql += " ORDER BY platsbeteckning, obsdatum";
 
       const { results } = await env.DB.prepare(sql).bind(...bindings).all();
       return json({ nivaer: results });
     }
 
     // ── GET /hype-nivaer ────────────────────────────────────────────────────────
-    // Returns cached HYPE data; auto-fetches from SGU if not cached.
     if (path === "/hype-nivaer" && request.method === "GET") {
       const omradeId = Number(url.searchParams.get("omrade_id"));
       const years = Number(url.searchParams.get("years") ?? 5);
@@ -101,7 +103,6 @@ export default {
       fromDate.setFullYear(fromDate.getFullYear() - years);
       const from = fromDate.toISOString().slice(0, 10);
 
-      // Check cache
       const { results: cached } = await env.DB.prepare(
         `SELECT omrade_id, datum, fyllnadsgrad_sma, fyllnadsgrad_stora,
                 grundvattensituation_sma, grundvattensituation_stora
@@ -110,15 +111,10 @@ export default {
         .bind(omradeId, from)
         .all();
 
-      if (cached.length > 0) {
-        return json({ nivaer: cached, source: "cache" });
-      }
+      if (cached.length > 0) return json({ nivaer: cached, source: "cache" });
 
-      // Fetch from SGU
       const fetched = await fetchHypeFromSGU(omradeId, from);
-      if (fetched.length > 0) {
-        await upsertHype(env.DB, fetched);
-      }
+      if (fetched.length > 0) await upsertHype(env.DB, fetched);
 
       return json({ nivaer: fetched, source: "sgu" });
     }
@@ -142,7 +138,7 @@ export default {
   },
 };
 
-// ── HYPE helpers ──────────────────────────────────────────────────────────────
+// ── HYPE helpers ───────────────────────────────────────────────────────────────
 
 interface HypeRow {
   omrade_id: number;
@@ -201,6 +197,7 @@ async function upsertHype(db: D1Database, rows: HypeRow[]): Promise<void> {
 }
 
 // ── Sync: wells_cache ─────────────────────────────────────────────────────────
+// Stores brunnsid (PK), obsplatsid, lon, lat, properties (JSON) — matches Supabase schema
 
 const SGU_WELLS_BASE =
   "https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar/items";
@@ -218,31 +215,31 @@ async function handleSyncWells(request: Request, env: Env): Promise<Response> {
   for (let page = 0; page < MAX_PAGES && hasMore; page++) {
     const res = await fetch(`${SGU_WELLS_BASE}?f=json&limit=${LIMIT}&startIndex=${currentIndex}`);
     if (!res.ok) return json({ error: `SGU error: ${res.status}` }, 502);
-    const data = await res.json() as { features?: Array<{ geometry?: { coordinates?: number[] }; properties: Record<string, unknown> }> };
+    const data = await res.json() as {
+      features?: Array<{
+        geometry?: { coordinates?: number[] };
+        properties: Record<string, unknown>;
+      }>;
+    };
     const features = data.features ?? [];
     if (features.length === 0) { hasMore = false; break; }
 
     const rows = features
-      .filter((f) => f.properties?.obsplatsid)
+      .filter((f) => f.properties?.brunnsid)
       .map((f) => {
         const p = f.properties;
         const coords = f.geometry?.coordinates;
+        // Store everything except brunnsid/obsplatsid/coords in the properties blob
+        const { brunnsid, obsplatsid, ...rest } = p;
         return {
-          obsplatsid: String(p.obsplatsid),
-          omradesnamn: p.omradesnamn ?? null,
-          lan: p.lan ?? null,
-          kommunnamn: p.kommunnamn ?? null,
-          jordart: p.jordart ?? null,
-          bergart: p.bergart ?? null,
-          senaste_nivamaetning: p.senaste_nivamaetning ?? null,
-          latitude: coords ? Number(coords[1]) : null,
-          longitude: coords ? Number(coords[0]) : null,
-          borrdjup: p.borrdjup != null ? Number(p.borrdjup) : null,
-          rordjup: p.rordjup != null ? Number(p.rordjup) : null,
-          hammarniva: p.hammarniva != null ? Number(p.hammarniva) : null,
-          referensniva: p.referensniva != null ? Number(p.referensniva) : null,
+          brunnsid: String(brunnsid),
+          obsplatsid: obsplatsid ? String(obsplatsid) : null,
+          lon: coords ? Number(coords[0]) : 0,
+          lat: coords ? Number(coords[1]) : 0,
+          properties: JSON.stringify(rest),
         };
-      });
+      })
+      .filter((r) => r.lon !== 0 && r.lat !== 0);
 
     if (rows.length > 0) {
       const CHUNK = 100;
@@ -250,19 +247,12 @@ async function handleSyncWells(request: Request, env: Env): Promise<Response> {
         const chunk = rows.slice(i, i + CHUNK);
         const stmts = chunk.map((r) =>
           env.DB.prepare(
-            `INSERT INTO wells_cache (obsplatsid, omradesnamn, lan, kommunnamn, jordart, bergart,
-               senaste_nivamaetning, latitude, longitude, borrdjup, rordjup, hammarniva, referensniva)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-             ON CONFLICT (obsplatsid) DO UPDATE SET
-               omradesnamn=excluded.omradesnamn, lan=excluded.lan, kommunnamn=excluded.kommunnamn,
-               jordart=excluded.jordart, bergart=excluded.bergart,
-               senaste_nivamaetning=excluded.senaste_nivamaetning,
-               latitude=excluded.latitude, longitude=excluded.longitude,
-               borrdjup=excluded.borrdjup, rordjup=excluded.rordjup,
-               hammarniva=excluded.hammarniva, referensniva=excluded.referensniva`
-          ).bind(r.obsplatsid, r.omradesnamn, r.lan, r.kommunnamn, r.jordart, r.bergart,
-                 r.senaste_nivamaetning, r.latitude, r.longitude,
-                 r.borrdjup, r.rordjup, r.hammarniva, r.referensniva)
+            `INSERT INTO wells_cache (brunnsid, obsplatsid, lon, lat, properties)
+             VALUES (?, ?, ?, ?, ?)
+             ON CONFLICT (brunnsid) DO UPDATE SET
+               obsplatsid=excluded.obsplatsid, lon=excluded.lon, lat=excluded.lat,
+               properties=excluded.properties`
+          ).bind(r.brunnsid, r.obsplatsid, r.lon, r.lat, r.properties)
         );
         await env.DB.batch(stmts);
         totalInserted += chunk.length;
@@ -337,6 +327,7 @@ async function handleSyncWellLager(request: Request, env: Env): Promise<Response
 }
 
 // ── Sync: obs_nivaer ──────────────────────────────────────────────────────────
+// Uses platsbeteckning + nivaer_m to match the existing Supabase schema and app code
 
 const SGU_NIVAER_BASE =
   "https://api.sgu.se/oppnadata/grundvatten/ogc/features/v1/collections/grundvattennivaer-observerade/items";
@@ -372,14 +363,13 @@ async function handleSyncObsNivaer(request: Request, env: Env): Promise<Response
     if (features.length === 0) break;
 
     const rows = features
-      .filter((f) => f.properties?.obsplatsid && f.properties?.obsdatum)
+      .filter((f) => f.properties?.platsbeteckning && f.properties?.obsdatum)
       .map((f) => {
         const p = f.properties;
         return {
-          obsplatsid: String(p.obsplatsid),
+          platsbeteckning: String(p.platsbeteckning),
           obsdatum: String(p.obsdatum).slice(0, 10),
-          nivaer_m_u_markyta: p.nivaer_m_u_markyta != null ? Number(p.nivaer_m_u_markyta) : null,
-          nivaer_m_o_h: p.nivaer_m_o_h != null ? Number(p.nivaer_m_o_h) : null,
+          nivaer_m: p.nivaer_m != null ? Number(p.nivaer_m) : null,
         };
       });
 
@@ -389,10 +379,10 @@ async function handleSyncObsNivaer(request: Request, env: Env): Promise<Response
         const chunk = rows.slice(i, i + CHUNK);
         const stmts = chunk.map((r) =>
           env.DB.prepare(
-            `INSERT INTO obs_nivaer (obsplatsid, obsdatum, nivaer_m_u_markyta, nivaer_m_o_h)
-             VALUES (?, ?, ?, ?)
-             ON CONFLICT (obsplatsid, obsdatum) DO NOTHING`
-          ).bind(r.obsplatsid, r.obsdatum, r.nivaer_m_u_markyta, r.nivaer_m_o_h)
+            `INSERT INTO obs_nivaer (platsbeteckning, obsdatum, nivaer_m)
+             VALUES (?, ?, ?)
+             ON CONFLICT (platsbeteckning, obsdatum) DO NOTHING`
+          ).bind(r.platsbeteckning, r.obsdatum, r.nivaer_m)
         );
         await env.DB.batch(stmts);
         totalInserted += chunk.length;

@@ -1,20 +1,13 @@
+-- Match Supabase wells_cache schema so MapView code works unchanged
 CREATE TABLE IF NOT EXISTS wells_cache (
-  obsplatsid            TEXT PRIMARY KEY,
-  omradesnamn           TEXT,
-  lan                   TEXT,
-  kommunnamn            TEXT,
-  jordart               TEXT,
-  bergart               TEXT,
-  senaste_nivamaetning  TEXT,
-  latitude              REAL,
-  longitude             REAL,
-  borrdjup              REAL,
-  rordjup               REAL,
-  hammarniva            REAL,
-  referensniva          REAL
+  brunnsid    TEXT PRIMARY KEY,
+  obsplatsid  TEXT,
+  lon         REAL NOT NULL,
+  lat         REAL NOT NULL,
+  properties  TEXT NOT NULL DEFAULT '{}'
 );
-CREATE INDEX IF NOT EXISTS idx_wells_lon ON wells_cache (longitude);
-CREATE INDEX IF NOT EXISTS idx_wells_lat ON wells_cache (latitude);
+CREATE INDEX IF NOT EXISTS idx_wells_lon ON wells_cache (lon);
+CREATE INDEX IF NOT EXISTS idx_wells_lat ON wells_cache (lat);
 
 CREATE TABLE IF NOT EXISTS well_lager (
   lagerid          TEXT PRIMARY KEY,
@@ -27,14 +20,14 @@ CREATE TABLE IF NOT EXISTS well_lager (
 );
 CREATE INDEX IF NOT EXISTS idx_well_lager_obsplatsid ON well_lager (obsplatsid);
 
+-- Match Supabase obs_nivaer schema (platsbeteckning + nivaer_m)
 CREATE TABLE IF NOT EXISTS obs_nivaer (
-  obsplatsid          TEXT NOT NULL,
-  obsdatum            TEXT NOT NULL,
-  nivaer_m_u_markyta  REAL,
-  nivaer_m_o_h        REAL,
-  PRIMARY KEY (obsplatsid, obsdatum)
+  platsbeteckning  TEXT NOT NULL,
+  obsdatum         TEXT NOT NULL,
+  nivaer_m         REAL,
+  PRIMARY KEY (platsbeteckning, obsdatum)
 );
-CREATE INDEX IF NOT EXISTS idx_obs_nivaer_obsplatsid ON obs_nivaer (obsplatsid);
+CREATE INDEX IF NOT EXISTS idx_obs_nivaer_plats ON obs_nivaer (platsbeteckning);
 
 CREATE TABLE IF NOT EXISTS hype_nivaer (
   omrade_id                  INTEGER NOT NULL,
