@@ -47,6 +47,7 @@ export const WellPopup = ({
   const [lagerLoading, setLagerLoading] = useState(false);
   const [latestLevel, setLatestLevel] = useState<{ value: number; date: string } | null>(null);
   const [latestLevelLoading, setLatestLevelLoading] = useState(false);
+  const [mapillaryImg, setMapillaryImg] = useState<{ thumbUrl: string; imgId: string } | null>(null);
   const dragRef = useRef<{ startX: number; startY: number; initialX: number; initialY: number } | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -73,6 +74,27 @@ export const WellPopup = ({
       .catch(() => {})
       .finally(() => setLatestLevelLoading(false));
   }, [type, properties.platsbeteckning]);
+
+  // Fetch nearest Mapillary image for wells
+  useEffect(() => {
+    const token = import.meta.env.VITE_MAPILLARY_TOKEN;
+    if (type !== 'well' || !token || properties._lon == null) {
+      setMapillaryImg(null);
+      return;
+    }
+    const url = `https://graph.mapillary.com/images?fields=id,thumb_256_url&closeto=${properties._lon},${properties._lat}&limit=1&radius=200&access_token=${token}`;
+    fetch(url)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        const img = d?.data?.[0];
+        if (img?.thumb_256_url) {
+          setMapillaryImg({ thumbUrl: img.thumb_256_url, imgId: img.id });
+        } else {
+          setMapillaryImg(null);
+        }
+      })
+      .catch(() => setMapillaryImg(null));
+  }, [type, properties._lon, properties._lat]);
 
   // Fetch lagerföljd for wells
   useEffect(() => {
@@ -455,6 +477,26 @@ export const WellPopup = ({
           </>
         ) : type === 'well' ? (
           <>
+
+            {mapillaryImg && (
+              <div className="-mx-4 -mt-2 mb-2">
+                <a
+                  href={`https://www.mapillary.com/app/?image_key=${mapillaryImg.imgId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Öppna i Mapillary"
+                >
+                  <img
+                    src={mapillaryImg.thumbUrl}
+                    alt="Gatubild från Mapillary"
+                    className="w-full h-36 object-cover"
+                  />
+                </a>
+                <p className="text-[10px] text-muted-foreground px-1 pt-0.5">
+                  Foto: <a href="https://www.mapillary.com" target="_blank" rel="noopener noreferrer" className="hover:underline">Mapillary</a>
+                </p>
+              </div>
+            )}
 
             {properties.brunnsid && (
               <div>
