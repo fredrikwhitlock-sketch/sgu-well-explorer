@@ -12,7 +12,7 @@ const corsHeaders = {
 const SGU_BASE =
   "https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar-lager/items";
 const LIMIT = 1000;
-const MAX_PAGES = 50; // ~50k rows per invocation
+const MAX_PAGES = 20; // ~20k rows per invocation to stay within timeout
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });

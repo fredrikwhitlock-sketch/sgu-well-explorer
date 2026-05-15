@@ -5,3 +5,8 @@
 [build.environment]
   VITE_SUPABASE_URL = "https://ivambqyukfbkezijjmho.supabase.co"
   VITE_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_IXNNNdzzFdaDRCrbsYcPcQ_Y__HOKtr"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

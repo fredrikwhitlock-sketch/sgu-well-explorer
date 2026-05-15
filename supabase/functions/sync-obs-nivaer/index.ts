@@ -5,16 +5,17 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Each invocation syncs one calendar month to stay within edge function timeout.
-// Call repeatedly with { year, month } to backfill; omit both for the current month.
+// Syncs one segment of a calendar month (max 8 pages = 8 000 rows per invocation).
+// Supports pagination within a month via { year, month, offset }.
 //
-// Incremental workflow:
-//   POST /sync-obs-nivaer                      → syncs current month
-//   POST /sync-obs-nivaer { "year": 2025, "month": 4 } → syncs April 2025
+// POST /sync-obs-nivaer { "year": 2024, "month": 3 }           → first 8k rows
+// POST /sync-obs-nivaer { "year": 2024, "month": 3, "offset": 8000 } → next 8k rows
+// Returns nextOffset (null when month is complete).
 
 const SGU_BASE =
   "https://api.sgu.se/oppnadata/grundvattennivaer-observerade/ogc/features/v1/collections/nivaer/items";
-const LIMIT = 1000;
+const PAGE_SIZE = 1000;
+const MAX_PAGES = 8; // 8 000 rows per invocation
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -28,56 +29,49 @@ Deno.serve(async (req) => {
     const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
 
     const now = new Date();
-    const year: number  = body.year  ?? now.getUTCFullYear();
-    const month: number = body.month ?? now.getUTCMonth() + 1; // 1-based
+    const year: number   = body.year   ?? now.getUTCFullYear();
+    const month: number  = body.month  ?? now.getUTCMonth() + 1;
+    const offset: number = body.offset ?? 0;
 
     const fromDate = `${year}-${String(month).padStart(2, "0")}-01`;
-    // Last day of the month
-    const toDate = new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
+    const toDate   = new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
 
-    console.log(`Syncing nivaer ${fromDate} – ${toDate}`);
-
-    await supabase
-      .from("sync_status")
-      .update({ status: "syncing", last_synced_at: new Date().toISOString() })
-      .eq("id", "obs_nivaer");
+    console.log(`Syncing nivaer ${fromDate}–${toDate} offset=${offset}`);
 
     const filter = encodeURIComponent(
       `obsdatum >= '${fromDate}' AND obsdatum <= '${toDate}'`,
     );
     let url: string | null =
-      `${SGU_BASE}?f=json&limit=${LIMIT}&filter=${filter}&filter-lang=cql2-text&sortby=obsdatum`;
+      `${SGU_BASE}?f=json&limit=${PAGE_SIZE}&startIndex=${offset}&filter=${filter}&filter-lang=cql2-text&sortby=obsdatum`;
 
     let totalInserted = 0;
-    let safety = 0;
+    let pages = 0;
+    let lastPageSize = 0;
 
-    while (url && safety < 200) {
-      safety++;
+    while (url && pages < MAX_PAGES) {
+      pages++;
       const res = await fetch(url);
       if (!res.ok) throw new Error(`SGU nivaer error: ${res.status}`);
       const data = await res.json();
       const features: any[] = data.features ?? [];
+      lastPageSize = features.length;
 
       const rows = features
         .filter((f) => f.properties?.platsbeteckning && f.properties?.obsdatum)
         .map((f) => {
           const p = f.properties ?? {};
-          const rawNiva =
-            p.grundvattenniva_m_u_markyta ?? p.grundvattenniva_m_urok ?? null;
+          const rawNiva = p.grundvattenniva_m_u_markyta ?? p.grundvattenniva_m_urok ?? null;
           const niva = rawNiva !== null && rawNiva !== -1 && rawNiva !== 99
-            ? Number(rawNiva)
-            : null;
+            ? Number(rawNiva) : null;
           return {
             platsbeteckning: String(p.platsbeteckning),
             obsdatum:        String(p.obsdatum).slice(0, 10),
             nivaer_m:        Number.isFinite(niva) ? niva : null,
           };
         })
-        // Skip rows whose station isn't in obs_stationer yet (FK constraint)
         .filter((r) => r.platsbeteckning && r.obsdatum);
 
       if (rows.length > 0) {
-        // Insert in chunks to avoid request-body limits
         const CHUNK = 500;
         for (let i = 0; i < rows.length; i += CHUNK) {
           const { error } = await supabase
@@ -96,13 +90,17 @@ Deno.serve(async (req) => {
       .from("obs_nivaer")
       .select("*", { count: "exact", head: true });
 
+    // If last page was full and we hit MAX_PAGES, there may be more rows
+    const hasMore = pages === MAX_PAGES && lastPageSize === PAGE_SIZE;
+    const nextOffset = hasMore ? offset + pages * PAGE_SIZE : null;
+
     await supabase
       .from("sync_status")
-      .update({ status: "complete", total_records: count ?? 0, last_synced_at: new Date().toISOString() })
+      .update({ status: hasMore ? "partial" : "complete", total_records: count ?? 0, last_synced_at: new Date().toISOString() })
       .eq("id", "obs_nivaer");
 
     return new Response(
-      JSON.stringify({ success: true, period: `${fromDate}/${toDate}`, inserted: totalInserted, totalInDb: count }),
+      JSON.stringify({ success: true, period: `${fromDate}/${toDate}`, inserted: totalInserted, totalInDb: count, nextOffset }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (err) {
