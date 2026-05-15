@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
     let totalInserted = 0;
     let safety = 0;
 
-    while (url && safety < 200) {
+    while (url && safety < 30) {
       safety++;
       const res = await fetch(url);
       if (!res.ok) throw new Error(`SGU nivaer error: ${res.status}`);
