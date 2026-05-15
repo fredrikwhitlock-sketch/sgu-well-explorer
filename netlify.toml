@@ -6,6 +6,7 @@
   VITE_SUPABASE_URL = "https://ivambqyukfbkezijjmho.supabase.co"
   VITE_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_IXNNNdzzFdaDRCrbsYcPcQ_Y__HOKtr"
   VITE_CF_WORKER_URL = "https://sgu-well-api.fredrik-whitlock.workers.dev"
+  VITE_MAPILLARY_TOKEN = ""
 
 [[redirects]]
   from = "/*"

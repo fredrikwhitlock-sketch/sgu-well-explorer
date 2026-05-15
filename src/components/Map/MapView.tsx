@@ -11,7 +11,7 @@ import VectorSource from "ol/source/Vector";
 import GeoJSON from "ol/format/GeoJSON";
 import { register } from "ol/proj/proj4";
 import proj4 from "proj4";
-import { get as getProjection } from "ol/proj";
+import { get as getProjection, toLonLat } from "ol/proj";
 import { defaults as defaultControls } from "ol/control";
 import { Style, Circle, Fill, Stroke, RegularShape } from "ol/style";
 import Point from "ol/geom/Point";
@@ -1688,7 +1688,10 @@ export const MapView = () => {
       const hypoLayers = [hypoFyllnadSmaLayer, hypoFyllnadStoraLayer, hypoSitSmaLayer, hypoSitStoraLayer];
       map.forEachFeatureAtPixel(evt.pixel, (f, layer) => {
         if (layer === sourcesLayer || layer === wellsLayer || layer === aquifersLayer || layer === waterBodiesLayer || layer === gwLevelsObservedLayer || layer === gwQualityLayer || layer === soilTypesLayer || layer === observationsLayer || hypoLayers.includes(layer as any) || layer === jorddjupObsLayer || layer === jorddjupKartorLayer || layer === jorddjupSprickLayer) {
-          const properties = f.getProperties();
+          const geom = f.getGeometry();
+          const coords = geom?.getType() === 'Point' ? (geom as any).getCoordinates() : null;
+          const [_lon, _lat] = coords ? toLonLat(coords) : [undefined, undefined];
+          const properties = { ...f.getProperties(), ...(_lon != null ? { _lon, _lat } : {}) };
           let type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType' | 'gvTillgang' | 'observation' | 'hypoArea' | 'jorddjupObs' | 'jorddjupKartor' | 'jorddjupSprick' = 'source';
           if (layer === wellsLayer) type = 'well';
           else if (layer === aquifersLayer) type = 'aquifer';
