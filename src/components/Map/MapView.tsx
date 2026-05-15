@@ -508,8 +508,25 @@ export const MapView = () => {
       try {
         let geojsonFeatures: any[] = [];
 
-        // Try Supabase cache first — wrapped separately so a failure falls through to SGU API
-        if (import.meta.env.VITE_SUPABASE_URL) {
+        // Try Cloudflare Worker cache first, then Supabase, then SGU API
+        const cfWorkerUrl = import.meta.env.VITE_CF_WORKER_URL;
+        if (cfWorkerUrl && geojsonFeatures.length === 0) {
+          try {
+            const res = await fetch(`${cfWorkerUrl}/wells?minLon=${minLon}&maxLon=${maxLon}&minLat=${minLat}&maxLat=${maxLat}&limit=50000`);
+            const data = res.ok ? await res.json() : null;
+            if (data?.wells?.length > 0) {
+              geojsonFeatures = data.wells.map((w: any) => ({
+                type: "Feature",
+                geometry: { type: "Point", coordinates: [w.lon, w.lat] },
+                properties: { ...w.properties, brunnsid: w.brunnsid, obsplatsid: w.obsplatsid },
+              }));
+            }
+          } catch {
+            // Worker unavailable — fall through
+          }
+        }
+
+        if (geojsonFeatures.length === 0 && import.meta.env.VITE_SUPABASE_URL) {
           try {
             const wellsQueryUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wells-query?minLon=${minLon}&maxLon=${maxLon}&minLat=${minLat}&maxLat=${maxLat}&limit=50000`;
             const cacheResponse = await fetch(wellsQueryUrl);

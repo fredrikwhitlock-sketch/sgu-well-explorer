@@ -1,0 +1,9 @@
+name = "sgu-well-api"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+account_id = "2c112dc47c20ff18d098a01b4c9a072b"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "sgu-well-cache"
+database_id = "9608fbfc-fdc0-4282-b895-aacd93e4511a"

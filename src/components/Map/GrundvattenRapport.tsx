@@ -535,25 +535,35 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
         }
       }
 
-      // Supabase nivaer when cache has stations; otherwise fall back to SGU API
-      const nivaerFetch = useSbStationer
-        ? supabase
+      // Try Cloudflare Worker, then Supabase, then SGU API for nivaer
+      const stationIds = useSbStationer ? sbStationer!.map(s => s.platsbeteckning) : [];
+      const cfWorkerUrl = import.meta.env.VITE_CF_WORKER_URL;
+      const nivaerFetch: Promise<any> = (async () => {
+        if (useSbStationer && stationIds.length > 0) {
+          if (cfWorkerUrl) {
+            try {
+              const res = await fetch(`${cfWorkerUrl}/obs-nivaer?ids=${stationIds.join(',')}&from=${nivaerLoDate}&to=${nivaerHiDate}`);
+              if (res.ok) {
+                const d = await res.json();
+                if (d?.nivaer?.length > 0) {
+                  return { features: d.nivaer.map((r: any) => ({ properties: { platsbeteckning: r.platsbeteckning, obsdatum: r.obsdatum, grundvattenniva_m_u_markyta: r.nivaer_m } })) };
+                }
+              }
+            } catch { /* fall through */ }
+          }
+          const { data } = await supabase
             .from('obs_nivaer')
             .select('platsbeteckning, obsdatum, nivaer_m')
-            .in('platsbeteckning', sbStationer!.map(s => s.platsbeteckning))
+            .in('platsbeteckning', stationIds)
             .gte('obsdatum', nivaerLoDate)
             .lte('obsdatum', nivaerHiDate)
-            .limit(500)
-            .then(({ data }) => ({
-              features: (data ?? []).map(r => ({
-                properties: {
-                  platsbeteckning: r.platsbeteckning,
-                  obsdatum: r.obsdatum,
-                  grundvattenniva_m_u_markyta: r.nivaer_m,
-                },
-              })),
-            }))
-        : nivaerPromise ?? Promise.resolve(null);
+            .limit(500);
+          if (data && data.length > 0) {
+            return { features: data.map(r => ({ properties: { platsbeteckning: r.platsbeteckning, obsdatum: r.obsdatum, grundvattenniva_m_u_markyta: r.nivaer_m } })) };
+          }
+        }
+        return nivaerPromise ? await nivaerPromise : null;
+      })();
 
       const [nivaerData, brunnarData] = await Promise.all([nivaerFetch, brunnarChain]);
 

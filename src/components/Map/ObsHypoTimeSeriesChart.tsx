@@ -235,18 +235,13 @@ export const ObsHypoTimeSeriesChart = ({
 
     const ids = stationsToShow.map((s) => s.id).filter(Boolean);
 
-    // Try Supabase cache first; fall back to SGU API if no rows returned
+    // Try Cloudflare Worker, then Supabase, then SGU API
     const fetchNivaer = async (): Promise<Map<string, Array<{ ts: number; djup: number }>>> => {
       if (ids.length === 0) return new Map();
-      const { data: sbRows } = await supabase
-        .from('obs_nivaer')
-        .select('platsbeteckning, obsdatum, nivaer_m')
-        .in('platsbeteckning', ids)
-        .gte('obsdatum', fromStr)
-        .order('obsdatum');
-      if (sbRows && sbRows.length > 0) {
+
+      const parseRows = (rows: Array<{ platsbeteckning: string; obsdatum: string; nivaer_m: number | null }>) => {
         const out = new Map<string, Array<{ ts: number; djup: number }>>();
-        for (const r of sbRows) {
+        for (const r of rows) {
           if (r.nivaer_m == null) continue;
           const ts = new Date(r.obsdatum).getTime();
           if (!Number.isFinite(ts)) continue;
@@ -256,7 +251,27 @@ export const ObsHypoTimeSeriesChart = ({
         }
         for (const arr of out.values()) arr.sort((a, b) => a.ts - b.ts);
         return out;
+      };
+
+      const cfWorkerUrl = import.meta.env.VITE_CF_WORKER_URL;
+      if (cfWorkerUrl) {
+        try {
+          const res = await fetch(`${cfWorkerUrl}/obs-nivaer?ids=${ids.join(',')}&from=${fromStr}`);
+          if (res.ok) {
+            const d = await res.json();
+            if (d?.nivaer?.length > 0) return parseRows(d.nivaer);
+          }
+        } catch { /* fall through */ }
       }
+
+      const { data: sbRows } = await supabase
+        .from('obs_nivaer')
+        .select('platsbeteckning, obsdatum, nivaer_m')
+        .in('platsbeteckning', ids)
+        .gte('obsdatum', fromStr)
+        .order('obsdatum');
+      if (sbRows && sbRows.length > 0) return parseRows(sbRows as any);
+
       return fetchNivaerForStations(ids, fromStr, ctrl.signal);
     };
 
