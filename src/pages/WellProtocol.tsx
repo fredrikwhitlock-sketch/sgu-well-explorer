@@ -72,27 +72,15 @@ const WellProtocol = () => {
         if (!feature) throw new Error("Brunnen hittades inte i svaret");
         setWell(feature.properties);
 
-        // Try Cloudflare Worker, then Supabase, then SGU API
+        // Try Supabase first, then SGU API
         let lagerLoaded = false;
-        const cfWorkerUrl = import.meta.env.VITE_CF_WORKER_URL;
-        if (cfWorkerUrl) {
-          try {
-            const res = await fetch(`${cfWorkerUrl}/well-lager?obsplatsid=${encodeURIComponent(obsplatsid)}`);
-            if (res.ok) {
-              const d = await res.json();
-              if (d?.lager?.length > 0) { setLager(d.lager as LagerData[]); lagerLoaded = true; }
-            }
-          } catch { /* fall through */ }
-        }
-        if (!lagerLoaded) {
-          const { data: sbLager } = await supabase
-            .from("well_lager")
-            .select("lagernr, djup_fran, djup_till, jordart_bergart, lageranmarkning")
-            .eq("obsplatsid", obsplatsid)
-            .order("lagernr");
-          if (sbLager && sbLager.length > 0) {
-            setLager(sbLager as LagerData[]); lagerLoaded = true;
-          }
+        const { data: sbLager } = await supabase
+          .from("well_lager")
+          .select("lagernr, djup_fran, djup_till, jordart_bergart, lageranmarkning")
+          .eq("obsplatsid", obsplatsid)
+          .order("lagernr");
+        if (sbLager && sbLager.length > 0) {
+          setLager(sbLager as LagerData[]); lagerLoaded = true;
         }
         if (!lagerLoaded) {
           const lagerRes = await fetch(
