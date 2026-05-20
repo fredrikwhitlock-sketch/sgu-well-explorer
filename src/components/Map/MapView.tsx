@@ -61,7 +61,7 @@ export const MapView = () => {
   const [soilTypesVisible, setSoilTypesVisible] = useState(false);
   const [soilTypesOpacity, setSoilTypesOpacity] = useState(0.7);
   // Lantmäteriet WMS layers
-  const [osmVisible, setOsmVisible] = useState(false);
+  const [osmVisible, setOsmVisible] = useState(true);
   const [topoWebbVisible, setTopoWebbVisible] = useState(true);
   const [ortofotoVisible, setOrtofotoVisible] = useState(false);
   const [terrangskuggningVisible, setTerrangskuggningVisible] = useState(false);
@@ -1886,13 +1886,6 @@ export const MapView = () => {
     osmLayerRef.current?.setVisible(osmVisible);
   }, [osmVisible]);
 
-  // When all base maps are off, fall back to showing OSM
-  useEffect(() => {
-    if (!topoWebbVisible && !ortofotoVisible && !osmVisible) {
-      setOsmVisible(true);
-    }
-  }, [topoWebbVisible, ortofotoVisible, osmVisible]);
-
   useEffect(() => {
     if (sourcesLayerRef.current) {
       sourcesLayerRef.current.setVisible(sourcesVisible);
@@ -2456,9 +2449,9 @@ export const MapView = () => {
         onGwQualityVisibleChange={setGwQualityVisible}
         onObservationsVisibleChange={setObservationsVisible}
         osmVisible={osmVisible}
-        onOsmVisibleChange={(v) => { setOsmVisible(v); if (v) { setTopoWebbVisible(false); setOrtofotoVisible(false); } }}
-        onTopoWebbVisibleChange={(v) => { setTopoWebbVisible(v); if (v) { setOsmVisible(false); setOrtofotoVisible(false); } }}
-        onOrtofotoVisibleChange={(v) => { setOrtofotoVisible(v); if (v) { setOsmVisible(false); setTopoWebbVisible(false); } }}
+        onOsmVisibleChange={setOsmVisible}
+        onTopoWebbVisibleChange={setTopoWebbVisible}
+        onOrtofotoVisibleChange={setOrtofotoVisible}
         onTerrangskuggningVisibleChange={setTerrangskuggningVisible}
         onTerrangskuggningOpacityChange={setTerrangskuggningOpacity}
         onSguBerggrund1MVisibleChange={setSguBerggrund1MVisible}
