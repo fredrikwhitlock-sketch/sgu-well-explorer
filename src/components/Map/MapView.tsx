@@ -1886,6 +1886,13 @@ export const MapView = () => {
     osmLayerRef.current?.setVisible(osmVisible);
   }, [osmVisible]);
 
+  // When all base maps are off, fall back to showing OSM
+  useEffect(() => {
+    if (!topoWebbVisible && !ortofotoVisible && !osmVisible) {
+      setOsmVisible(true);
+    }
+  }, [topoWebbVisible, ortofotoVisible, osmVisible]);
+
   useEffect(() => {
     if (sourcesLayerRef.current) {
       sourcesLayerRef.current.setVisible(sourcesVisible);
@@ -2449,9 +2456,9 @@ export const MapView = () => {
         onGwQualityVisibleChange={setGwQualityVisible}
         onObservationsVisibleChange={setObservationsVisible}
         osmVisible={osmVisible}
-        onOsmVisibleChange={setOsmVisible}
-        onTopoWebbVisibleChange={setTopoWebbVisible}
-        onOrtofotoVisibleChange={setOrtofotoVisible}
+        onOsmVisibleChange={(v) => { setOsmVisible(v); if (v) { setTopoWebbVisible(false); setOrtofotoVisible(false); } }}
+        onTopoWebbVisibleChange={(v) => { setTopoWebbVisible(v); if (v) { setOsmVisible(false); setOrtofotoVisible(false); } }}
+        onOrtofotoVisibleChange={(v) => { setOrtofotoVisible(v); if (v) { setOsmVisible(false); setTopoWebbVisible(false); } }}
         onTerrangskuggningVisibleChange={setTerrangskuggningVisible}
         onTerrangskuggningOpacityChange={setTerrangskuggningOpacity}
         onSguBerggrund1MVisibleChange={setSguBerggrund1MVisible}
