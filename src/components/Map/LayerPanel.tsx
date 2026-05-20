@@ -18,6 +18,9 @@ interface LayerPanelProps {
   gwLevelsObservedVisible: boolean;
   gwQualityVisible: boolean;
   observationsVisible: boolean;
+  // Base layers
+  osmVisible: boolean;
+  onOsmVisibleChange: (v: boolean) => void;
   // Lantmäteriet WMS layers
   topoWebbVisible: boolean;
   ortofotoVisible: boolean;
@@ -143,6 +146,8 @@ export const LayerPanel = ({
   gwLevelsObservedVisible,
   gwQualityVisible,
   observationsVisible,
+  osmVisible,
+  onOsmVisibleChange,
   topoWebbVisible,
   ortofotoVisible,
   terrangskuggningVisible,
@@ -978,8 +983,32 @@ export const LayerPanel = ({
           </div>
         </div>
 
-        {/* Lantmäteriet WMS Section Header */}
+        {/* Base maps Section Header */}
         <div className="pt-4 border-t-2 border-primary/30">
+          <h4 className="text-sm font-semibold text-primary mb-3">Bakgrundskartor</h4>
+        </div>
+
+        {/* OpenStreetMap Layer Control */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label htmlFor="osm-layer" className="text-sm font-medium">
+                OpenStreetMap
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Öppen bakgrundskarta
+              </p>
+            </div>
+            <Switch
+              id="osm-layer"
+              checked={osmVisible}
+              onCheckedChange={onOsmVisibleChange}
+            />
+          </div>
+        </div>
+
+        {/* Lantmäteriet WMS Section Header */}
+        <div className="pt-2">
           <h4 className="text-sm font-semibold text-primary mb-3">Lantmäteriet bakgrundskartor</h4>
         </div>
 
