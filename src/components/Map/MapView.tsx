@@ -61,6 +61,7 @@ export const MapView = () => {
   const [soilTypesVisible, setSoilTypesVisible] = useState(false);
   const [soilTypesOpacity, setSoilTypesOpacity] = useState(0.7);
   // Lantmäteriet WMS layers
+  const [osmVisible, setOsmVisible] = useState(false);
   const [topoWebbVisible, setTopoWebbVisible] = useState(true);
   const [ortofotoVisible, setOrtofotoVisible] = useState(false);
   const [terrangskuggningVisible, setTerrangskuggningVisible] = useState(false);
@@ -165,6 +166,7 @@ export const MapView = () => {
   const hypoSitStoraLayerRef = useRef<VectorImageLayer<VectorSource> | null>(null);
   const fetchAndJoinHypoLevelsRef = useRef<((date: string) => Promise<void>) | null>(null);
   const hypoAreasDateRef = useRef((() => { const d = new Date(); d.setDate(d.getDate() - ((d.getDay() + 7) % 7)); return d.toISOString().split('T')[0]; })());
+  const osmLayerRef = useRef<TileLayer<OSM> | null>(null);
   // Lantmäteriet WMS layer refs
   const topoWebbLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
   const ortofotoLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
@@ -198,7 +200,9 @@ export const MapView = () => {
     // OSM base layer
     const osmLayer = new TileLayer({
       source: new OSM(),
+      visible: osmVisible,
     });
+    osmLayerRef.current = osmLayer;
 
     // Lantmäteriet WMS layers (inserted below OSM, above vector layers)
     const topoWebbLayer = new ImageLayer({
@@ -1879,6 +1883,10 @@ export const MapView = () => {
 
   // Update Sources visibility and load data when enabled
   useEffect(() => {
+    osmLayerRef.current?.setVisible(osmVisible);
+  }, [osmVisible]);
+
+  useEffect(() => {
     if (sourcesLayerRef.current) {
       sourcesLayerRef.current.setVisible(sourcesVisible);
       if (sourcesVisible && mapInstanceRef.current && loadSourcesForExtentRef.current) {
@@ -2440,6 +2448,8 @@ export const MapView = () => {
         onGwLevelsObservedVisibleChange={setGwLevelsObservedVisible}
         onGwQualityVisibleChange={setGwQualityVisible}
         onObservationsVisibleChange={setObservationsVisible}
+        osmVisible={osmVisible}
+        onOsmVisibleChange={setOsmVisible}
         onTopoWebbVisibleChange={setTopoWebbVisible}
         onOrtofotoVisibleChange={setOrtofotoVisible}
         onTerrangskuggningVisibleChange={setTerrangskuggningVisible}
