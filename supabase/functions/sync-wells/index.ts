@@ -50,13 +50,45 @@ Deno.serve(async (req) => {
 
       const rows = features
         .filter((f: any) => f.geometry?.coordinates && f.properties?.brunnsid)
-        .map((f: any) => ({
-          brunnsid: String(f.properties.brunnsid),
-          obsplatsid: f.properties.obsplatsid ? String(f.properties.obsplatsid) : null,
-          properties: f.properties,
-          lon: f.geometry.coordinates[0],
-          lat: f.geometry.coordinates[1],
-        }));
+        .map((f: any) => {
+          const p = f.properties;
+          // Store only the properties actually used by the app (~25 fields)
+          // to keep storage well under 500 MB for all ~820k wells.
+          const slim = {
+            brunnsid:              p.brunnsid,
+            obsplatsid:            p.obsplatsid ?? null,
+            ort:                   p.ort ?? null,
+            kommunnamn:            p.kommunnamn ?? null,
+            fastighet:             p.fastighet ?? null,
+            borrdatum:             p.borrdatum ?? null,
+            totaldjup:             p.totaldjup ?? null,
+            jorddjup:              p.jorddjup ?? null,
+            kapacitet:             p.kapacitet ?? null,
+            tecken_vattenmangd:    p.tecken_vattenmangd ?? null,
+            grundvattenniva:       p.grundvattenniva ?? null,
+            tecken_niva:           p.tecken_niva ?? null,
+            nivadatum:             p.nivadatum ?? null,
+            bottendiam:            p.bottendiam ?? null,
+            anvandning:            p.anvandning ?? null,
+            anvandning_kod:        p.anvandning_kod ?? null,
+            allman_anmarkning:     p.allman_anmarkning ?? null,
+            grundvattenanmarkning: p.grundvattenanmarkning ?? null,
+            posvardering:          p.posvardering ?? null,
+            tatning_kod:           p.tatning_kod ?? null,
+            rorborrning_till:      p.rorborrning_till ?? null,
+            stalror_till:          p.stalror_till ?? null,
+            plastror_till:         p.plastror_till ?? null,
+            gradborrning:          p.gradborrning ?? null,
+            lage_specifikt:        p.lage_specifikt ?? null,
+          };
+          return {
+            brunnsid:  String(p.brunnsid),
+            obsplatsid: p.obsplatsid ? String(p.obsplatsid) : null,
+            properties: slim,
+            lon: f.geometry.coordinates[0],
+            lat: f.geometry.coordinates[1],
+          };
+        });
 
       if (rows.length > 0) {
         const CHUNK_SIZE = 500;
