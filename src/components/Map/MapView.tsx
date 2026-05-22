@@ -183,6 +183,7 @@ export const MapView = () => {
   const geolocationLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const geolocationWatchRef = useRef<number | null>(null);
   const [isTracking, setIsTracking] = useState(false);
+  const searchPinSourceRef = useRef<VectorSource | null>(null);
   const rapportModeRef = useRef(false);
   const drawModeActiveRef = useRef(false);
   const drawInteractionRef = useRef<Draw | null>(null);
@@ -1557,6 +1558,32 @@ export const MapView = () => {
     });
     geolocationLayerRef.current = geolocationLayer;
 
+    // Search pin layer – temporary marker shown after an address search
+    const searchPinSource = new VectorSource();
+    searchPinSourceRef.current = searchPinSource;
+    const searchPinLayer = new VectorLayer({
+      source: searchPinSource,
+      style: [
+        // Outer pulsing ring
+        new Style({
+          image: new Circle({
+            radius: 18,
+            fill: new Fill({ color: 'rgba(239, 68, 68, 0.12)' }),
+            stroke: new Stroke({ color: 'rgba(239, 68, 68, 0.4)', width: 1.5 }),
+          }),
+        }),
+        // Inner filled dot
+        new Style({
+          image: new Circle({
+            radius: 8,
+            fill: new Fill({ color: 'rgba(239, 68, 68, 0.95)' }),
+            stroke: new Stroke({ color: '#ffffff', width: 2.5 }),
+          }),
+        }),
+      ],
+      zIndex: 10000,
+    });
+
     // Draw layer – polygon selection for data export
     const drawSource = new VectorSource();
     drawSourceRef.current = drawSource;
@@ -1605,6 +1632,7 @@ export const MapView = () => {
         sourcesLayer,
         drawLayer,
         geolocationLayer,
+        searchPinLayer,
       ],
       view: new View({
         center: proj4('EPSG:3006', 'EPSG:3857', [647927, 6638227]),
@@ -1661,6 +1689,9 @@ export const MapView = () => {
 
     // Handle feature clicks - collect all features at the same location
     map.on("click", async (evt) => {
+      // Clear search pin on any map click
+      searchPinSource.clear();
+
       // Suppress popup clicks while drawing a polygon
       if (drawModeActiveRef.current) return;
 
@@ -2216,6 +2247,13 @@ export const MapView = () => {
         zoom: zoom || 14,
         duration: 1000,
       });
+    }
+    // Place a temporary search pin at the result location
+    if (searchPinSourceRef.current) {
+      searchPinSourceRef.current.clear();
+      searchPinSourceRef.current.addFeature(
+        new Feature({ geometry: new Point(coordinates) })
+      );
     }
   };
 
