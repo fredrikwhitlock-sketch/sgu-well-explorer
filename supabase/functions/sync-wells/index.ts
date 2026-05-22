@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
 
     await supabase
       .from("sync_status")
-      .update({ status: "syncing", last_synced_at: new Date().toISOString() })
+      .update({ status: "syncing", started_at: new Date().toISOString() })
       .eq("id", "wells");
 
     const SGU_API_BASE =
@@ -94,9 +94,10 @@ Deno.serve(async (req) => {
         const CHUNK_SIZE = 500;
         for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
           const chunk = rows.slice(i, i + CHUNK_SIZE);
+          // ignoreDuplicates removed – existing wells get updated when SGU changes their data
           const { error } = await supabase
             .from("wells_cache")
-            .upsert(chunk, { onConflict: "brunnsid", ignoreDuplicates: true });
+            .upsert(chunk, { onConflict: "brunnsid" });
           if (error) console.error(`Upsert error:`, error);
           else totalInserted += chunk.length;
         }
@@ -123,7 +124,8 @@ Deno.serve(async (req) => {
       .update({
         status,
         total_records: count || 0,
-        last_synced_at: new Date().toISOString(),
+        // last_synced_at marks successful completion, not start
+        last_synced_at: hasMore ? undefined : new Date().toISOString(),
       })
       .eq("id", "wells");
 
