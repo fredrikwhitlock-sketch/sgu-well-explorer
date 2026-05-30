@@ -54,8 +54,12 @@ function SourceRow({ label, source, note, url }: {
 export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysisData, onOpenAI }: Props) => {
   const [selectedDate, setSelectedDate] = useState(() => {
     const d = new Date();
-    d.setDate(d.getDate() - ((d.getDay() + 7) % 7));
-    return d.toISOString().split('T')[0];
+    d.setDate(d.getDate() - d.getDay()); // most recent Sunday
+    // Use local-time parts to avoid UTC rollover near midnight
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
   });
   const [expandedObsStation, setExpandedObsStation] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -638,7 +642,8 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
           type="date"
           value={selectedDate}
           min="1961-01-01"
-          onChange={e => setSelectedDate(e.target.value)}
+          max={(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })()}
+          onChange={e => { if (e.target.value) setSelectedDate(e.target.value); }}
           className="flex-1 text-xs bg-background border border-border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-sgu-maroon"
         />
         <button
@@ -852,6 +857,21 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
             {/* ── GRUNDVATTENTILLGÅNG ── */}
             <div>
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Grundvattentillgång</h3>
+
+              {/* SGU-HYPE percentile series – always visible when area id is known */}
+              {data.hypeOmradeId != null && (
+                <div className="mb-3 bg-secondary/30 border border-border rounded-lg p-3">
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                    SGU-HYPE fyllnadsgrad (beräknat)
+                  </div>
+                  <ObsHypoTimeSeriesChart
+                    stations={[]}
+                    omradeId={data.hypeOmradeId}
+                    useStora={!!(effectiveAquifer?.useStoraMagasin)}
+                    years={2}
+                  />
+                </div>
+              )}
 
               {/* Observed groundwater level stations ±7 days */}
               {data.obsStationer && data.obsStationer.length > 0 ? (

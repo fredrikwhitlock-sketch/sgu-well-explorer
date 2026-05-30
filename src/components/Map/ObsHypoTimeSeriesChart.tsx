@@ -283,6 +283,9 @@ export const ObsHypoTimeSeriesChart = ({
   }
 
 
+  // HYPE-only mode: no observation stations provided or none have data
+  const hypoOnly = !hasAnyObs;
+
   // Compute Y-axis domain for observations, inverted (depth grows downward)
   const allDepths: number[] = [];
   for (const s of stationsToShow) {
@@ -296,8 +299,10 @@ export const ObsHypoTimeSeriesChart = ({
   return (
     <div>
       <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">
-        Grundvattennivå – senaste {years} åren
-        {hasHypo && (
+        {hypoOnly
+          ? `HYPE fyllnadsgrad – senaste ${years} åren`
+          : `Grundvattennivå – senaste ${years} åren`}
+        {!hypoOnly && hasHypo && (
           <span className="text-muted-foreground/70 normal-case font-normal">
             {" · "}HYPE-fyllnadsgrad (små/stora magasin) i bakgrunden
           </span>
@@ -305,7 +310,7 @@ export const ObsHypoTimeSeriesChart = ({
       </p>
       <div className="w-full h-56">
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={merged} margin={{ top: 8, right: 48, bottom: 4, left: -10 }}>
+          <ComposedChart data={merged} margin={{ top: 8, right: hypoOnly ? 16 : 48, bottom: 4, left: hypoOnly ? 16 : -10 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
             {hasHypo && (
               <ReferenceArea
@@ -324,35 +329,38 @@ export const ObsHypoTimeSeriesChart = ({
               tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
               scale="time"
             />
-            {/* Left axis: observed depth (inverted – low values = high water table on top) */}
-            <YAxis
-              yAxisId="obs"
-              orientation="left"
-              domain={[
-                Math.max(0, minDepth - pad),
-                maxDepth + pad,
-              ]}
-              reversed
-              tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-              tickFormatter={(v: number) => v.toFixed(1)}
-              label={{
-                value: "m u. markyta",
-                angle: -90,
-                position: "insideLeft",
-                style: { fontSize: 10, fill: "hsl(var(--muted-foreground))" },
-              }}
-            />
-            {/* Right axis: HYPE percentile 0–100 */}
+            {/* Left axis: observed depth – hidden in HYPE-only mode */}
+            {!hypoOnly && (
+              <YAxis
+                yAxisId="obs"
+                orientation="left"
+                domain={[Math.max(0, minDepth - pad), maxDepth + pad]}
+                reversed
+                tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                tickFormatter={(v: number) => v.toFixed(1)}
+                label={{
+                  value: "m u. markyta",
+                  angle: -90,
+                  position: "insideLeft",
+                  style: { fontSize: 10, fill: "hsl(var(--muted-foreground))" },
+                }}
+              />
+            )}
+            {/* In HYPE-only mode we still need a dummy obs axis so Line yAxisId="obs" renders */}
+            {hypoOnly && (
+              <YAxis yAxisId="obs" orientation="left" hide domain={[0, 1]} />
+            )}
+            {/* HYPE percentile axis – primary in HYPE-only mode */}
             {hasHypo && (
               <YAxis
                 yAxisId="hypo"
-                orientation="right"
+                orientation={hypoOnly ? "left" : "right"}
                 domain={[0, 100]}
                 tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
                 label={{
                   value: "percentil",
-                  angle: 90,
-                  position: "insideRight",
+                  angle: -90,
+                  position: "insideLeft",
                   style: { fontSize: 10, fill: "hsl(var(--muted-foreground))" },
                 }}
               />
