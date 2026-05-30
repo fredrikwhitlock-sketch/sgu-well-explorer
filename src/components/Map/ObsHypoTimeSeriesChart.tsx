@@ -36,99 +36,41 @@ interface Props {
 
 const PAGE_LIMIT = 1000;
 
-// ── HYPE startIndex navigation (server-side filters time out on 100M+ collection) ──
-
 const HYPE_LEVEL_BASE =
   "https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/grundvattennivaer-tidigare/items?f=json";
 
-// [startIndex, omrade_id] anchor points measured empirically
-const HYPE_ANCHORS: [number, number][] = [
-  [0,           82278],
-  [5_000_000,   83242],
-  [50_000_000,  90259],
-  [100_000_000, 98094],
-];
-
-function estimateHypeStartIdx(targetId: number): number {
-  for (let i = 0; i < HYPE_ANCHORS.length - 1; i++) {
-    const [aIdx, aId] = HYPE_ANCHORS[i];
-    const [bIdx, bId] = HYPE_ANCHORS[i + 1];
-    if (targetId >= aId && targetId <= bId)
-      return Math.round(aIdx + (bIdx - aIdx) * (targetId - aId) / (bId - aId));
-  }
-  if (targetId < HYPE_ANCHORS[0][1]) return 0;
-  const [aIdx, aId] = HYPE_ANCHORS[HYPE_ANCHORS.length - 2];
-  const [bIdx, bId] = HYPE_ANCHORS[HYPE_ANCHORS.length - 1];
-  return Math.max(0, Math.round(aIdx + (bIdx - aIdx) * (targetId - aId) / (bId - aId)));
-}
-
+// CQL2 filter + descending sort — returns most-recent records first in ~2s.
+// Large startIndex values (>~15M) time out on this 100M+ record collection.
 async function fetchHypeSeriesForArea(
   omradeId: number,
   years: number,
   signal: AbortSignal,
 ): Promise<Array<{ ts: number; fyllSma: number | null; fyllStora: number | null }>> {
-  const LIMIT = 1000;
+  const cutoff = Date.now() - years * 365.25 * 86_400_000;
+  const filter = encodeURIComponent(`omrade_id=${omradeId}`);
+  const needed = Math.ceil(years * 366);
+  const results: any[] = [];
 
-  const fetchAt = async (si: number): Promise<any[] | null> => {
-    if (signal.aborted) return null;
-    const r = await fetch(
-      `${HYPE_LEVEL_BASE}&startIndex=${Math.max(0, si)}&limit=${LIMIT}`,
-      { signal },
-    ).catch(() => null);
-    if (!r?.ok) return null;
-    return (await r.json().catch(() => null))?.features ?? null;
-  };
+  let url: string | null =
+    `${HYPE_LEVEL_BASE}&filter=${filter}&filter-lang=cql2-text&sortby=-datum&limit=1000`;
 
-  // Phase 1: anchor-based interpolation + local-density binary search
-  let lo = 0, hi = 150_000_000;
-  let estimate = estimateHypeStartIdx(omradeId);
-  let foundAt = -1, foundFeatures: any[] = [], foundFirstIdx = 0;
-
-  for (let attempt = 0; attempt < 8 && !signal.aborted; attempt++) {
-    const si = Math.max(lo, Math.min(estimate, Math.max(lo, hi - LIMIT)));
-    const features = await fetchAt(si);
-    if (!features || features.length === 0) {
-      hi = si; estimate = Math.round((lo + hi) / 2); continue;
+  while (url && results.length < needed && !signal.aborted) {
+    const r = await fetch(url, { signal }).catch(() => null);
+    if (!r?.ok) break;
+    const d = await r.json().catch(() => null);
+    const features: any[] = d?.features ?? [];
+    results.push(...features);
+    // Stop early once we've gone past the requested window
+    const oldest = features[features.length - 1];
+    if (oldest) {
+      const oldestTs = new Date(String(oldest.properties?.datum ?? "").slice(0, 10)).getTime();
+      if (oldestTs < cutoff) break;
     }
-    const ids = features.map((f: any) => f.properties?.omrade_id as number).filter(Boolean);
-    const minId = Math.min(...ids), maxId = Math.max(...ids);
-    if (ids.includes(omradeId)) {
-      foundAt = si; foundFeatures = features;
-      foundFirstIdx = features.findIndex((f: any) => f.properties?.omrade_id === omradeId);
-      break;
-    }
-    const idRange = Math.max(maxId - minId, 1);
-    if (omradeId < minId) {
-      hi = si;
-      estimate = idRange > 5
-        ? Math.max(lo, si - Math.round((minId - omradeId) * LIMIT / idRange) - LIMIT)
-        : Math.round((lo + hi) / 2);
-    } else {
-      lo = si + LIMIT;
-      estimate = idRange > 5
-        ? Math.min(hi, si + Math.round((omradeId - maxId) * LIMIT / idRange) + LIMIT)
-        : Math.round((lo + hi) / 2);
-    }
+    const next = (d?.links ?? []).find((l: any) => l.rel === "next");
+    url = next?.href ?? null;
   }
 
-  if (foundAt < 0) return [];
-
-  // Phase 2: jump to the start of the requested window, then fetch enough pages
-  const firstDatum = String(foundFeatures[foundFirstIdx]?.properties?.datum ?? "").slice(0, 10);
-  const fromDate = new Date(Date.now() - (years * 365 + 200) * 86_400_000).toISOString().slice(0, 10);
-  const daysOffset = Math.round(
-    (new Date(fromDate).getTime() - new Date(firstDatum).getTime()) / 86_400_000,
-  );
-  const startSi = foundAt + foundFirstIdx + daysOffset;
-  const numPages = Math.ceil((years * 365 + 200) / LIMIT);
-  const pages = await Promise.all(
-    Array.from({ length: numPages }, (_, i) => fetchAt(Math.max(0, startSi + i * LIMIT))),
-  );
-
-  const cutoff = Date.now() - years * 365.25 * 86_400_000;
-  return pages
-    .flatMap(p => p ?? [])
-    .filter((f: any) => f.properties?.omrade_id === omradeId)
+  return results
     .map((f: any) => {
       const p = f.properties ?? {};
       const ts = new Date(String(p.datum ?? "").slice(0, 10)).getTime();
