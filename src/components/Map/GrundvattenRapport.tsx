@@ -227,7 +227,10 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
   }, [coordinate, wmsProxyUrl, selectedDate]);
 
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    fetchData();
+    return () => { abortRef.current?.abort(); };
+  }, [fetchData]);
 
   // ── Derived interpretation ─────────────────────────────────────────────────
   const isWaterPoint = data?.jordartKod === '91';

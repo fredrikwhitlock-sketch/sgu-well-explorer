@@ -4,6 +4,12 @@ import { getSoilTypeColor } from "./soilTypeColors";
 import { classifyAquifer, classifyByJg2, aquiferToBedgrKat } from "./aquifer";
 import { GV_BEDGR, classifyParam, getSeason, mannKendall, analyzeSeasonality } from "./grundvattenKemi";
 
+// Register SWEREF99 TM (EPSG:3006) here so this module is self-contained.
+// MapView.tsx also registers it, but we cannot rely on module loading order.
+if (!proj4.defs("EPSG:3006")) {
+  proj4.defs("EPSG:3006", "+proj=utm +zone=33 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs");
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface BrunnInfo {
@@ -311,7 +317,7 @@ export async function fetchGrundvattenData(
     if (useSbStationer && stationIds.length > 0) {
       if (cfWorkerUrl) {
         try {
-          const res = await fetch(`${cfWorkerUrl}/obs-nivaer?ids=${stationIds.join(',')}&from=${nivaerLoDate}&to=${nivaerHiDate}`);
+          const res = await fetchWithTimeout(`${cfWorkerUrl}/obs-nivaer?ids=${stationIds.join(',')}&from=${nivaerLoDate}&to=${nivaerHiDate}`, 8_000, signal);
           if (res.ok) {
             const d = await res.json();
             if (d?.nivaer?.length > 0) {
