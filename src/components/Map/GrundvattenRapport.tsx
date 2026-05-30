@@ -573,6 +573,7 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
         {chartPopup.kind === 'obs' && (
           <ObsHypoTimeSeriesChart
             stations={[{ id: chartPopup.stationId, namn: chartPopup.namn, distKm: chartPopup.distKm }]}
+            omradeId={data?.hypeOmradeId}
             useStora={!!(effectiveAquifer?.useStoraMagasin)}
             years={5}
             maxStations={1}
@@ -895,6 +896,7 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
                               </div>
                               <ObsHypoTimeSeriesChart
                                 stations={[{ id: st.id, namn: st.namn, distKm: st.distKm }]}
+                                omradeId={data?.hypeOmradeId}
                                 useStora={!!(effectiveAquifer?.useStoraMagasin)}
                                 years={2}
                                 maxStations={1}

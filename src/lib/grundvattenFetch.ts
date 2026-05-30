@@ -85,6 +85,7 @@ export interface ReportData {
     };
   }>;
   gvForekomstId?: string;
+  hypeOmradeId?: number;
   obsFeatures?: Array<{ djup: number; jordart?: string; aquiferGroup?: 'rock' | 'jord'; aquiferSize?: 'large' | 'small' }>;
   obsStationer?: Array<{ id: string; lon?: number; lat?: number; namn: string; djup: number; obsdatum: string; distKm: number; aquiferGroup?: 'rock' | 'jord'; jordart?: string }>;
   delomrade?: {
@@ -263,6 +264,7 @@ export async function fetchGrundvattenData(
   const geokemiAesBboxUrl = `${geokemiBase}/moran_0063mm_ar_icpaes/items?f=json&${geokemiBbox}`;
   const gvKemiProvBboxUrl = `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/provplatser/items?f=json&bbox=${lon - 0.6},${lat - 0.45},${lon + 0.6},${lat + 0.45}&limit=100`;
   const gvForekomstUrl = `https://api.sgu.se/oppnadata/grundvattenforekomster/ogc/features/v1/collections/grundvattenforekomster/items?f=json&filter=S_INTERSECTS(geom,POINT(${lon}%20${lat}))%20AND%20ms_cd%20LIKE%20'WA%25'&filter-lang=cql2-text&limit=1`;
+  const hypeOmradeUrl = `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/omraden/items?f=json&filter=${encodeURIComponent(`S_INTERSECTS(geom,POINT(${lon} ${lat}))`)}&filter-lang=cql2-text&limit=1`;
 
   const allResults = await Promise.allSettled([
     fetchWithTimeout(gvTillgangUrl, 10_000, signal),
@@ -279,8 +281,9 @@ export async function fetchGrundvattenData(
     fetch(geokemiMsBboxUrl, { signal }),
     fetch(gvKemiProvBboxUrl, { signal }),
     fetch(gvForekomstUrl, { signal }),
+    fetch(hypeOmradeUrl, { signal }),
   ]);
-  const [gvTillgangRes, jordartCql2Res, jordartBboxRes, forekomstRes, delomradeRes, jorddjupRes, , elevationRes, ytlagerRes, overstaRes, geokemiAesRes, geokemiMsRes, gvKemiProvRes, gvForekomstRes] = allResults;
+  const [gvTillgangRes, jordartCql2Res, jordartBboxRes, forekomstRes, delomradeRes, jorddjupRes, , elevationRes, ytlagerRes, overstaRes, geokemiAesRes, geokemiMsRes, gvKemiProvRes, gvForekomstRes, hypeOmradeRes] = allResults;
 
   if (signal.aborted) throw new DOMException('aborted', 'AbortError');
 
@@ -480,6 +483,15 @@ export async function fetchGrundvattenData(
       const ed = await elevationRes.value.json();
       const elev = ed.results?.[0]?.elevation;
       if (typeof elev === 'number') result.elevation = Math.round(elev);
+    } catch { /* ignore */ }
+  }
+
+  // HYPE avrinningsområde – omrade_id used by ObsHypoTimeSeriesChart for background percentile series
+  if (hypeOmradeRes.status === 'fulfilled' && hypeOmradeRes.value.ok) {
+    try {
+      const d = await hypeOmradeRes.value.json();
+      const id = d.features?.[0]?.properties?.omrade_id;
+      if (typeof id === 'number') result.hypeOmradeId = id;
     } catch { /* ignore */ }
   }
 
