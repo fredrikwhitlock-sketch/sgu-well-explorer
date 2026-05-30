@@ -122,6 +122,7 @@ function relativeTime(iso: string | null) {
 export default function SyncDashboard() {
   const [rows, setRows] = useState<Record<string, SyncRow>>({});
   const [busy, setBusy] = useState<Set<string>>(new Set());
+  const [pendingSync, setPendingSync] = useState<Set<string>>(new Set());
 
   /* Initial fetch + Realtime subscription */
   useEffect(() => {
@@ -154,6 +155,7 @@ export default function SyncDashboard() {
   const handleSync = async (src: typeof SOURCES[number]) => {
     if (!src.edgeFunction) return;
     setBusy((prev) => new Set(prev).add(src.id));
+    setPendingSync((prev) => new Set(prev).add(src.id));
     try {
       await triggerEdgeFunction(src.edgeFunction);
       toast.success(`Synk startad: ${src.label}`);
@@ -161,6 +163,7 @@ export default function SyncDashboard() {
       toast.error(`Kunde inte starta synk: ${src.label}`);
     } finally {
       setBusy((prev) => { const s = new Set(prev); s.delete(src.id); return s; });
+      setPendingSync((prev) => { const s = new Set(prev); s.delete(src.id); return s; });
     }
   };
 
@@ -171,9 +174,9 @@ export default function SyncDashboard() {
     syncable.forEach((s) => handleSync(s));
   };
 
-  const anyActive = Object.values(rows).some(
-    (r) => r.status === "syncing" || r.status === "partial"
-  );
+  const anyActive =
+    pendingSync.size > 0 ||
+    Object.values(rows).some((r) => r.status === "syncing" || r.status === "partial");
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
