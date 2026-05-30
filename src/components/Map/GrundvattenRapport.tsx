@@ -49,6 +49,15 @@ function SourceRow({ label, source, note, url }: {
   );
 }
 
+// HYPE fyllnadsgrad → Swedish situation label + color (percentile 0–100, 25–75 = normalt)
+function hypePercentileInfo(p: number): { label: string; color: string } {
+  if (p < 10)  return { label: 'Mycket under det normala', color: '#b91c1c' };
+  if (p < 25)  return { label: 'Under det normala',        color: '#ea580c' };
+  if (p <= 75) return { label: 'Normalt läge',             color: '#16a34a' };
+  if (p <= 90) return { label: 'Över det normala',         color: '#0284c7' };
+  return { label: 'Mycket över det normala', color: '#1d4ed8' };
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysisData, onOpenAI }: Props) => {
@@ -150,6 +159,14 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
       data.obsStationer.slice(0, 5).forEach(st => {
         lines.push(`  - ${st.namn} (${st.distKm.toFixed(1)} km) – ${st.djup.toFixed(1)} m u. markyta, ${st.obsdatum.slice(0, 10)}`);
       });
+    }
+
+    if (data.hypeFyllnad && (data.hypeFyllnad.sma != null || data.hypeFyllnad.stora != null)) {
+      const h = data.hypeFyllnad;
+      const parts: string[] = [];
+      if (h.sma != null) parts.push(`små magasin ${h.sma}:e percentilen`);
+      if (h.stora != null) parts.push(`stora magasin ${h.stora}:e percentilen`);
+      lines.push(`- **SGU-HYPE fyllnadsgrad (modellerat, ${h.datum}):** ${parts.join(', ')} (percentil 0–100 jämfört med 1961–idag; 25–75 = normalt)`);
     }
 
     if (data.jorddjup) {
@@ -457,6 +474,15 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
       if (jorddjupCapInfo) html += `<p class="note" style="color:#c2410c">${jorddjupCapInfo.likelyBedrock ? `Jorddjup (${jorddjupCapInfo.soilDepth.toFixed(1)} m) grundare än uppskattning – grundvatten troligen i berg` : `Övre gräns når nära jorddjup (${jorddjupCapInfo.soilDepth.toFixed(1)} m)`}</p>`;
     }
 
+    // SGU-HYPE fyllnadsgrad (modellerat)
+    if (data.hypeFyllnad && (data.hypeFyllnad.sma != null || data.hypeFyllnad.stora != null)) {
+      const h = data.hypeFyllnad;
+      html += `<h2>SGU-HYPE fyllnadsgrad (modellerat)</h2>`;
+      if (h.sma != null) html += `<div class="row"><span class="lbl">Små magasin</span><span class="val">${h.sma}:e percentilen</span></div>`;
+      if (h.stora != null) html += `<div class="row"><span class="lbl">Stora magasin</span><span class="val">${h.stora}:e percentilen</span></div>`;
+      html += `<p class="note">Percentil 0–100 mot referensperiod 1961–idag (25–75 = normalt läge). Modellerat datum: ${e(h.datum)}</p>`;
+    }
+
     // Capacity
     if (medianBergKapacitet != null || medianJordKapacitet != null || data.gvTillgangLdha != null) {
       html += `<h2>Kapacitet</h2>`;
@@ -545,6 +571,9 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
         jordartNamn: data.jordartNamn, jordartKod: data.jordartKod, jordartKalla: data.jordartKalla,
         jorddjup: data.jorddjup?.djup,
         aquiferLabel: aquifer && aquifer.type !== 'unknown' ? aquifer.label : undefined,
+        hypoDate: data.hypeFyllnad?.datum,
+        fyllnadsgradSma: data.hypeFyllnad?.sma ?? null,
+        fyllnadsgradStora: data.hypeFyllnad?.stora ?? null,
         gvTillgangLdha: data.gvTillgangLdha,
         depthLo: calibratedDepth?.lo,
         depthHi: calibratedDepth?.hi,
@@ -864,6 +893,50 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
                   <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-2">
                     SGU-HYPE fyllnadsgrad (beräknat)
                   </div>
+
+                  {/* Quick value – latest modelled fyllnadsgrad for small/large magazines */}
+                  {data.hypeFyllnad && (data.hypeFyllnad.sma != null || data.hypeFyllnad.stora != null) && (() => {
+                    const relevantStora = !!(effectiveAquifer?.useStoraMagasin);
+                    const cards: Array<{ key: 'sma' | 'stora'; label: string; value: number | null }> = [
+                      { key: 'sma',   label: 'Små magasin',  value: data.hypeFyllnad!.sma },
+                      { key: 'stora', label: 'Stora magasin', value: data.hypeFyllnad!.stora },
+                    ];
+                    return (
+                      <div className="mb-3">
+                        <div className="grid grid-cols-2 gap-2">
+                          {cards.map(c => {
+                            const isRelevant = (c.key === 'stora') === relevantStora;
+                            const info = c.value != null ? hypePercentileInfo(c.value) : null;
+                            return (
+                              <div
+                                key={c.key}
+                                className={`rounded-lg border p-2 ${isRelevant ? 'border-sgu-maroon/60 ring-1 ring-sgu-maroon/30 bg-background' : 'border-border bg-background/40'}`}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[10px] font-medium text-muted-foreground">{c.label}</span>
+                                  {isRelevant && <span className="text-[9px] font-semibold text-sgu-maroon uppercase">Akvifer här</span>}
+                                </div>
+                                {c.value != null ? (
+                                  <>
+                                    <div className="text-lg font-bold leading-tight" style={{ color: info!.color }}>
+                                      {c.value}<span className="text-xs font-medium text-muted-foreground"> perc.</span>
+                                    </div>
+                                    <div className="text-[10px] leading-tight" style={{ color: info!.color }}>{info!.label}</div>
+                                  </>
+                                ) : (
+                                  <div className="text-sm text-muted-foreground mt-1">Saknas här</div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="text-[10px] text-muted-foreground mt-1">
+                          Modellerat {data.hypeFyllnad!.datum} · percentil 0–100 mot 1961–idag (25–75 = normalt)
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                   <ObsHypoTimeSeriesChart
                     stations={[]}
                     omradeId={data.hypeOmradeId}

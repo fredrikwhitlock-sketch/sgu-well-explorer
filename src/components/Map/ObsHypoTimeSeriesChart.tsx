@@ -311,7 +311,7 @@ export const ObsHypoTimeSeriesChart = ({
           </span>
         )}
       </p>
-      <div className="w-full h-56">
+      <div className="w-full h-44 sm:h-56">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={merged} margin={{ top: 8, right: hypoOnly ? 16 : 48, bottom: 4, left: hypoOnly ? 16 : -10 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
