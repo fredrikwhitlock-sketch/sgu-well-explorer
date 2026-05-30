@@ -30,6 +30,7 @@ Deno.serve(async (req) => {
       "https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar/items";
     const BATCH_SIZE = 1000;
     let totalInserted = 0;
+    let failedChunks = 0;
     let currentIndex = startIndex;
     let hasMore = true;
 
@@ -91,14 +92,19 @@ Deno.serve(async (req) => {
         });
 
       if (rows.length > 0) {
+        // Deduplicate within the page – SGU occasionally returns duplicate brunnsid
+        // in a single response; ON CONFLICT DO UPDATE aborts if the same PK appears twice.
+        const seen = new Map<string, typeof rows[0]>();
+        for (const r of rows) seen.set(r.brunnsid, r);
+        const deduped = Array.from(seen.values());
+
         const CHUNK_SIZE = 500;
-        for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
-          const chunk = rows.slice(i, i + CHUNK_SIZE);
-          // ignoreDuplicates removed – existing wells get updated when SGU changes their data
+        for (let i = 0; i < deduped.length; i += CHUNK_SIZE) {
+          const chunk = deduped.slice(i, i + CHUNK_SIZE);
           const { error } = await supabase
             .from("wells_cache")
             .upsert(chunk, { onConflict: "brunnsid" });
-          if (error) console.error(`Upsert error:`, error);
+          if (error) { console.error(`Upsert error:`, error); failedChunks++; }
           else totalInserted += chunk.length;
         }
       }
@@ -118,7 +124,7 @@ Deno.serve(async (req) => {
       .from("wells_cache")
       .select("*", { count: "exact", head: true });
 
-    const status = hasMore ? "partial" : "complete";
+    const status = failedChunks > 0 ? "error" : hasMore ? "partial" : "complete";
     await supabase
       .from("sync_status")
       .update({
