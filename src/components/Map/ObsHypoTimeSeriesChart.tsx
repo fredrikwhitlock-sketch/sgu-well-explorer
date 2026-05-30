@@ -39,35 +39,38 @@ const PAGE_LIMIT = 1000;
 const HYPE_LEVEL_BASE =
   "https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/grundvattennivaer-tidigare/items?f=json";
 
-// CQL2 filter + descending sort — returns most-recent records first in ~2s.
-// Large startIndex values (>~15M) time out on this 100M+ record collection.
+const ymd = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+// A *bounded* datum range + omrade_id lets the API use its datum index and
+// returns the full daily series in <1s. An open-ended omrade_id filter (or
+// sortby=-datum, which the API silently ignores and returns 1968 first) times
+// out or yields wrong data on this 100M+ record collection.
 async function fetchHypeSeriesForArea(
   omradeId: number,
   years: number,
   signal: AbortSignal,
 ): Promise<Array<{ ts: number; fyllSma: number | null; fyllStora: number | null }>> {
-  const cutoff = Date.now() - years * 365.25 * 86_400_000;
-  const filter = encodeURIComponent(`omrade_id=${omradeId}`);
-  const needed = Math.ceil(years * 366);
+  const hi = new Date();
+  const lo = new Date();
+  lo.setFullYear(lo.getFullYear() - years);
+  const filter = `datum>='${ymd(lo)}' AND datum<='${ymd(hi)}' AND omrade_id=${omradeId}`;
+
   const results: any[] = [];
-
   let url: string | null =
-    `${HYPE_LEVEL_BASE}&filter=${filter}&filter-lang=cql2-text&sortby=-datum&limit=1000`;
+    `${HYPE_LEVEL_BASE}&filter=${encodeURIComponent(filter)}&filter-lang=cql2-text&limit=1000`;
 
-  while (url && results.length < needed && !signal.aborted) {
+  let safety = 0;
+  while (url && safety < 12 && !signal.aborted) {
     const r = await fetch(url, { signal }).catch(() => null);
     if (!r?.ok) break;
     const d = await r.json().catch(() => null);
     const features: any[] = d?.features ?? [];
     results.push(...features);
-    // Stop early once we've gone past the requested window
-    const oldest = features[features.length - 1];
-    if (oldest) {
-      const oldestTs = new Date(String(oldest.properties?.datum ?? "").slice(0, 10)).getTime();
-      if (oldestTs < cutoff) break;
-    }
+    if (features.length === 0) break;
     const next = (d?.links ?? []).find((l: any) => l.rel === "next");
     url = next?.href ?? null;
+    safety++;
   }
 
   return results
@@ -80,7 +83,7 @@ async function fetchHypeSeriesForArea(
         fyllStora: cleanNum(p.fyllnadsgrad_stora),
       };
     })
-    .filter(p => Number.isFinite(p.ts) && p.ts > cutoff)
+    .filter(p => Number.isFinite(p.ts))
     .sort((a, b) => a.ts - b.ts);
 }
 
