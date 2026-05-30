@@ -92,6 +92,7 @@ export interface ReportData {
   }>;
   gvForekomstId?: string;
   hypeOmradeId?: number;
+  hypeFyllnad?: { datum: string; sma: number | null; stora: number | null };
   obsFeatures?: Array<{ djup: number; jordart?: string; aquiferGroup?: 'rock' | 'jord'; aquiferSize?: 'large' | 'small' }>;
   obsStationer?: Array<{ id: string; lon?: number; lat?: number; namn: string; djup: number; obsdatum: string; distKm: number; aquiferGroup?: 'rock' | 'jord'; jordart?: string }>;
   delomrade?: {
@@ -498,6 +499,41 @@ export async function fetchGrundvattenData(
       const d = await hypeOmradeRes.value.json();
       const id = d.features?.[0]?.properties?.omrade_id;
       if (typeof id === 'number') result.hypeOmradeId = id;
+    } catch { /* ignore */ }
+  }
+
+  // Latest HYPE fyllnadsgrad (small/large) for the area – for AI summary, export and quick value.
+  // Bounded datum range + omrade_id keeps the query indexed/fast; the API ignores sortby=-datum.
+  if (result.hypeOmradeId != null && !signal.aborted) {
+    try {
+      const hi = new Date();
+      const lo = new Date(); lo.setDate(lo.getDate() - 21);
+      const ymd = (dt: Date) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+      const hypeFilter = `datum>='${ymd(lo)}' AND datum<='${ymd(hi)}' AND omrade_id=${result.hypeOmradeId}`;
+      const hypeUrl = `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/grundvattennivaer-tidigare/items?f=json&filter=${encodeURIComponent(hypeFilter)}&filter-lang=cql2-text&limit=1000`;
+      const hr = await fetchWithTimeout(hypeUrl, 8_000, signal);
+      if (hr.ok) {
+        const hd = await hr.json().catch(() => null);
+        const feats: any[] = hd?.features ?? [];
+        // Latest by datum (data may arrive unsorted); -1/99 are no-data sentinels.
+        let latest: any = null;
+        for (const f of feats) {
+          const dat = String(f.properties?.datum ?? '').slice(0, 10);
+          if (!dat) continue;
+          if (!latest || dat > latest.datum) latest = { datum: dat, props: f.properties };
+        }
+        if (latest) {
+          const clean = (x: any): number | null => {
+            const n = Number(x);
+            return !Number.isFinite(n) || n === -1 || n === 99 ? null : n;
+          };
+          result.hypeFyllnad = {
+            datum: latest.datum,
+            sma: clean(latest.props?.fyllnadsgrad_sma),
+            stora: clean(latest.props?.fyllnadsgrad_stora),
+          };
+        }
+      }
     } catch { /* ignore */ }
   }
 
