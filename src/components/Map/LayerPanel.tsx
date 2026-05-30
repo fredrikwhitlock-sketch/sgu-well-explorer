@@ -519,7 +519,8 @@ export const LayerPanel = ({
                   type="date"
                   value={hypoAreasDate}
                   min="1961-01-01"
-                  onChange={(e) => onHypoAreasDateChange(e.target.value)}
+                  max={(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })()}
+                  onChange={(e) => { if (e.target.value) onHypoAreasDateChange(e.target.value); }}
                   className="w-full text-xs border border-border rounded px-2 py-1 bg-background text-foreground"
                 />
               </div>

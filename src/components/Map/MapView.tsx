@@ -126,8 +126,8 @@ export const MapView = () => {
   const [hypoAreasOpacity, setHypoAreasOpacity] = useState(0.7);
   const [hypoAreasDate, setHypoAreasDate] = useState(() => {
     const d = new Date();
-    d.setDate(d.getDate() - ((d.getDay() + 7) % 7)); // most recent Sunday
-    return d.toISOString().split('T')[0];
+    d.setDate(d.getDate() - d.getDay()); // most recent Sunday, local time
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   });
   const [chartOpen, setChartOpen] = useState(false);
   const [chartLocation, setChartLocation] = useState<ChartLocation | null>(null);
@@ -165,7 +165,7 @@ export const MapView = () => {
   const hypoSitSmaLayerRef = useRef<VectorImageLayer<VectorSource> | null>(null);
   const hypoSitStoraLayerRef = useRef<VectorImageLayer<VectorSource> | null>(null);
   const fetchAndJoinHypoLevelsRef = useRef<((date: string) => Promise<void>) | null>(null);
-  const hypoAreasDateRef = useRef((() => { const d = new Date(); d.setDate(d.getDate() - ((d.getDay() + 7) % 7)); return d.toISOString().split('T')[0]; })());
+  const hypoAreasDateRef = useRef((() => { const d = new Date(); d.setDate(d.getDate() - d.getDay()); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })());
   const osmLayerRef = useRef<TileLayer<OSM> | null>(null);
   // Lantmäteriet WMS layer refs
   const topoWebbLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
