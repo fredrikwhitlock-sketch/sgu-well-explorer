@@ -671,6 +671,22 @@ export const MapView = () => {
       return allFeatures;
     };
 
+    // Find the most recent HYPE date with data at/before `fromDate`.
+    // NOTE: the API silently ignores sortby=-datum on this collection and would
+    // return 1968 (the first physical record), so we step backwards by day
+    // instead. Daily datum='X' queries are indexed and fast.
+    const findLatestHypoDate = async (levelBase: string, fromDate: string): Promise<{ date: string; features: any[] } | null> => {
+      const start = new Date(fromDate);
+      for (let i = 0; i < 14; i++) {
+        const d = new Date(start);
+        d.setDate(d.getDate() - i);
+        const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        const features = await fetchAllPages(`${levelBase}&filter=${encodeURIComponent(`datum='${ds}'`)}`);
+        if (features.length > 0) return { date: ds, features };
+      }
+      return null;
+    };
+
     // OGC API Features layer for Grundvattenmagasin (aquifers) - accumulative bbox loading
     const aquifersSource = new VectorSource({
       format: new GeoJSON(),
@@ -1367,17 +1383,13 @@ export const MapView = () => {
 
           if (allAreaFeatures.length === 0) return;
 
-          // If the chosen date has no data, fall back to the latest available date
+          // If the chosen date has no data, step back to the latest available date
           let levelFeatures = allLevelFeatures;
           if (levelFeatures.length === 0) {
-            const latestResp = await fetch(`${levelBase}&sortby=-datum&limit=1`).catch(() => null);
-            if (latestResp?.ok) {
-              const latestData = await latestResp.json().catch(() => null);
-              const latestDate = String(latestData?.features?.[0]?.properties?.datum ?? '').split('T')[0];
-              if (latestDate) {
-                levelFeatures = await fetchAllPages(`${levelBase}&filter=${encodeURIComponent(`datum='${latestDate}'`)}`);
-                toast.info(`Ingen data för ${date}, visar senaste tillgängliga (${latestDate})`);
-              }
+            const latest = await findLatestHypoDate(levelBase, date);
+            if (latest) {
+              levelFeatures = latest.features;
+              toast.info(`Ingen data för ${date}, visar senaste tillgängliga (${latest.date})`);
             }
           }
 
@@ -1471,22 +1483,16 @@ export const MapView = () => {
     // Fetch and join level data – uses fetchAllPages for full pagination
     const fetchAndJoinHypoLevels = async (date: string) => {
       try {
-        const baseUrl = `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/grundvattennivaer-tidigare/items?f=json&filter=${encodeURIComponent(`datum='${date}'`)}`;
+        const levelBase = `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/grundvattennivaer-tidigare/items?f=json`;
+        const baseUrl = `${levelBase}&filter=${encodeURIComponent(`datum='${date}'`)}`;
         let allLevelFeatures = await fetchAllPages(baseUrl);
 
-        // If no data for the requested date, find the latest available date
+        // If no data for the requested date, step back to the latest available date
         if (allLevelFeatures.length === 0) {
-          const latestResp = await fetch(
-            `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/grundvattennivaer-tidigare/items?f=json&sortby=-datum&limit=1`
-          );
-          if (latestResp.ok) {
-            const latestData = await latestResp.json().catch(() => null);
-            const latestDate = String(latestData?.features?.[0]?.properties?.datum ?? '').split('T')[0];
-            if (latestDate) {
-              const latestUrl = `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/grundvattennivaer-tidigare/items?f=json&filter=${encodeURIComponent(`datum='${latestDate}'`)}`;
-              allLevelFeatures = await fetchAllPages(latestUrl);
-              toast.info(`Ingen data för ${date}, visar senaste tillgängliga (${latestDate})`);
-            }
+          const latest = await findLatestHypoDate(levelBase, date);
+          if (latest) {
+            allLevelFeatures = latest.features;
+            toast.info(`Ingen data för ${date}, visar senaste tillgängliga (${latest.date})`);
           }
         }
 
