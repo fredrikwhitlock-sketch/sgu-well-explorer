@@ -966,6 +966,7 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
                     omradeId={data.hypeOmradeId}
                     useStora={!!(effectiveAquifer?.useStoraMagasin)}
                     years={2}
+                    hypeSeries={data.hypeSeries}
                   />
                 </div>
               )}
@@ -1020,6 +1021,7 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
                                 useStora={!!(effectiveAquifer?.useStoraMagasin)}
                                 years={2}
                                 maxStations={1}
+                                hypeSeries={data.hypeSeries}
                               />
                             </div>
                           )}

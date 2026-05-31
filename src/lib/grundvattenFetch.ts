@@ -93,6 +93,8 @@ export interface ReportData {
   gvForekomstId?: string;
   hypeOmradeId?: number;
   hypeFyllnad?: { datum: string; sma: number | null; stora: number | null };
+  /** 2-year daily HYPE fyllnadsgrad series – reused by the chart to avoid a second fetch. */
+  hypeSeries?: Array<{ ts: number; fyllSma: number | null; fyllStora: number | null }>;
   obsFeatures?: Array<{ djup: number; jordart?: string; aquiferGroup?: 'rock' | 'jord'; aquiferSize?: 'large' | 'small' }>;
   obsStationer?: Array<{ id: string; lon?: number; lat?: number; namn: string; djup: number; obsdatum: string; distKm: number; aquiferGroup?: 'rock' | 'jord'; jordart?: string }>;
   delomrade?: {
@@ -519,11 +521,13 @@ export async function fetchGrundvattenData(
     } catch { /* ignore */ }
   }
 
-  // Latest HYPE fyllnadsgrad – sequential fetch that depends on hypeOmradeId from core
+  // HYPE fyllnadsgrad – fetch the full 2-year daily series once. The chart reuses
+  // it (no second request) and the quick value/AI/export read its latest point.
+  // Bounded datum range + omrade_id keeps the query indexed/fast (~725 rows, <1s).
   if (result.hypeOmradeId != null && !signal.aborted) {
     try {
       const hi = new Date();
-      const lo = new Date(); lo.setDate(lo.getDate() - 21);
+      const lo = new Date(); lo.setFullYear(lo.getFullYear() - 2);
       const ymd = (dt: Date) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
       const hypeFilter = `datum>='${ymd(lo)}' AND datum<='${ymd(hi)}' AND omrade_id=${result.hypeOmradeId}`;
       const hypeUrl = `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/grundvattennivaer-tidigare/items?f=json&filter=${encodeURIComponent(hypeFilter)}&filter-lang=cql2-text&limit=1000`;
@@ -531,22 +535,28 @@ export async function fetchGrundvattenData(
       if (hr.ok) {
         const hd = await hr.json().catch(() => null);
         const feats: any[] = hd?.features ?? [];
-        let latest: any = null;
-        for (const f of feats) {
-          const dat = String(f.properties?.datum ?? '').slice(0, 10);
-          if (!dat) continue;
-          if (!latest || dat > latest.datum) latest = { datum: dat, props: f.properties };
-        }
-        if (latest) {
-          const clean = (x: any): number | null => {
-            const n = Number(x);
-            return !Number.isFinite(n) || n === -1 || n === 99 ? null : n;
-          };
-          result.hypeFyllnad = {
-            datum: latest.datum,
-            sma: clean(latest.props?.fyllnadsgrad_sma),
-            stora: clean(latest.props?.fyllnadsgrad_stora),
-          };
+        const clean = (x: any): number | null => {
+          const n = Number(x);
+          return !Number.isFinite(n) || n === -1 || n === 99 ? null : n;
+        };
+        const series = feats
+          .map((f: any) => {
+            const p = f.properties ?? {};
+            const datum = String(p.datum ?? '').slice(0, 10);
+            return {
+              datum,
+              ts: new Date(datum).getTime(),
+              fyllSma: clean(p.fyllnadsgrad_sma),
+              fyllStora: clean(p.fyllnadsgrad_stora),
+            };
+          })
+          .filter(p => Number.isFinite(p.ts))
+          .sort((a, b) => a.ts - b.ts);
+
+        if (series.length > 0) {
+          result.hypeSeries = series.map(({ ts, fyllSma, fyllStora }) => ({ ts, fyllSma, fyllStora }));
+          const latest = series[series.length - 1];
+          result.hypeFyllnad = { datum: latest.datum, sma: latest.fyllSma, stora: latest.fyllStora };
         }
       }
     } catch { /* ignore */ }

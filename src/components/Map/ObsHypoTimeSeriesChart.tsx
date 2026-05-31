@@ -32,6 +32,8 @@ interface Props {
   years?: number;
   /** Max number of stations to plot (default 5 nearest). */
   maxStations?: number;
+  /** Pre-fetched HYPE series (from the report) – avoids a second request when it covers `years`. */
+  hypeSeries?: Array<{ ts: number; fyllSma: number | null; fyllStora: number | null }>;
 }
 
 const PAGE_LIMIT = 1000;
@@ -150,6 +152,7 @@ export const ObsHypoTimeSeriesChart = ({
   useStora,
   years = 2,
   maxStations = 5,
+  hypeSeries: prefetchedHype,
 }: Props) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -220,10 +223,17 @@ export const ObsHypoTimeSeriesChart = ({
       return fetchNivaerForStations(ids, fromStr, ctrl.signal);
     };
 
-    Promise.all([
-      fetchNivaer(),
-      omradeId != null ? fetchHypeSeriesForArea(omradeId, years, ctrl.signal) : Promise.resolve([]),
-    ])
+    // Reuse the series already fetched by the report when it covers the window
+    // (prefetched is 2 years); only fetch separately for longer ranges (e.g. popup).
+    const cutoff = Date.now() - years * 365.25 * 86_400_000;
+    const hypePromise =
+      omradeId == null
+        ? Promise.resolve([])
+        : prefetchedHype != null && years <= 2
+          ? Promise.resolve(prefetchedHype.filter(p => p.ts > cutoff))
+          : fetchHypeSeriesForArea(omradeId, years, ctrl.signal);
+
+    Promise.all([fetchNivaer(), hypePromise])
       .then(([obs, hypo]: any) => {
         if (ctrl.signal.aborted) return;
         setObsByStation(obs);
@@ -239,7 +249,7 @@ export const ObsHypoTimeSeriesChart = ({
     return () => ctrl.abort();
   // stationsToShow is derived from stationKey — use the key to avoid re-fetching on same-content re-renders
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stationKey, omradeId, years]);
+  }, [stationKey, omradeId, years, prefetchedHype]);
 
   // Merge all series into a single sorted-by-ts array of rows for recharts
   const merged = useMemo(() => {
