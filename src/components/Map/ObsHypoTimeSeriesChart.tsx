@@ -432,7 +432,7 @@ export const ObsHypoTimeSeriesChart = ({
           </ComposedChart>
         </ResponsiveContainer>
       </div>
-      {!hasAnyObs && (
+      {!hasAnyObs && stationsToShow.length > 0 && (
         <p className="text-[10px] text-muted-foreground mt-1">
           Inga observationer hittades för stationerna under de senaste {years} åren.
         </p>

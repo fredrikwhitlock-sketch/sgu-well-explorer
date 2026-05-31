@@ -148,6 +148,7 @@ export async function fetchGrundvattenData(
   wmsProxyUrl: string,
   selectedDate: string,
   signal: AbortSignal,
+  onPartial?: (partial: ReportData) => void,
 ): Promise<ReportData> {
   const [lon, lat] = mercatorToWGS84(coordinate[0], coordinate[1]);
   const sweref = proj4('EPSG:4326', 'EPSG:3006', [lon, lat]) as [number, number];
@@ -273,24 +274,29 @@ export async function fetchGrundvattenData(
   const gvForekomstUrl = `https://api.sgu.se/oppnadata/grundvattenforekomster/ogc/features/v1/collections/grundvattenforekomster/items?f=json&filter=S_INTERSECTS(geom,POINT(${lon}%20${lat}))%20AND%20ms_cd%20LIKE%20'WA%25'&filter-lang=cql2-text&limit=1`;
   const hypeOmradeUrl = `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/omraden/items?f=json&filter=${encodeURIComponent(`S_INTERSECTS(geom,POINT(${lon} ${lat}))`)}&filter-lang=cql2-text&limit=1`;
 
-  const allResults = await Promise.allSettled([
-    fetchWithTimeout(gvTillgangUrl, 10_000, signal),
-    fetch(jordartCql2Url, { signal }),
-    fetch(jordartBboxUrl, { signal }),
-    fetch(gvmCql2Url, { signal }),
-    fetch(delomradeUrl, { signal }),
-    fetchWithTimeout(jorddjupWmsUrl, 10_000, signal),
-    obsStationerChain,
-    fetchWithTimeout(`${wmsProxyUrl}?url=${encodeURIComponent(`https://api.opentopodata.org/v1/eudem25m?locations=${lat},${lon}`)}`, 8_000, signal),
-    fetch(ytlagerCql2Url, { signal }),
-    fetch(overstaCql2Url, { signal }),
-    fetch(geokemiAesBboxUrl, { signal }),
-    fetch(geokemiMsBboxUrl, { signal }),
-    fetch(gvKemiProvBboxUrl, { signal }),
-    fetch(gvForekomstUrl, { signal }),
-    fetch(hypeOmradeUrl, { signal }),
+  // Fire all requests immediately so nothing waits needlessly.
+  // Slow promises (elevation, geokemi, gvKemi) are kept as handles and awaited
+  // after the fast core group, allowing onPartial to fire sooner.
+  const elevationP  = fetchWithTimeout(`${wmsProxyUrl}?url=${encodeURIComponent(`https://api.opentopodata.org/v1/eudem25m?locations=${lat},${lon}`)}`, 8_000, signal);
+  const geokemiAesP = fetch(geokemiAesBboxUrl, { signal });
+  const geokemiMsP  = fetch(geokemiMsBboxUrl,  { signal });
+  const gvKemiProvP = fetch(gvKemiProvBboxUrl,  { signal });
+
+  const coreResults = await Promise.allSettled([
+    fetchWithTimeout(gvTillgangUrl, 10_000, signal),  // 0
+    fetch(jordartCql2Url, { signal }),                 // 1
+    fetch(jordartBboxUrl, { signal }),                 // 2
+    fetch(gvmCql2Url, { signal }),                     // 3
+    fetch(delomradeUrl, { signal }),                   // 4
+    fetchWithTimeout(jorddjupWmsUrl, 10_000, signal),  // 5
+    obsStationerChain,                                 // 6
+    fetch(ytlagerCql2Url, { signal }),                 // 7
+    fetch(overstaCql2Url, { signal }),                 // 8
+    fetch(gvForekomstUrl, { signal }),                 // 9
+    fetch(hypeOmradeUrl, { signal }),                  // 10
   ]);
-  const [gvTillgangRes, jordartCql2Res, jordartBboxRes, forekomstRes, delomradeRes, jorddjupRes, , elevationRes, ytlagerRes, overstaRes, geokemiAesRes, geokemiMsRes, gvKemiProvRes, gvForekomstRes, hypeOmradeRes] = allResults;
+  const [gvTillgangRes, jordartCql2Res, jordartBboxRes, forekomstRes, delomradeRes,
+         jorddjupRes, , ytlagerRes, overstaRes, gvForekomstRes, hypeOmradeRes] = coreResults;
 
   if (signal.aborted) throw new DOMException('aborted', 'AbortError');
 
@@ -484,6 +490,26 @@ export async function fetchGrundvattenData(
     } catch { /* ignore */ }
   }
 
+  // HYPE avrinningsområde – fast S_INTERSECTS lookup in core group
+  if (hypeOmradeRes.status === 'fulfilled' && hypeOmradeRes.value.ok) {
+    try {
+      const d = await hypeOmradeRes.value.json();
+      const id = d.features?.[0]?.properties?.omrade_id;
+      if (typeof id === 'number') result.hypeOmradeId = id;
+    } catch { /* ignore */ }
+  }
+
+  // ── Core data is ready – fire partial callback so the panel can render ──────
+  // Elevation, geokemi, gvKemi, and hypeFyllnad are still loading below.
+  if (!signal.aborted) onPartial?.({ ...result });
+
+  // Await the slow group (they've been running in parallel since start)
+  const [elevationRes, geokemiAesRes, geokemiMsRes, gvKemiProvRes] = await Promise.allSettled([
+    elevationP, geokemiAesP, geokemiMsP, gvKemiProvP,
+  ]);
+
+  if (signal.aborted) throw new DOMException('aborted', 'AbortError');
+
   // Elevation (EU-DEM 25m)
   if (elevationRes.status === 'fulfilled' && elevationRes.value.ok) {
     try {
@@ -493,17 +519,7 @@ export async function fetchGrundvattenData(
     } catch { /* ignore */ }
   }
 
-  // HYPE avrinningsområde – omrade_id used by ObsHypoTimeSeriesChart for background percentile series
-  if (hypeOmradeRes.status === 'fulfilled' && hypeOmradeRes.value.ok) {
-    try {
-      const d = await hypeOmradeRes.value.json();
-      const id = d.features?.[0]?.properties?.omrade_id;
-      if (typeof id === 'number') result.hypeOmradeId = id;
-    } catch { /* ignore */ }
-  }
-
-  // Latest HYPE fyllnadsgrad (small/large) for the area – for AI summary, export and quick value.
-  // Bounded datum range + omrade_id keeps the query indexed/fast; the API ignores sortby=-datum.
+  // Latest HYPE fyllnadsgrad – sequential fetch that depends on hypeOmradeId from core
   if (result.hypeOmradeId != null && !signal.aborted) {
     try {
       const hi = new Date();
@@ -515,7 +531,6 @@ export async function fetchGrundvattenData(
       if (hr.ok) {
         const hd = await hr.json().catch(() => null);
         const feats: any[] = hd?.features ?? [];
-        // Latest by datum (data may arrive unsorted); -1/99 are no-data sentinels.
         let latest: any = null;
         for (const f of feats) {
           const dat = String(f.properties?.datum ?? '').slice(0, 10);
