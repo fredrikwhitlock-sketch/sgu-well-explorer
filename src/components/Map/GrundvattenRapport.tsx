@@ -72,6 +72,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
   });
   const [expandedObsStation, setExpandedObsStation] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [slowLoading, setSlowLoading] = useState(false);
   const [data, setData] = useState<ReportData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sourcesOpen, setSourcesOpen] = useState(false);
@@ -234,10 +235,22 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
     abortRef.current = controller;
     const { signal } = controller;
     setLoading(true);
+    setSlowLoading(false);
     setError(null);
     try {
-      const result = await fetchGrundvattenData(coordinate, wmsProxyUrl, selectedDate, signal);
-      if (!signal.aborted) setData(result);
+      const result = await fetchGrundvattenData(
+        coordinate, wmsProxyUrl, selectedDate, signal,
+        (partial) => {
+          if (signal.aborted) return;
+          setData(partial);
+          setLoading(false);
+          setSlowLoading(true);
+        },
+      );
+      if (!signal.aborted) {
+        setData(result);
+        setSlowLoading(false);
+      }
     } catch (e: any) {
       if (signal.aborted) return;
       console.error("GrundvattenRapport error:", e);
@@ -724,10 +737,15 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
               <div className="text-xs space-y-0.5">
                 <div>WGS84: {data.lat.toFixed(5)}°N, {data.lon.toFixed(5)}°E</div>
                 <div className="text-muted-foreground">SWEREF99 TM: {Math.round(data.sweref[0])} E, {Math.round(data.sweref[1])} N</div>
-                {data.elevation != null && (
+                {data.elevation != null ? (
                   <div className="text-muted-foreground">
                     Höjd: <span className="font-medium text-foreground">{data.elevation} m ö.h.</span>
                     <span className="text-[10px] ml-1">(EU-DEM 25m)</span>
+                  </div>
+                ) : slowLoading && (
+                  <div className="text-muted-foreground flex items-center gap-1">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    <span className="text-[10px]">Hämtar höjddata…</span>
                   </div>
                 )}
               </div>
@@ -895,6 +913,12 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
                   </div>
 
                   {/* Quick value – latest modelled fyllnadsgrad for small/large magazines */}
+                  {!data.hypeFyllnad && slowLoading && (
+                    <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground mb-2">
+                      <Loader2 className="w-3 h-3 animate-spin shrink-0" />
+                      Hämtar senaste fyllnadsgrad…
+                    </div>
+                  )}
                   {data.hypeFyllnad && (data.hypeFyllnad.sma != null || data.hypeFyllnad.stora != null) && (() => {
                     const relevantStora = !!(effectiveAquifer?.useStoraMagasin);
                     const cards: Array<{ key: 'sma' | 'stora'; label: string; value: number | null }> = [
@@ -1180,6 +1204,12 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Grundvattenkvalitet</h3>
 
               {/* Grundvattenkemi */}
+              {!data.gvKemi && slowLoading && (
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
+                  <Loader2 className="w-3 h-3 animate-spin shrink-0" />
+                  Hämtar grundvattenkemi…
+                </div>
+              )}
               {data.gvKemi && data.gvKemi.length > 0 && (
                 <div className="mb-3">
                   <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">
@@ -1364,6 +1394,12 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
             </div>{/* end Grundvattenkvalitet section */}
 
             {/* Geokemi – närmaste morän ICP-MS-prov */}
+            {!data.geokemi && slowLoading && (
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground px-1 mb-2">
+                <Loader2 className="w-3 h-3 animate-spin shrink-0" />
+                Hämtar markgeokemi…
+              </div>
+            )}
             {data.geokemi && (() => {
               const ELEMENTS: { key: string; label: string; elevated: number; high: number; note?: string }[] = [
                 { key: 'as', label: 'As', elevated: 10,     high: 25     },
