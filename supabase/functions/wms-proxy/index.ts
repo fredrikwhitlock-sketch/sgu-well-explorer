@@ -7,7 +7,6 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -23,7 +22,6 @@ serve(async (req) => {
       );
     }
 
-    // Only allow trusted hosts
     const allowedHosts = ['resource.sgu.se', 'maps3.sgu.se', 'api.sgu.se', 'image.discomap.eea.europa.eu', 'api.opentopodata.org'];
     const targetUrl = new URL(baseUrl);
 
@@ -34,17 +32,14 @@ serve(async (req) => {
       );
     }
 
-    // Forward all other query parameters to the WMS service
-    const wmsParams = new URLSearchParams();
+    // Merge extra query params from this request (everything except 'url') into
+    // the target URL, preserving any params already embedded in baseUrl.
+    const full = new URL(baseUrl);
     for (const [key, value] of requestUrl.searchParams.entries()) {
-      if (key !== 'url') {
-        wmsParams.append(key, value);
-      }
+      if (key !== 'url') full.searchParams.append(key, value);
     }
-
-    // Construct full WMS URL
-    const fullWmsUrl = `${baseUrl}?${wmsParams.toString()}`;
-    console.log(`Proxying WMS request to: ${fullWmsUrl}`);
+    const fullWmsUrl = full.toString();
+    console.log(`Proxying request to: ${fullWmsUrl}`);
 
     const response = await fetch(fullWmsUrl, {
       headers: {
@@ -54,19 +49,18 @@ serve(async (req) => {
     });
 
     if (!response.ok) {
-      console.error(`WMS request failed with status: ${response.status}`);
       const errorText = await response.text();
-      console.error('Error response:', errorText);
+      console.error(`Upstream failed ${response.status}: ${errorText}`);
       return new Response(
-        JSON.stringify({ error: `WMS request failed: ${response.status}`, details: errorText }),
+        JSON.stringify({ error: `Upstream failed: ${response.status}`, details: errorText }),
         { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const contentType = response.headers.get('Content-Type') || 'image/png';
-    const imageData = await response.arrayBuffer();
+    const contentType = response.headers.get('Content-Type') || 'application/octet-stream';
+    const body = await response.arrayBuffer();
 
-    return new Response(imageData, {
+    return new Response(body, {
       status: 200,
       headers: {
         ...corsHeaders,
@@ -75,10 +69,10 @@ serve(async (req) => {
       },
     });
   } catch (error: unknown) {
-    console.error('Proxy error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const msg = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Proxy error:', msg);
     return new Response(
-      JSON.stringify({ error: 'Proxy error', details: errorMessage }),
+      JSON.stringify({ error: 'Proxy error', details: msg }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
