@@ -183,7 +183,11 @@ export const ObsHypoTimeSeriesChart = ({
 
     const ids = stationsToShow.map((s) => s.id).filter(Boolean);
 
-    // Try Cloudflare Worker, then Supabase, then SGU API
+    // Try Cloudflare Worker, then Supabase, then SGU API.
+    // Always supplement with a direct SGU API fetch for recent data when the
+    // cached source ends more than 45 days ago — this guards against both
+    // stale Supabase syncs and the default Supabase 1000-row cap (which, with
+    // ascending order, silently returns the oldest rows and drops recent ones).
     const fetchNivaer = async (): Promise<Map<string, Array<{ ts: number; djup: number }>>> => {
       if (ids.length === 0) return new Map();
 
@@ -201,24 +205,54 @@ export const ObsHypoTimeSeriesChart = ({
         return out;
       };
 
+      const maxTs = (m: Map<string, Array<{ ts: number; djup: number }>>) => {
+        let t = 0;
+        for (const arr of m.values()) for (const p of arr) t = Math.max(t, p.ts);
+        return t;
+      };
+
+      // If cached data ends before 45 days ago, fetch recent data from SGU API and merge.
+      const withRecentSupplement = async (
+        data: Map<string, Array<{ ts: number; djup: number }>>,
+      ): Promise<Map<string, Array<{ ts: number; djup: number }>>> => {
+        const staleCutoff = Date.now() - 45 * 86_400_000;
+        const latest = maxTs(data);
+        if (latest >= staleCutoff || ctrl.signal.aborted) return data;
+        // Fetch from day-after-latest (or at most 90 days back) to avoid re-fetching history
+        const recentFrom = ymd(new Date(Math.max(latest + 86_400_000, Date.now() - 90 * 86_400_000)));
+        const recent = await fetchNivaerForStations(ids, recentFrom, ctrl.signal);
+        for (const [id, arr] of recent) {
+          const existing = data.get(id) ?? [];
+          const existingTs = new Set(existing.map(p => p.ts));
+          const newPts = arr.filter(p => !existingTs.has(p.ts));
+          if (newPts.length > 0) {
+            data.set(id, [...existing, ...newPts].sort((a, b) => a.ts - b.ts));
+          }
+        }
+        return data;
+      };
+
       const cfWorkerUrl = import.meta.env.VITE_CF_WORKER_URL;
       if (cfWorkerUrl) {
         try {
-          const res = await fetch(`${cfWorkerUrl}/obs-nivaer?ids=${ids.join(',')}&from=${fromStr}`);
+          const res = await fetch(`${cfWorkerUrl}/obs-nivaer?ids=${ids.join(',')}&from=${fromStr}`, { signal: ctrl.signal });
           if (res.ok) {
             const d = await res.json();
-            if (d?.nivaer?.length > 0) return parseRows(d.nivaer);
+            if (d?.nivaer?.length > 0) return withRecentSupplement(parseRows(d.nivaer));
           }
         } catch { /* fall through */ }
       }
 
+      // Query descending so recent rows are returned first, avoiding the 1000-row default cap
+      // cutting off the latest observations. Limit to 5000 to cover all practical cases.
       const { data: sbRows } = await supabase
         .from('obs_nivaer')
         .select('platsbeteckning, obsdatum, nivaer_m')
         .in('platsbeteckning', ids)
         .gte('obsdatum', fromStr)
-        .order('obsdatum');
-      if (sbRows && sbRows.length > 0) return parseRows(sbRows as any);
+        .order('obsdatum', { ascending: false })
+        .limit(5000);
+      if (sbRows && sbRows.length > 0) return withRecentSupplement(parseRows(sbRows as any));
 
       return fetchNivaerForStations(ids, fromStr, ctrl.signal);
     };

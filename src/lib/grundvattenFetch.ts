@@ -484,9 +484,23 @@ export async function fetchGrundvattenData(
     try {
       const d = await jorddjupRes.value.json();
       const p = d.features?.[0]?.properties ?? {};
-      const raw = p.jorddjup_10x10m ?? p.GRAY_INDEX ?? p.gray_index ?? null;
-      const djup = typeof raw === 'number' ? raw : parseFloat(String(raw));
-      if (!isNaN(djup) && djup > 0 && djup < 500) {
+      // Try all known property name variants for this layer
+      const raw = p.jorddjup_10x10m ?? p.jorddjup_intervall ?? p.jorddjup
+        ?? p.GRAY_INDEX ?? p.gray_index ?? p.value ?? p.VALUE ?? null;
+      // Parse both plain numbers and interval strings like "3-5" or ">50"
+      const djup = (() => {
+        if (raw == null) return NaN;
+        if (typeof raw === 'number') return raw;
+        const s = String(raw).replace(/\s*(m|meter)\s*/gi, '').trim();
+        const n = Number(s);
+        if (Number.isFinite(n)) return n;
+        const range = s.match(/^(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)$/);
+        if (range) return (parseFloat(range[1]) + parseFloat(range[2])) / 2;
+        const gt = s.match(/^>\s*(\d+(?:\.\d+)?)$/);
+        if (gt) return parseFloat(gt[1]);
+        return parseFloat(s);
+      })();
+      if (!isNaN(djup) && djup >= 0 && djup < 500) {
         result.jorddjup = { djup: Math.round(djup * 10) / 10 };
       }
     } catch { /* ignore */ }
