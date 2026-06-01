@@ -205,20 +205,31 @@ export const ObsHypoTimeSeriesChart = ({
         return out;
       };
 
-      const maxTs = (m: Map<string, Array<{ ts: number; djup: number }>>) => {
-        let t = 0;
-        for (const arr of m.values()) for (const p of arr) t = Math.max(t, p.ts);
-        return t;
-      };
-
-      // If cached data ends before 45 days ago, fetch recent data from SGU API and merge.
-      const withRecentSupplement = async (
+      // Validate cached data and supplement or replace with SGU API as needed.
+      // Three cases:
+      //  1. Cache covers the full requested range AND is current → return as-is
+      //  2. Cache covers the range but ends >45 days ago → add recent from SGU
+      //  3. Cache starts >60 days after fromStr (partial history) → discard cache,
+      //     fall through to full SGU fetch so the chart shows the complete 2-year window
+      const withSupplement = async (
         data: Map<string, Array<{ ts: number; djup: number }>>,
       ): Promise<Map<string, Array<{ ts: number; djup: number }>>> => {
+        if (ctrl.signal.aborted) return data;
+        const fromMs = new Date(fromStr).getTime();
         const staleCutoff = Date.now() - 45 * 86_400_000;
-        const latest = maxTs(data);
-        if (latest >= staleCutoff || ctrl.signal.aborted) return data;
-        // Fetch from day-after-latest (or at most 90 days back) to avoid re-fetching history
+        let earliest = Infinity;
+        let latest = 0;
+        for (const arr of data.values()) for (const p of arr) {
+          if (p.ts < earliest) earliest = p.ts;
+          if (p.ts > latest) latest = p.ts;
+        }
+        // If cache doesn't start within 60 days of the requested start, it's too
+        // partial to be useful — fall through to the SGU API for the full range.
+        if (earliest > fromMs + 60 * 86_400_000) {
+          return fetchNivaerForStations(ids, fromStr, ctrl.signal);
+        }
+        // Cache covers history — only supplement recent observations if stale.
+        if (latest >= staleCutoff) return data;
         const recentFrom = ymd(new Date(Math.max(latest + 86_400_000, Date.now() - 90 * 86_400_000)));
         const recent = await fetchNivaerForStations(ids, recentFrom, ctrl.signal);
         for (const [id, arr] of recent) {
@@ -238,7 +249,7 @@ export const ObsHypoTimeSeriesChart = ({
           const res = await fetch(`${cfWorkerUrl}/obs-nivaer?ids=${ids.join(',')}&from=${fromStr}`, { signal: ctrl.signal });
           if (res.ok) {
             const d = await res.json();
-            if (d?.nivaer?.length > 0) return withRecentSupplement(parseRows(d.nivaer));
+            if (d?.nivaer?.length > 0) return withSupplement(parseRows(d.nivaer));
           }
         } catch { /* fall through */ }
       }
@@ -252,7 +263,7 @@ export const ObsHypoTimeSeriesChart = ({
         .gte('obsdatum', fromStr)
         .order('obsdatum', { ascending: false })
         .limit(5000);
-      if (sbRows && sbRows.length > 0) return withRecentSupplement(parseRows(sbRows as any));
+      if (sbRows && sbRows.length > 0) return withSupplement(parseRows(sbRows as any));
 
       return fetchNivaerForStations(ids, fromStr, ctrl.signal);
     };
