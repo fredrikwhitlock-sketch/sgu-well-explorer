@@ -43,7 +43,7 @@ Svara alltid på svenska. Var konkret och datadriven i dina analyser. Använd ta
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "gemini-2.0-flash",
+          model: "gemini-1.5-flash",
           messages: [
             { role: "system", content: systemPrompt },
             ...messages,
@@ -54,17 +54,12 @@ Svara alltid på svenska. Var konkret och datadriven i dina analyser. Använd ta
     );
 
     if (!response.ok) {
-      if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Begränsningen för antal förfrågningar har nåtts. Försök igen om en stund." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-        );
-      }
       const t = await response.text();
       console.error("Gemini API error:", response.status, t);
+      const userMsg = `Google API fel (${response.status}): ${t}`;
       return new Response(
-        JSON.stringify({ error: "AI-tjänsten är inte tillgänglig just nu" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        JSON.stringify({ error: userMsg }),
+        { status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
