@@ -19,7 +19,12 @@ interface AIChatPanelProps {
   grundvattenData?: string | null;
 }
 
-const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/geo-chat`;
+// Fall back to the configured project so the chat works even when the host
+// (e.g. Vercel) hasn't set VITE_SUPABASE_URL — mirrors src/integrations/supabase/client.ts.
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL ?? "https://ivambqyukfbkezijjmho.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY =
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "sb_publishable_IXNNNdzzFdaDRCrbsYcPcQ_Y__HOKtr";
+const CHAT_URL = `${SUPABASE_URL}/functions/v1/geo-chat`;
 
 function parseCSV(text: string): Record<string, string>[] {
   const lines = text.split(/\r?\n/).filter(l => l.trim());
@@ -66,7 +71,7 @@ export function AIChatPanel({ getLayerData, open, setOpen, grundvattenData }: AI
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
       },
       body: JSON.stringify({ messages: allMessages }),
     });
