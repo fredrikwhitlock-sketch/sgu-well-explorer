@@ -152,7 +152,14 @@ function geojsonToGpkgBlob(geometry: any): Uint8Array | null {
 }
 
 async function triggerGeoPackage(layers: Array<{ name: string; features: any[] }>, filename: string) {
-  const initSqlJs = (await import('sql.js')).default;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sqlJsMod = await import('sql.js') as any;
+  // Vite's CJS→ESM interop can expose the factory as .default or .default.exports
+  // depending on the bundler version, so normalise here.
+  const initSqlJs: (config: object) => Promise<any> =
+    typeof sqlJsMod.default === 'function'
+      ? sqlJsMod.default
+      : (sqlJsMod.default?.exports ?? sqlJsMod);
   const SQL = await initSqlJs({ locateFile: (file: string) => '/' + file });
   const db = new SQL.Database();
 
@@ -296,6 +303,7 @@ export const PolygonFetcher = ({ bbox, areaKm2, onClose }: PolygonFetcherProps) 
   const [fetching, setFetching] = useState(false);
   const [linked, setLinked] = useState<{ analysresultat?: LinkedState; nivaObs?: LinkedState }>({});
   const [gpkgLoading, setGpkgLoading] = useState(false);
+  const [gpkgError, setGpkgError] = useState<string | null>(null);
 
   // Stores IDs for linked fetches that were blocked by the count warning.
   const pendingNivaIds = useRef<string[]>([]);
@@ -305,6 +313,7 @@ export const PolygonFetcher = ({ bbox, areaKm2, onClose }: PolygonFetcherProps) 
 
   const handleGeoPackage = async () => {
     setGpkgLoading(true);
+    setGpkgError(null);
     try {
       const layers = [
         ...DATA_SOURCES
@@ -314,6 +323,8 @@ export const PolygonFetcher = ({ bbox, areaKm2, onClose }: PolygonFetcherProps) 
         ...(linked.analysresultat?.features.length ? [{ name: 'analysresultat', features: linked.analysresultat.features }] : []),
       ];
       await triggerGeoPackage(layers, `sgu_grundvatten_polygon_${today}.gpkg`);
+    } catch (e) {
+      setGpkgError(e instanceof Error ? e.message : String(e));
     } finally {
       setGpkgLoading(false);
     }
@@ -622,17 +633,25 @@ export const PolygonFetcher = ({ bbox, areaKm2, onClose }: PolygonFetcherProps) 
         )}
 
         {hasFetched && anyResults && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full"
-            onClick={handleGeoPackage}
-            disabled={gpkgLoading || fetching}
-          >
-            {gpkgLoading
-              ? <><Loader2 className="w-3 h-3 mr-2 animate-spin" /> Genererar GeoPackage…</>
-              : <><Package className="w-3 h-3 mr-2" /> Exportera allt som GeoPackage</>}
-          </Button>
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full"
+              onClick={handleGeoPackage}
+              disabled={gpkgLoading || fetching}
+            >
+              {gpkgLoading
+                ? <><Loader2 className="w-3 h-3 mr-2 animate-spin" /> Genererar GeoPackage…</>
+                : <><Package className="w-3 h-3 mr-2" /> Exportera allt som GeoPackage</>}
+            </Button>
+            {gpkgError && (
+              <div className="flex items-start gap-1 text-xs text-destructive px-1">
+                <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" />
+                <span>{gpkgError}</span>
+              </div>
+            )}
+          </>
         )}
 
         {hasFetched && !fetching && !anyResults && (
