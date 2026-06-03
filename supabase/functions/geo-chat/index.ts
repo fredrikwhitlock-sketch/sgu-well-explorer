@@ -10,8 +10,8 @@ serve(async (req) => {
 
   try {
     const { messages } = await req.json();
-    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
-    if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+    const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
+    if (!GROQ_API_KEY) throw new Error("GROQ_API_KEY is not configured");
 
     const systemPrompt = `Du är en expert på geologi, hydrogeologi och miljövetenskap med fokus på svenska förhållanden. Du hjälper användare att analysera geodata från SGU:s (Sveriges geologiska undersökning) karttjänster.
 
@@ -34,32 +34,36 @@ När du får kartdata eller CSV-data, ge:
 
 Svara alltid på svenska. Var konkret och datadriven i dina analyser. Använd tabeller och punktlistor för tydlighet.`;
 
-    const response = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${GEMINI_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "gemini-1.5-flash",
-          messages: [
-            { role: "system", content: systemPrompt },
-            ...messages,
-          ],
-          stream: true,
-        }),
+    // Groq exposes an OpenAI-compatible API, so the streaming SSE shape
+    // (choices[0].delta.content) already matches what the frontend expects.
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${GROQ_API_KEY}`,
+        "Content-Type": "application/json",
       },
-    );
+      body: JSON.stringify({
+        model: "llama-3.3-70b-versatile",
+        messages: [
+          { role: "system", content: systemPrompt },
+          ...messages,
+        ],
+        stream: true,
+      }),
+    });
 
     if (!response.ok) {
       const t = await response.text();
-      console.error("Gemini API error:", response.status, t);
-      const userMsg = `Google API fel (${response.status}): ${t}`;
+      console.error("Groq API error:", response.status, t);
+      if (response.status === 429) {
+        return new Response(
+          JSON.stringify({ error: "Begränsningen för antal förfrågningar har nåtts. Försök igen om en stund." }),
+          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
       return new Response(
-        JSON.stringify({ error: userMsg }),
-        { status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        JSON.stringify({ error: "AI-tjänsten är inte tillgänglig just nu" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
