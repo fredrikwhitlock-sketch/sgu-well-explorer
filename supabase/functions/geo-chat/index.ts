@@ -10,7 +10,8 @@ serve(async (req) => {
 
   try {
     const { messages } = await req.json();
-    const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
+    // Accept the common "CROQ" misspelling too so a typo'd secret name still works.
+    const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY") ?? Deno.env.get("CROQ_API_KEY");
     if (!GROQ_API_KEY) throw new Error("GROQ_API_KEY is not configured");
 
     const systemPrompt = `Du är en expert på geologi, hydrogeologi och miljövetenskap med fokus på svenska förhållanden. Du hjälper användare att analysera geodata från SGU:s (Sveriges geologiska undersökning) karttjänster.
