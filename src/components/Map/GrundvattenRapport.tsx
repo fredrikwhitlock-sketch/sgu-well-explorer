@@ -145,7 +145,7 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
       if (m.grvbildningstyp) lines.push(`- **Grundvattenbildning:** ${m.grvbildningstyp}`);
       if (m.medelmaktighetMattad) lines.push(`- **Mättad zon:** ${m.medelmaktighetMattad}`);
       if (m.medelmaktighetOmattad) lines.push(`- **Omättad zon:** ${m.medelmaktighetOmattad}`);
-      if (m.tillrinningLs != null) lines.push(`- **Tillrinning från tillrinningsområden:** ${m.tillrinningLs} l/s`);
+      if (m.tillrinningLs != null) lines.push(`- **Bedömd uttagsmöjlighet från grundvattenmagasin:** ${m.tillrinningLs} l/s`);
       if (data.delomrade?.uttagsmojligheter) lines.push(`- **Uttagsmöjlighet (delområde):** ${data.delomrade.uttagsmojligheter}`);
       if (data.delomrade?.kornstorlek) lines.push(`- **Kornstorlek (delområde):** ${data.delomrade.kornstorlek}`);
       if (data.delomrade?.artesiskt) lines.push(`- **Artesiskt:** ${data.delomrade.artesiskt}`);
@@ -453,7 +453,7 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
       if (m.akvifertyp) html += `<div class="row"><span class="lbl">Akvifertyp</span><span class="val">${e(m.akvifertyp)}</span></div>`;
       if (m.genes) html += `<div class="row"><span class="lbl">Genesis</span><span class="val">${e(m.genes)}</span></div>`;
       if (m.geomAreaKm2) html += `<div class="row"><span class="lbl">Area</span><span class="val">${m.geomAreaKm2.toFixed(1)} km²</span></div>`;
-      if (m.tillrinningLs != null) html += `<div class="row"><span class="lbl">Tillrinning</span><span class="val">${m.tillrinningLs} l/s</span></div>`;
+      if (m.tillrinningLs != null) html += `<div class="row"><span class="lbl">Bedömd uttagsmöjlighet</span><span class="val">${m.tillrinningLs} l/s</span></div>`;
       if (m.medelmaktighetMattad) html += `<div class="row"><span class="lbl">Medelm. mättad zon</span><span class="val">${e(m.medelmaktighetMattad)}</span></div>`;
       if (m.medelmaktighetOmattad) html += `<div class="row"><span class="lbl">Medelm. omättad zon</span><span class="val">${e(m.medelmaktighetOmattad)}</span></div>`;
       if (m.magasinsposition) html += `<div class="row"><span class="lbl">Position</span><span class="val">${e(m.magasinsposition)}</span></div>`;
@@ -834,7 +834,7 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
                 {/* Magasin tillrinning – actual mapped recharge capacity */}
                 {data.magasin?.tillrinningLs != null && (
                   <div className="text-xs mb-1.5">
-                    <span className="font-medium">Tillrinning till magasin ({data.magasin.namn.split(' ')[0]}):</span>
+                    <span className="font-medium">Bedömd uttagsmöjlighet ({data.magasin.namn.split(' ')[0]}):</span>
                     <span className="ml-1 text-blue-700 dark:text-blue-400 font-semibold">
                       {data.magasin.tillrinningLs} l/s
                     </span>
@@ -1132,7 +1132,7 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
                         {m.geomAreaKm2 != null && <Row label="Yta" value={`~${m.geomAreaKm2} km²`} />}
                         {m.medelmaktighetMattad && <Row label="Mättad zon" value={m.medelmaktighetMattad} />}
                         {m.medelmaktighetOmattad && <Row label="Omättad zon" value={m.medelmaktighetOmattad} />}
-                        {m.tillrinningLs != null && <Row label="Tillrinning" value={`${m.tillrinningLs.toLocaleString('sv')} l/s`} />}
+                        {m.tillrinningLs != null && <Row label="Bedömd uttagsmöjlighet" value={`${m.tillrinningLs.toLocaleString('sv')} l/s`} />}
                         {m.grvbildningstyp && <Row label="GV-bildning" value={m.grvbildningstyp} />}
                       </div>
                       {m.lankBeskrivning && (
@@ -1511,9 +1511,9 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
                     url="https://api.sgu.se/oppnadata/brunnar/ogc/features/v1"
                   />
                   <SourceRow
-                    label="Tillrinning till magasin (l/s)"
+                    label="Bedömd uttagsmöjlighet från magasin (l/s)"
                     source="SGU Grundvattenmagasin"
-                    note="Beräknad nettotillrinning till det namngivna grundvattenmagasinet från dess upptagningsområde, i liter per sekund."
+                    note="SGU:s bedömning av uttagningsmöjligheten från grundvattenmagasinet, i liter per sekund. Avspeglar magasinets kapacitet snarare än enbart nederbördsbaserad tillrinning."
                     url="https://api.sgu.se/oppnadata/grundvattenmagasin/ogc/features/v1"
                   />
                   <SourceRow
