@@ -1640,7 +1640,7 @@ export const WellPopup = ({
             )}
             {properties.tillrinning_fran_tillrinningsomraden_l_per_s != null && (
               <div>
-                <dt className="text-xs font-medium text-muted-foreground">Tillrinning</dt>
+                <dt className="text-xs font-medium text-muted-foreground">Bedömd uttagsmöjlighet</dt>
                 <dd className="text-sm text-foreground mt-1">{formatValue(properties.tillrinning_fran_tillrinningsomraden_l_per_s)} l/s</dd>
               </div>
             )}
