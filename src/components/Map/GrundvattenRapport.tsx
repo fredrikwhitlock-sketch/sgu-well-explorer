@@ -840,6 +840,15 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
                     </span>
                   </div>
                 )}
+                {/* Delområde – SGU's qualitative extraction-possibility class for the sub-area */}
+                {data.delomrade?.uttagsmojligheter && (
+                  <div className="text-xs mb-1.5">
+                    <span className="font-medium">Uttagsmöjlighet (delområde):</span>
+                    <span className="ml-1 text-blue-700 dark:text-blue-400 font-semibold">
+                      {data.delomrade.uttagsmojligheter}
+                    </span>
+                  </div>
+                )}
                 {/* Jorddjup – thickness of soil above bedrock from WMS raster */}
                 {data.jorddjup ? (
                   <div className="text-xs mb-1.5">
