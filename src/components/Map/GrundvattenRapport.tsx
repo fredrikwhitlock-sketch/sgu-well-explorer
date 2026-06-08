@@ -831,15 +831,6 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
                     )}
                   </div>
                 )}
-                {/* Magasin tillrinning – actual mapped recharge capacity */}
-                {data.magasin?.tillrinningLs != null && (
-                  <div className="text-xs mb-1.5">
-                    <span className="font-medium">Bedömd uttagsmöjlighet ({data.magasin.namn.split(' ')[0]}):</span>
-                    <span className="ml-1 text-blue-700 dark:text-blue-400 font-semibold">
-                      {data.magasin.tillrinningLs} l/s
-                    </span>
-                  </div>
-                )}
                 {/* Delområde – SGU's qualitative extraction-possibility class for the sub-area */}
                 {data.delomrade?.uttagsmojligheter && (
                   <div className="text-xs mb-1.5">
