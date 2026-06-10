@@ -755,10 +755,19 @@ export const WellPopup = ({
           </>
         ) : type === 'gwLevelsObserved' ? (
           <>
+            {/* Inactive station notice */}
+            {properties.tdat && (
+              <div className="flex items-center gap-1.5 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 px-2.5 py-1.5 mb-2 text-xs text-amber-800 dark:text-amber-300">
+                <span className="font-semibold">Inaktiv station</span>
+                <span className="text-amber-600 dark:text-amber-400">– stängd {formatValue(properties.tdat).split('T')[0]}</span>
+              </div>
+            )}
             {/* Latest observed level – prominent badge */}
             {(latestLevelLoading || latestLevel) && (
               <div className="rounded-lg bg-secondary/50 border border-border px-3 py-2 mb-1">
-                <div className="text-xs text-muted-foreground mb-0.5">Senaste mätvärde</div>
+                <div className="text-xs text-muted-foreground mb-0.5">
+                  {properties.tdat ? 'Sista registrerade mätvärde' : 'Senaste mätvärde'}
+                </div>
                 {latestLevelLoading ? (
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <Loader2 className="w-3 h-3 animate-spin" /> Hämtar…
