@@ -36,6 +36,7 @@ import { getSoilTypeColor } from "@/lib/soilTypeColors";
 import { getAquiferColorFor } from "@/lib/aquiferColors";
 import { exportWellsToCSV, exportFeaturesToCSV } from "@/lib/exportWells";
 import { downloadBlob } from "@/lib/utils";
+import { useMapLayers } from "@/hooks/useMapLayers";
 
 
 interface ChartLocation {
@@ -54,97 +55,93 @@ register(proj4);
 export const MapView = () => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<OLMap | null>(null);
-  const [sourcesVisible, setSourcesVisible] = useState(false);
-  const [wellsVisible, setWellsVisible] = useState(false);
-  const [aquifersVisible, setAquifersVisible] = useState(false);
-  const [aquifersOpacity, setAquifersOpacity] = useState(0.5);
-  const [soilTypesVisible, setSoilTypesVisible] = useState(false);
-  const [soilTypesOpacity, setSoilTypesOpacity] = useState(0.7);
-  // Lantmäteriet WMS layers
-  const [osmVisible, setOsmVisible] = useState(true);
-  const [topoWebbVisible, setTopoWebbVisible] = useState(true);
-  const [ortofotoVisible, setOrtofotoVisible] = useState(false);
-  const [terrangskuggningVisible, setTerrangskuggningVisible] = useState(false);
-  const [terrangskuggningOpacity, setTerrangskuggningOpacity] = useState(0.5);
-  // SGU WMS layers
-  const [sguBerggrund1MVisible, setSguBerggrund1MVisible] = useState(false);
-  const [sguBerggrund1MOpacity, setSguBerggrund1MOpacity] = useState(0.7);
-  const [sguBerggrund50kVisible, setSguBerggrund50kVisible] = useState(false);
-  const [sguBerggrund50kOpacity, setSguBerggrund50kOpacity] = useState(0.7);
-  const [sguJordarter1MVisible, setSguJordarter1MVisible] = useState(false);
-  const [sguJordarter1MOpacity, setSguJordarter1MOpacity] = useState(0.7);
-  const [sguJordarter25kVisible, setSguJordarter25kVisible] = useState(false);
-  const [sguJordarter25kOpacity, setSguJordarter25kOpacity] = useState(0.7);
-  const [sguGvTillgangVisible, setSguGvTillgangVisible] = useState(false);
-  const [sguGvTillgangOpacity, setSguGvTillgangOpacity] = useState(0.7);
-  const [sguJorddjupVisible, setSguJorddjupVisible] = useState(false);
-  const [sguJorddjupOpacity, setSguJorddjupOpacity] = useState(0.7);
-  // Copernicus Land Service layers
-  const [clcVisible, setClcVisible] = useState(false);
-  const [clcOpacity, setClcOpacity] = useState(0.7);
-  const [waterWetnessVisible, setWaterWetnessVisible] = useState(false);
-  const [waterWetnessOpacity, setWaterWetnessOpacity] = useState(0.7);
+  const {
+    osmLayerRef, topoWebbLayerRef, ortofotoLayerRef, terrangskuggningLayerRef,
+    sguBerggrund1MLayerRef, sguBerggrund50kLayerRef,
+    sguJordarter1MLayerRef, sguJordarter25kLayerRef,
+    sguGvTillgangLayerRef, sguJorddjupLayerRef,
+    clcLayerRef, waterWetnessLayerRef,
+    sourcesLayerRef, wellsLayerRef,
+    aquifersLayerRef, soilTypesLayerRef, waterBodiesLayerRef,
+    gwLevelsObservedLayerRef, gwQualityLayerRef, observationsLayerRef,
+    jorddjupObsLayerRef, jorddjupKartorLayerRef, jorddjupSprickLayerRef,
+    hypoAreasSourceRef,
+    hypoFyllnadSmaLayerRef, hypoFyllnadStoraLayerRef,
+    hypoSitSmaLayerRef, hypoSitStoraLayerRef,
+    geolocationLayerRef, searchPinSourceRef,
+    osmVisible, setOsmVisible, topoWebbVisible, setTopoWebbVisible,
+    ortofotoVisible, setOrtofotoVisible,
+    terrangskuggningVisible, setTerrangskuggningVisible,
+    terrangskuggningOpacity, setTerrangskuggningOpacity,
+    sguBerggrund1MVisible, setSguBerggrund1MVisible,
+    sguBerggrund1MOpacity, setSguBerggrund1MOpacity,
+    sguBerggrund50kVisible, setSguBerggrund50kVisible,
+    sguBerggrund50kOpacity, setSguBerggrund50kOpacity,
+    sguJordarter1MVisible, setSguJordarter1MVisible,
+    sguJordarter1MOpacity, setSguJordarter1MOpacity,
+    sguJordarter25kVisible, setSguJordarter25kVisible,
+    sguJordarter25kOpacity, setSguJordarter25kOpacity,
+    sguGvTillgangVisible, setSguGvTillgangVisible,
+    sguGvTillgangOpacity, setSguGvTillgangOpacity,
+    sguJorddjupVisible, setSguJorddjupVisible,
+    sguJorddjupOpacity, setSguJorddjupOpacity,
+    clcVisible, setClcVisible,
+    clcOpacity, setClcOpacity,
+    waterWetnessVisible, setWaterWetnessVisible,
+    waterWetnessOpacity, setWaterWetnessOpacity,
+    sourcesVisible, setSourcesVisible,
+    wellsVisible, setWellsVisible,
+    aquifersVisible, setAquifersVisible,
+    aquifersOpacity, setAquifersOpacity,
+    soilTypesVisible, setSoilTypesVisible,
+    soilTypesOpacity, setSoilTypesOpacity,
+    waterBodiesVisible, setWaterBodiesVisible,
+    gwLevelsObservedVisible, setGwLevelsObservedVisible,
+    gwQualityVisible, setGwQualityVisible,
+    observationsVisible, setObservationsVisible,
+    loadingSources, setLoadingSources,
+    loadingWells, setLoadingWells,
+    loadingAquifers, setLoadingAquifers,
+    loadingSoilTypes, setLoadingSoilTypes,
+    loadingWaterBodies, setLoadingWaterBodies,
+    loadingGwLevelsObserved, setLoadingGwLevelsObserved,
+    loadingGwQuality, setLoadingGwQuality,
+    loadingObservations, setLoadingObservations,
+    sourcesLoaded, setSourcesLoaded,
+    wellsLoaded, setWellsLoaded,
+    aquifersLoaded, setAquifersLoaded,
+    soilTypesLoaded, setSoilTypesLoaded,
+    waterBodiesLoaded, setWaterBodiesLoaded,
+    gwLevelsObservedLoaded, setGwLevelsObservedLoaded,
+    gwQualityLoaded, setGwQualityLoaded,
+    observationsLoaded, setObservationsLoaded,
+    jorddjupObsVisible, setJorddjupObsVisible,
+    jorddjupKartorVisible, setJorddjupKartorVisible,
+    jorddjupSprickVisible, setJorddjupSprickVisible,
+    loadingJorddjupObs, setLoadingJorddjupObs,
+    loadingJorddjupKartor, setLoadingJorddjupKartor,
+    loadingJorddjupSprick, setLoadingJorddjupSprick,
+    jorddjupObsLoaded, setJorddjupObsLoaded,
+    jorddjupKartorLoaded, setJorddjupKartorLoaded,
+    jorddjupSprickLoaded, setJorddjupSprickLoaded,
+    hypoFyllnadSmaVisible, setHypoFyllnadSmaVisible,
+    hypoFyllnadStoraVisible, setHypoFyllnadStoraVisible,
+    hypoSitSmaVisible, setHypoSitSmaVisible,
+    hypoSitStoraVisible, setHypoSitStoraVisible,
+    loadingHypoAreas, setLoadingHypoAreas,
+    hypoAreasLoaded, setHypoAreasLoaded,
+    hypoAreasOpacity, setHypoAreasOpacity,
+    hypoAreasDate, setHypoAreasDate,
+  } = useMapLayers();
+
   const [coordinates, setCoordinates] = useState<[number, number] | null>(null);
   const [selectedFeatures, setSelectedFeatures] = useState<{ properties: Record<string, any>; type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType' | 'gvTillgang' | 'observation' | 'hypoArea' | 'jorddjupObs' | 'jorddjupKartor' | 'jorddjupSprick'; analysisResults?: any[] }[]>([]);
   const [selectedFeatureIndex, setSelectedFeatureIndex] = useState(0);
-  const [loadingSources, setLoadingSources] = useState(false);
-  const [loadingWells, setLoadingWells] = useState(false);
-  const [loadingAquifers, setLoadingAquifers] = useState(false);
-  const [loadingSoilTypes, setLoadingSoilTypes] = useState(false);
-  const [sourcesLoaded, setSourcesLoaded] = useState(0);
-  const [wellsLoaded, setWellsLoaded] = useState(0);
-  const [aquifersLoaded, setAquifersLoaded] = useState(0);
-  const [soilTypesLoaded, setSoilTypesLoaded] = useState(0);
-  const [waterBodiesVisible, setWaterBodiesVisible] = useState(false);
-  const [gwLevelsObservedVisible, setGwLevelsObservedVisible] = useState(false);
-  const [gwQualityVisible, setGwQualityVisible] = useState(false);
-  const [observationsVisible, setObservationsVisible] = useState(false);
-  const [loadingWaterBodies, setLoadingWaterBodies] = useState(false);
-  const [loadingGwLevelsObserved, setLoadingGwLevelsObserved] = useState(false);
-  const [loadingGwQuality, setLoadingGwQuality] = useState(false);
-  const [loadingObservations, setLoadingObservations] = useState(false);
-  const [waterBodiesLoaded, setWaterBodiesLoaded] = useState(0);
-  const [gwLevelsObservedLoaded, setGwLevelsObservedLoaded] = useState(0);
-  const [gwQualityLoaded, setGwQualityLoaded] = useState(0);
-  const [observationsLoaded, setObservationsLoaded] = useState(0);
-  // Jorddjupsmodell layers
-  const [jorddjupObsVisible, setJorddjupObsVisible] = useState(false);
-  const [jorddjupKartorVisible, setJorddjupKartorVisible] = useState(false);
-  const [jorddjupSprickVisible, setJorddjupSprickVisible] = useState(false);
-  const [loadingJorddjupObs, setLoadingJorddjupObs] = useState(false);
-  const [loadingJorddjupKartor, setLoadingJorddjupKartor] = useState(false);
-  const [loadingJorddjupSprick, setLoadingJorddjupSprick] = useState(false);
-  const [jorddjupObsLoaded, setJorddjupObsLoaded] = useState(0);
-  const [jorddjupKartorLoaded, setJorddjupKartorLoaded] = useState(0);
-  const [jorddjupSprickLoaded, setJorddjupSprickLoaded] = useState(0);
-  const [hypoFyllnadSmaVisible, setHypoFyllnadSmaVisible] = useState(false);
-  const [hypoFyllnadStoraVisible, setHypoFyllnadStoraVisible] = useState(false);
-  const [hypoSitSmaVisible, setHypoSitSmaVisible] = useState(false);
-  const [hypoSitStoraVisible, setHypoSitStoraVisible] = useState(false);
-  const [loadingHypoAreas, setLoadingHypoAreas] = useState(false);
-  const [hypoAreasLoaded, setHypoAreasLoaded] = useState(0);
-  const [hypoAreasOpacity, setHypoAreasOpacity] = useState(0.7);
-  const [hypoAreasDate, setHypoAreasDate] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - d.getDay()); // most recent Sunday, local time
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-  });
   const [chartOpen, setChartOpen] = useState(false);
   const [chartLocation, setChartLocation] = useState<ChartLocation | null>(null);
   const [chartLocations, setChartLocations] = useState<ChartLocation[]>([]);
   const [currentZoom, setCurrentZoom] = useState(11);
   const [mapRotation, setMapRotation] = useState(0);
-  const sourcesLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
-  const wellsLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
-  const aquifersLayerRef = useRef<VectorImageLayer<VectorSource> | null>(null);
-  const soilTypesLayerRef = useRef<VectorImageLayer<VectorSource> | null>(null);
-  const waterBodiesLayerRef = useRef<VectorImageLayer<VectorSource> | null>(null);
-  const gwLevelsObservedLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
-  const gwQualityLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
-  const observationsLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
-  const jorddjupObsLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
-  const jorddjupKartorLayerRef = useRef<VectorImageLayer<VectorSource> | null>(null);
-  const jorddjupSprickLayerRef = useRef<VectorImageLayer<VectorSource> | null>(null);
   const loadWellsForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
   const loadSoilTypesForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
   const loadWaterBodiesForExtentRef = useRef<((extent: number[]) => Promise<void>) | null>(null);
@@ -159,31 +156,10 @@ export const MapView = () => {
   const clearJorddjupObsRef = useRef<(() => void) | null>(null);
   const clearJorddjupKartorRef = useRef<(() => void) | null>(null);
   const clearJorddjupSprickRef = useRef<(() => void) | null>(null);
-  const hypoAreasSourceRef = useRef<VectorSource | null>(null);
-  const hypoFyllnadSmaLayerRef = useRef<VectorImageLayer<VectorSource> | null>(null);
-  const hypoFyllnadStoraLayerRef = useRef<VectorImageLayer<VectorSource> | null>(null);
-  const hypoSitSmaLayerRef = useRef<VectorImageLayer<VectorSource> | null>(null);
-  const hypoSitStoraLayerRef = useRef<VectorImageLayer<VectorSource> | null>(null);
   const fetchAndJoinHypoLevelsRef = useRef<((date: string) => Promise<void>) | null>(null);
   const hypoAreasDateRef = useRef((() => { const d = new Date(); d.setDate(d.getDate() - d.getDay()); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })());
-  const osmLayerRef = useRef<TileLayer<OSM> | null>(null);
-  // Lantmäteriet WMS layer refs
-  const topoWebbLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
-  const ortofotoLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
-  const terrangskuggningLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
-  // SGU WMS layer refs
-  const sguBerggrund1MLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
-  const sguBerggrund50kLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
-  const sguJordarter1MLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
-  const sguJordarter25kLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
-  const sguGvTillgangLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
-  const sguJorddjupLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
-  const clcLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
-  const waterWetnessLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
-  const geolocationLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const geolocationWatchRef = useRef<number | null>(null);
   const [isTracking, setIsTracking] = useState(false);
-  const searchPinSourceRef = useRef<VectorSource | null>(null);
   const rapportModeRef = useRef(false);
   const drawModeActiveRef = useRef(false);
   const drawInteractionRef = useRef<Draw | null>(null);
@@ -1918,11 +1894,6 @@ export const MapView = () => {
     setIsTracking(false);
   }, []);
 
-  // Update Sources visibility and load data when enabled
-  useEffect(() => {
-    osmLayerRef.current?.setVisible(osmVisible);
-  }, [osmVisible]);
-
   useEffect(() => {
     if (sourcesLayerRef.current) {
       sourcesLayerRef.current.setVisible(sourcesVisible);
@@ -1969,13 +1940,6 @@ export const MapView = () => {
     }
   }, [aquifersVisible]);
 
-  // Update Aquifers opacity
-  useEffect(() => {
-    if (aquifersLayerRef.current) {
-      aquifersLayerRef.current.setOpacity(aquifersOpacity);
-    }
-  }, [aquifersOpacity]);
-
   // Update Soil Types visibility and load data when enabled
   useEffect(() => {
     if (soilTypesLayerRef.current) {
@@ -1992,13 +1956,6 @@ export const MapView = () => {
       soilTypesLayerRef.current.setVisible(soilTypesVisible);
     }
   }, [soilTypesVisible]);
-
-  // Update Soil Types opacity
-  useEffect(() => {
-    if (soilTypesLayerRef.current) {
-      soilTypesLayerRef.current.setOpacity(soilTypesOpacity);
-    }
-  }, [soilTypesOpacity]);
 
   // Update Water Bodies visibility and load data when enabled
   useEffect(() => {
@@ -2057,123 +2014,6 @@ export const MapView = () => {
     }
   }, [observationsVisible]);
 
-  // Update Lantmäteriet Topografisk Webbkarta visibility
-  useEffect(() => {
-    if (topoWebbLayerRef.current) {
-      topoWebbLayerRef.current.setVisible(topoWebbVisible);
-    }
-  }, [topoWebbVisible]);
-
-  // Update Lantmäteriet Ortofoto visibility
-  useEffect(() => {
-    if (ortofotoLayerRef.current) {
-      ortofotoLayerRef.current.setVisible(ortofotoVisible);
-    }
-  }, [ortofotoVisible]);
-
-  // Update Lantmäteriet Terrängskuggning visibility
-  useEffect(() => {
-    if (terrangskuggningLayerRef.current) {
-      terrangskuggningLayerRef.current.setVisible(terrangskuggningVisible);
-    }
-  }, [terrangskuggningVisible]);
-
-  // Update Lantmäteriet Terrängskuggning opacity
-  useEffect(() => {
-    if (terrangskuggningLayerRef.current) {
-      terrangskuggningLayerRef.current.setOpacity(terrangskuggningOpacity);
-    }
-  }, [terrangskuggningOpacity]);
-
-  // Update SGU Berggrund 1M visibility
-  useEffect(() => {
-    if (sguBerggrund1MLayerRef.current) {
-      sguBerggrund1MLayerRef.current.setVisible(sguBerggrund1MVisible);
-    }
-  }, [sguBerggrund1MVisible]);
-
-  // Update SGU Berggrund 1M opacity
-  useEffect(() => {
-    if (sguBerggrund1MLayerRef.current) {
-      sguBerggrund1MLayerRef.current.setOpacity(sguBerggrund1MOpacity);
-    }
-  }, [sguBerggrund1MOpacity]);
-
-  // Update SGU Berggrund 50k visibility
-  useEffect(() => {
-    if (sguBerggrund50kLayerRef.current) {
-      sguBerggrund50kLayerRef.current.setVisible(sguBerggrund50kVisible);
-    }
-  }, [sguBerggrund50kVisible]);
-
-  // Update SGU Berggrund 50k opacity
-  useEffect(() => {
-    if (sguBerggrund50kLayerRef.current) {
-      sguBerggrund50kLayerRef.current.setOpacity(sguBerggrund50kOpacity);
-    }
-  }, [sguBerggrund50kOpacity]);
-
-  // Update SGU Jordarter 1M visibility
-  useEffect(() => {
-    if (sguJordarter1MLayerRef.current) {
-      sguJordarter1MLayerRef.current.setVisible(sguJordarter1MVisible);
-    }
-  }, [sguJordarter1MVisible]);
-
-  // Update SGU Jordarter 1M opacity
-  useEffect(() => {
-    if (sguJordarter1MLayerRef.current) {
-      sguJordarter1MLayerRef.current.setOpacity(sguJordarter1MOpacity);
-    }
-  }, [sguJordarter1MOpacity]);
-
-  // Update SGU Jordarter 25k visibility
-  useEffect(() => {
-    if (sguJordarter25kLayerRef.current) {
-      sguJordarter25kLayerRef.current.setVisible(sguJordarter25kVisible);
-    }
-  }, [sguJordarter25kVisible]);
-
-  // Update SGU Jordarter 25k opacity
-  useEffect(() => {
-    if (sguJordarter25kLayerRef.current) {
-      sguJordarter25kLayerRef.current.setOpacity(sguJordarter25kOpacity);
-    }
-  }, [sguJordarter25kOpacity]);
-
-  // Update SGU GV Tillgång visibility
-  useEffect(() => {
-    if (sguGvTillgangLayerRef.current) {
-      sguGvTillgangLayerRef.current.setVisible(sguGvTillgangVisible);
-    }
-  }, [sguGvTillgangVisible]);
-
-  // Update SGU GV Tillgång opacity
-  useEffect(() => {
-    if (sguGvTillgangLayerRef.current) {
-      sguGvTillgangLayerRef.current.setOpacity(sguGvTillgangOpacity);
-    }
-  }, [sguGvTillgangOpacity]);
-
-  // Update SGU Jorddjup visibility
-  useEffect(() => {
-    if (sguJorddjupLayerRef.current) {
-      sguJorddjupLayerRef.current.setVisible(sguJorddjupVisible);
-    }
-  }, [sguJorddjupVisible]);
-
-  // Update SGU Jorddjup opacity
-  useEffect(() => {
-    if (sguJorddjupLayerRef.current) {
-      sguJorddjupLayerRef.current.setOpacity(sguJorddjupOpacity);
-    }
-  }, [sguJorddjupOpacity]);
-
-  useEffect(() => { clcLayerRef.current?.setVisible(clcVisible); }, [clcVisible]);
-  useEffect(() => { clcLayerRef.current?.setOpacity(clcOpacity); }, [clcOpacity]);
-  useEffect(() => { waterWetnessLayerRef.current?.setVisible(waterWetnessVisible); }, [waterWetnessVisible]);
-  useEffect(() => { waterWetnessLayerRef.current?.setOpacity(waterWetnessOpacity); }, [waterWetnessOpacity]);
-
   // Jorddjupsmodell – extent-based loading (minzoom 12), same pattern as brunnar
   useEffect(() => {
     if (jorddjupObsLayerRef.current) {
@@ -2213,22 +2053,6 @@ export const MapView = () => {
       jorddjupSprickLayerRef.current.setVisible(jorddjupSprickVisible);
     }
   }, [jorddjupSprickVisible]);
-
-  // Update all four HYPE layer visibilities; trigger source load when any becomes visible
-  useEffect(() => {
-    const anyVisible = hypoFyllnadSmaVisible || hypoFyllnadStoraVisible || hypoSitSmaVisible || hypoSitStoraVisible;
-    hypoFyllnadSmaLayerRef.current?.setVisible(hypoFyllnadSmaVisible);
-    hypoFyllnadStoraLayerRef.current?.setVisible(hypoFyllnadStoraVisible);
-    hypoSitSmaLayerRef.current?.setVisible(hypoSitSmaVisible);
-    hypoSitStoraLayerRef.current?.setVisible(hypoSitStoraVisible);
-    // Keep source cached when hidden – data is re-used on next show without a fetch
-  }, [hypoFyllnadSmaVisible, hypoFyllnadStoraVisible, hypoSitSmaVisible, hypoSitStoraVisible]);
-
-  // Update HYPE opacity (shared across all four layers)
-  useEffect(() => {
-    [hypoFyllnadSmaLayerRef, hypoFyllnadStoraLayerRef, hypoSitSmaLayerRef, hypoSitStoraLayerRef]
-      .forEach(r => r.current?.setOpacity(hypoAreasOpacity));
-  }, [hypoAreasOpacity]);
 
   // Keep date ref in sync
   useEffect(() => {
