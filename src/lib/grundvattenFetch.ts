@@ -3,144 +3,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { getSoilTypeColor } from "./soilTypeColors";
 import { classifyAquifer, classifyByJg2, aquiferToBedgrKat } from "./aquifer";
 import { GV_BEDGR, classifyParam, getSeason, mannKendall, analyzeSeasonality } from "./grundvattenKemi";
+import { mercatorToWGS84, haversineKm, fetchWithTimeout, findNearest } from "./grundvattenUtils";
+
+export type { BrunnInfo, ReportData } from "./grundvattenTypes";
+import type { ReportData } from "./grundvattenTypes";
 
 // Register SWEREF99 TM (EPSG:3006) here so this module is self-contained.
 // MapView.tsx also registers it, but we cannot rely on module loading order.
 if (!proj4.defs("EPSG:3006")) {
   proj4.defs("EPSG:3006", "+proj=utm +zone=33 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs");
-}
-
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-export interface BrunnInfo {
-  id: string;
-  lon?: number; lat?: number;
-  kapacitet?: number;
-  djup?: number;
-  jorddjup?: number;
-  isBergborrad: boolean;
-  distKm?: number;
-  adress?: string;
-  typKod?: string;
-}
-
-export interface ReportData {
-  lon: number;
-  lat: number;
-  sweref: [number, number];
-  gvTillgangLdha?: number | null;
-  jordartNamn?: string;
-  jordartKod?: string;
-  jordartKalla?: 'oversta-ytlager' | 'ytlager' | 'grundlager';
-  jorddjup?: { djup: number };
-  elevation?: number | null;
-  magasin?: {
-    namn: string;
-    akvifertyp?: string;
-    genes?: string;
-    positionKod?: string;
-    geomAreaKm2?: number;
-    grvbildningstyp?: string;
-    tillrinningLs?: number;
-    medelmaktighetMattad?: string;
-    medelmaktighetOmattad?: string;
-    lankBeskrivning?: string;
-    magasinsposition?: string;
-  };
-  brunnar?: BrunnInfo[];
-  geokemi?: {
-    distKm: number;
-    distKmAes?: number;
-    artal?: number;
-    provtyp?: string;
-    elements: Record<string, number | null>;
-  };
-  gvKemi?: Array<{
-    provplatsid: string;
-    lon?: number; lat?: number;
-    provplatsnamn: string;
-    distKm?: number;
-    senasteprov?: string;
-    seasonalSelection: boolean;
-    fromBody: boolean;
-    eucdGwb?: string;
-    provplatskat?: string;
-    region?: string;
-    params: Array<{
-      name: string;
-      label: string;
-      value: number;
-      unit: string;
-      klass: number;
-      datum: string;
-    }>;
-    trend?: {
-      yearSpan: number;
-      nDates: number;
-      params: Array<{
-        name: string;
-        label: string;
-        unit: string;
-        klass: number;
-        latestValue: number;
-        mk: { trend: 'increasing' | 'decreasing' | 'no trend'; significant: boolean; slope: number; n: number };
-        hasSeasonality: boolean;
-        seasonalAmplitudePct: number;
-        series: Array<{ datum: string; value: number }>;
-      }>;
-    };
-  }>;
-  gvForekomstId?: string;
-  hypeOmradeId?: number;
-  hypeFyllnad?: { datum: string; sma: number | null; stora: number | null };
-  /** 2-year daily HYPE fyllnadsgrad series – reused by the chart to avoid a second fetch. */
-  hypeSeries?: Array<{ ts: number; fyllSma: number | null; fyllStora: number | null }>;
-  obsFeatures?: Array<{ djup: number; jordart?: string; aquiferGroup?: 'rock' | 'jord'; aquiferSize?: 'large' | 'small' }>;
-  obsStationer?: Array<{ id: string; lon?: number; lat?: number; namn: string; djup: number; obsdatum: string; distKm: number; aquiferGroup?: 'rock' | 'jord'; jordart?: string }>;
-  delomrade?: {
-    namn?: string;
-    magasinsnamn?: string;
-    uttagsmojligheter?: string;
-    kornstorlek?: string;
-    artesiskt?: string;
-    nivaforhallande?: string;
-    vattenkemi?: string;
-    delomradeskvalitet?: string;
-  };
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-export function mercatorToWGS84(x: number, y: number): [number, number] {
-  const lon = (x / 20037508.34) * 180;
-  const lat = (Math.atan(Math.exp((y / 20037508.34) * Math.PI)) * 360 / Math.PI) - 90;
-  return [lon, lat];
-}
-
-export function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-function fetchWithTimeout(url: string, ms: number, signal: AbortSignal): Promise<Response> {
-  const tc = new AbortController();
-  const timer = setTimeout(() => tc.abort(), ms);
-  signal.addEventListener('abort', () => { clearTimeout(timer); tc.abort(); }, { once: true });
-  return fetch(url, { signal: tc.signal }).finally(() => clearTimeout(timer));
-}
-
-function findNearest(features: any[], lat: number, lon: number) {
-  let best: { dist: number; p: any; artal?: number; provtyp?: string } | null = null;
-  for (const f of features) {
-    const coords = f.geometry?.coordinates;
-    if (!coords) continue;
-    const d = haversineKm(lat, lon, coords[1], coords[0]);
-    if (!best || d < best.dist) best = { dist: d, p: f.properties ?? {}, artal: f.properties?.prov_artal, provtyp: f.properties?.provtyp };
-  }
-  return best;
 }
 
 // ── Main fetch function ───────────────────────────────────────────────────────
@@ -254,7 +125,7 @@ export async function fetchGrundvattenData(
      }
      if (ids.length > 0) {
        const sorted = ids
-         .map(id => ({ id, dist: stCoords.has(id) ? haversineKm(lon, lat, stCoords.get(id)![0], stCoords.get(id)![1]) : 999 }))
+         .map(id => ({ id, dist: stCoords.has(id) ? haversineKm(lat, lon, stCoords.get(id)![1], stCoords.get(id)![0]) : 999 }))
          .sort((a, b) => a.dist - b.dist)
          .slice(0, 50)
          .map(x => x.id);
@@ -670,7 +541,7 @@ export async function fetchGrundvattenData(
         }
         if (bodyId) {
           fetches.push(
-            fetch(`https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/provplatser/items?f=json&filter=eucd_gwb='${bodyId}'&filter-lang=cql2-text&limit=100`, { signal }).catch(() => null)
+            fetch(`https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/provplatser/items?f=json&filter=${encodeURIComponent(`eucd_gwb='${bodyId}'`)}&filter-lang=cql2-text&limit=100`, { signal }).catch(() => null)
           );
         }
         const bodyResponses = await Promise.allSettled(fetches);
@@ -734,7 +605,7 @@ export async function fetchGrundvattenData(
         const analysResponses = await Promise.allSettled(
           candidates.map(({ p }) => {
             const pid = p.nationellt_provplatsid;
-            const url = `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/analysresultat/items?f=json&filter=nationellt_provplatsid=${pid}&filter-lang=cql2-text&sortby=-provtagningsdatum&limit=500`;
+            const url = `https://api.sgu.se/oppnadata/grundvattenkvalitet-analysresultat-provplatser-v2/ogc/features/v1/collections/analysresultat/items?f=json&filter=${encodeURIComponent(`nationellt_provplatsid=${pid}`)}&filter-lang=cql2-text&sortby=-provtagningsdatum&limit=500`;
             return fetch(url, { signal }).catch(() => null);
           })
         );
