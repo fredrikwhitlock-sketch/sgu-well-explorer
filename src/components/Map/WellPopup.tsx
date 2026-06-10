@@ -51,7 +51,10 @@ export const WellPopup = ({
   const dragRef = useRef<{ startX: number; startY: number; initialX: number; initialY: number } | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
 
-  // Fetch latest observed level for gwLevelsObserved stations
+  // Fetch latest observed level for gwLevelsObserved stations.
+  // NOTE: the API silently ignores sortby=-obsdatum (returns the first physical
+  // record, which can be years old), so we read numberMatched first and then
+  // fetch the tail of the collection, picking the newest record client-side.
   useEffect(() => {
     if (type !== 'gwLevelsObserved' || !properties.platsbeteckning) {
       setLatestLevel(null);
@@ -59,17 +62,26 @@ export const WellPopup = ({
     }
     setLatestLevelLoading(true);
     const id = encodeURIComponent(properties.platsbeteckning).replace(/'/g, '%27');
-    fetch(
-      `https://api.sgu.se/oppnadata/grundvattennivaer-observerade/ogc/features/v1/collections/nivaer/items?f=json&filter=platsbeteckning%20%3D%20%27${id}%27&sortby=-obsdatum&limit=1`
-    )
+    const base = `https://api.sgu.se/oppnadata/grundvattennivaer-observerade/ogc/features/v1/collections/nivaer/items?f=json&filter=platsbeteckning%20%3D%20%27${id}%27`;
+    fetch(`${base}&limit=1`)
       .then(res => res.ok ? res.json() : null)
       .then(json => {
-        const f = json?.features?.[0];
-        if (!f) return;
-        const p = f.properties ?? {};
-        const value = p.grundvattenniva_m_u_markyta ?? p.grundvattenniva_m_urok;
-        const date = p.obsdatum?.split('T')[0] ?? '';
-        if (value != null && date) setLatestLevel({ value, date });
+        const total = json?.numberMatched ?? 0;
+        if (!total) return null;
+        const tail = Math.min(50, total);
+        return fetch(`${base}&limit=${tail}&startIndex=${total - tail}`)
+          .then(res => res.ok ? res.json() : null);
+      })
+      .then(json => {
+        const features: any[] = json?.features ?? [];
+        let best: { value: number; date: string } | null = null;
+        for (const f of features) {
+          const p = f.properties ?? {};
+          const value = p.grundvattenniva_m_u_markyta ?? p.grundvattenniva_m_urok;
+          const date = p.obsdatum?.split('T')[0] ?? '';
+          if (value != null && date && (!best || date > best.date)) best = { value, date };
+        }
+        if (best) setLatestLevel(best);
       })
       .catch(() => {})
       .finally(() => setLatestLevelLoading(false));
