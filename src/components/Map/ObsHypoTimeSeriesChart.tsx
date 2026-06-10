@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { fmtMonthYear } from "@/lib/utils";
+import { fitHypeToObservations, type HypeFit } from "@/lib/hypeCalibration";
 import {
   LineChart,
   Line,
@@ -296,6 +297,20 @@ export const ObsHypoTimeSeriesChart = ({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stationKey, omradeId, years, prefetchedHype]);
 
+  // Pastas-style calibration: fit HYPE fyllnadsgrad against the nearest
+  // station's observations and derive a modeled daily level series that fills
+  // gaps in the sparse observed record.
+  const calibration = useMemo<{ stationId: string; fit: HypeFit } | null>(() => {
+    if (hypoSeries.length === 0) return null;
+    for (const s of stationsToShow) {
+      const obs = obsByStation.get(s.id);
+      if (!obs || obs.length < 8) continue;
+      const fit = fitHypeToObservations(obs, hypoSeries);
+      if (fit) return { stationId: s.id, fit };
+    }
+    return null;
+  }, [obsByStation, hypoSeries, stationsToShow]);
+
   // Merge all series into a single sorted-by-ts array of rows for recharts
   const merged = useMemo(() => {
     const map = new Map<number, Record<string, any>>();
@@ -319,8 +334,18 @@ export const ObsHypoTimeSeriesChart = ({
       row.hypoFyllSma = p.fyllSma;
       row.hypoFyllStora = p.fyllStora;
     }
+    if (calibration) {
+      for (const p of calibration.fit.series) {
+        let row = map.get(p.ts);
+        if (!row) {
+          row = { ts: p.ts };
+          map.set(p.ts, row);
+        }
+        row.hypeCalNiva = p.niva;
+      }
+    }
     return Array.from(map.values()).sort((a, b) => a.ts - b.ts);
-  }, [obsByStation, hypoSeries, stationsToShow]);
+  }, [obsByStation, hypoSeries, stationsToShow, calibration]);
 
   if (loading) {
     return (
@@ -350,6 +375,7 @@ export const ObsHypoTimeSeriesChart = ({
     const arr = obsByStation.get(s.id) ?? [];
     for (const p of arr) allDepths.push(p.djup);
   }
+  if (calibration) for (const p of calibration.fit.series) allDepths.push(p.niva);
   const minDepth = allDepths.length ? Math.min(...allDepths) : 0;
   const maxDepth = allDepths.length ? Math.max(...allDepths) : 1;
   const pad = Math.max(0.2, (maxDepth - minDepth) * 0.1);
@@ -466,6 +492,20 @@ export const ObsHypoTimeSeriesChart = ({
                 isAnimationActive={false}
               />
             )}
+            {calibration && (
+              <Line
+                yAxisId="obs"
+                type="monotone"
+                dataKey="hypeCalNiva"
+                name="Modellerad nivå (HYPE-kalibrerad)"
+                stroke="#dc2626"
+                strokeWidth={1.5}
+                strokeDasharray="6 3"
+                dot={false}
+                connectNulls
+                isAnimationActive={false}
+              />
+            )}
             {stationsToShow.map((s, i) => {
               const arr = obsByStation.get(s.id);
               if (!arr || arr.length === 0) return null;
@@ -487,6 +527,17 @@ export const ObsHypoTimeSeriesChart = ({
           </ComposedChart>
         </ResponsiveContainer>
       </div>
+      {calibration && (
+        <p className="text-[10px] text-muted-foreground mt-1">
+          Modellerad nivå: linjär kalibrering av HYPE-fyllnadsgrad ({calibration.fit.source === 'sma' ? 'små' : 'stora'} magasin)
+          mot {calibration.stationId}
+          {' · '}R² = {calibration.fit.r2.toFixed(2)}
+          {' · '}RMSE = {calibration.fit.rmse.toFixed(2)} m
+          {' · '}{calibration.fit.n} matchade observationer
+          {calibration.fit.lagDays > 0 && <>{' · '}lag {calibration.fit.lagDays} d</>}
+          {' '}(Pastas-inspirerad transfermodell)
+        </p>
+      )}
       {!hasAnyObs && stationsToShow.length > 0 && (
         <p className="text-[10px] text-muted-foreground mt-1">
           Inga observationer hittades för stationerna under de senaste {years} åren.
