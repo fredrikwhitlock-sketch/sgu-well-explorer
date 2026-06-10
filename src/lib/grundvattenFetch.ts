@@ -319,10 +319,16 @@ export async function fetchGrundvattenData(
     }
   }
 
-  // Nivaer: Cloudflare Worker → Supabase → SGU
+  // Nivaer: cache (CF Worker / Supabase) + SGU API merged.
+  // The cache only covers 628 out of 1 524 stations, so we ALWAYS also await
+  // nivaerPromise (already in-flight from obsStationerChain) and merge both
+  // result sets. The stBest deduplication below keeps the reading closest to
+  // selectedDate per station, so duplicates are harmless.
   const stationIds = useSbStationer ? sbStationer!.map(s => s.platsbeteckning) : [];
   const cfWorkerUrl = import.meta.env.VITE_CF_WORKER_URL;
   const nivaerFetch: Promise<any> = (async () => {
+    let cachedFeatures: any[] = [];
+
     if (useSbStationer && stationIds.length > 0) {
       if (cfWorkerUrl) {
         try {
@@ -330,23 +336,32 @@ export async function fetchGrundvattenData(
           if (res.ok) {
             const d = await res.json();
             if (d?.nivaer?.length > 0) {
-              return { features: d.nivaer.map((r: any) => ({ properties: { platsbeteckning: r.platsbeteckning, obsdatum: r.obsdatum, grundvattenniva_m_u_markyta: r.nivaer_m } })) };
+              cachedFeatures = d.nivaer.map((r: any) => ({ properties: { platsbeteckning: r.platsbeteckning, obsdatum: r.obsdatum, grundvattenniva_m_u_markyta: r.nivaer_m } }));
             }
           }
         } catch { /* fall through */ }
       }
-      const { data } = await supabase
-        .from('obs_nivaer')
-        .select('platsbeteckning, obsdatum, nivaer_m')
-        .in('platsbeteckning', stationIds)
-        .gte('obsdatum', nivaerLoDate)
-        .lte('obsdatum', nivaerHiDate)
-        .limit(500);
-      if (data && data.length > 0) {
-        return { features: data.map(r => ({ properties: { platsbeteckning: r.platsbeteckning, obsdatum: r.obsdatum, grundvattenniva_m_u_markyta: r.nivaer_m } })) };
+      if (cachedFeatures.length === 0) {
+        const { data } = await supabase
+          .from('obs_nivaer')
+          .select('platsbeteckning, obsdatum, nivaer_m')
+          .in('platsbeteckning', stationIds)
+          .gte('obsdatum', nivaerLoDate)
+          .lte('obsdatum', nivaerHiDate)
+          .limit(500);
+        if (data && data.length > 0) {
+          cachedFeatures = data.map(r => ({ properties: { platsbeteckning: r.platsbeteckning, obsdatum: r.obsdatum, grundvattenniva_m_u_markyta: r.nivaer_m } }));
+        }
       }
     }
-    return nivaerPromise ? await nivaerPromise : null;
+
+    // Always merge with the SGU API result (already in-flight, no extra latency).
+    // This fills in stations the cache doesn't cover.
+    const sguData = nivaerPromise ? await nivaerPromise : null;
+    const sguFeatures: any[] = sguData?.features ?? [];
+
+    const merged = [...cachedFeatures, ...sguFeatures];
+    return merged.length > 0 ? { features: merged } : null;
   })();
 
   const [nivaerData, brunnarData] = await Promise.all([nivaerFetch, brunnarChain]);
