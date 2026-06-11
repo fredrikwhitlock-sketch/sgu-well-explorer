@@ -45,6 +45,8 @@ interface ChartLocation {
   type: 'level' | 'quality';
   platsbeteckning?: string;
   provplatsid?: string;
+  lon?: number;
+  lat?: number;
 }
 
 // Define SWEREF99 TM projection

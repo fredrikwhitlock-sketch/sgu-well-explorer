@@ -6,6 +6,7 @@ import { X, Trash2, Loader2, ExternalLink, GripHorizontal, TrendingDown, Trendin
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Brush } from "recharts";
 import { Separator } from "@/components/ui/separator";
+import { fitHypeToObservations, type HypeFit } from "@/lib/hypeCalibration";
 
 interface ChartLocation {
   id: string;
@@ -13,6 +14,8 @@ interface ChartLocation {
   type: 'level' | 'quality';
   platsbeteckning?: string;
   provplatsid?: string;
+  lon?: number;
+  lat?: number;
 }
 
 interface ChartViewerProps {
@@ -76,6 +79,9 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
   const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef<{ startX: number; startY: number; initialX: number; initialY: number } | null>(null);
   const qualityCacheRef = useRef<Map<string, AnalysRow[]>>(new Map());
+  const hypeSeriesCacheRef = useRef<Map<string, { series: Array<{ ts: number; fyllSma: number | null; fyllStora: number | null }> } | null>>(new Map());
+  const [modelKeys, setModelKeys] = useState<Set<string>>(new Set());
+  const [hypeFits, setHypeFits] = useState<Map<string, HypeFit>>(new Map());
 
   const chartType = initialLocation.type;
 
@@ -127,24 +133,67 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
     setError(null);
 
     try {
-      // Fetch all stations in parallel instead of sequentially
-      const results = await Promise.all(
-        locations.map(location =>
-          (chartType === 'level'
-            ? fetchLevelData(location)
-            : fetchQualityData(location, selectedParameter)
-          ).then(data => ({ location, data }))
-        )
-      );
+      // Fetch observations and HYPE data in parallel
+      const [observationResults, hypeResults] = await Promise.all([
+        Promise.all(
+          locations.map(location =>
+            (chartType === 'level'
+              ? fetchLevelData(location)
+              : fetchQualityData(location, selectedParameter)
+            ).then(data => ({ location, data }))
+          )
+        ),
+        chartType === 'level'
+          ? Promise.all(
+              locations.map(location =>
+                location.lon != null && location.lat != null
+                  ? fetchHypeForLocation(location.lon, location.lat).catch(() => null)
+                  : Promise.resolve(null)
+              )
+            )
+          : Promise.resolve(locations.map(() => null)),
+      ]);
 
       const allData: Map<string, ChartData> = new Map();
-      for (const { location, data } of results) {
+      const newModelKeys = new Set<string>();
+      const newHypeFits = new Map<string, HypeFit>();
+
+      for (const { location, data } of observationResults) {
         for (const item of data) {
           const existing = allData.get(item.date) || { date: item.date };
           existing[location.name] = item.value;
           allData.set(item.date, existing);
         }
       }
+
+      // Calibrate HYPE model against observations for each level station with coordinates
+      for (let i = 0; i < observationResults.length; i++) {
+        const { location, data } = observationResults[i];
+        const hyp = hypeResults[i];
+        if (!hyp || hyp.series.length < 30 || data.length < 8) continue;
+
+        const obs = data.map(d => ({ ts: new Date(d.date).getTime(), djup: d.value }));
+        const fit = fitHypeToObservations(obs, hyp.series);
+        if (!fit) continue;
+
+        const modelKey = `${location.name} (modell)`;
+        newModelKeys.add(modelKey);
+        newHypeFits.set(modelKey, fit);
+
+        const obsMinTs = Math.min(...obs.map(o => o.ts));
+        const obsMaxTs = Math.max(...obs.map(o => o.ts)) + 30 * 86400000;
+
+        for (const point of fit.series) {
+          if (point.ts < obsMinTs || point.ts > obsMaxTs) continue;
+          const date = new Date(point.ts).toISOString().substring(0, 10);
+          const existing = allData.get(date) || { date };
+          existing[modelKey] = Math.round(point.niva * 100) / 100;
+          allData.set(date, existing);
+        }
+      }
+
+      setModelKeys(newModelKeys);
+      setHypeFits(newHypeFits);
 
       const sortedData = Array.from(allData.values())
         .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -156,6 +205,41 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchHypeForLocation = async (lon: number, lat: number): Promise<{ series: Array<{ ts: number; fyllSma: number | null; fyllStora: number | null }> } | null> => {
+    const cacheKey = `${lon.toFixed(4)},${lat.toFixed(4)}`;
+    if (hypeSeriesCacheRef.current.has(cacheKey)) return hypeSeriesCacheRef.current.get(cacheKey)!;
+
+    const omradeUrl = `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/omraden/items?f=json&filter=${encodeURIComponent(`S_INTERSECTS(geom,POINT(${lon} ${lat}))`)}&filter-lang=cql2-text&limit=1`;
+    const omradeRes = await fetch(omradeUrl);
+    if (!omradeRes.ok) { hypeSeriesCacheRef.current.set(cacheKey, null); return null; }
+    const omradeData = await omradeRes.json();
+    const omradeId: number | undefined = omradeData.features?.[0]?.properties?.omrade_id;
+    if (typeof omradeId !== 'number') { hypeSeriesCacheRef.current.set(cacheKey, null); return null; }
+
+    const ymd = (dt: Date) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+    const filter = `datum>='1990-01-01' AND datum<='${ymd(new Date())}' AND omrade_id=${omradeId}`;
+    const hypeUrl = `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/grundvattennivaer-tidigare/items?f=json&filter=${encodeURIComponent(filter)}&filter-lang=cql2-text&limit=15000`;
+    const hypeRes = await fetch(hypeUrl);
+    if (!hypeRes.ok) { hypeSeriesCacheRef.current.set(cacheKey, null); return null; }
+    const hypeData = await hypeRes.json();
+
+    const clean = (x: unknown): number | null => { const n = Number(x); return Number.isFinite(n) && n > 0 ? n : null; };
+    const series = (hypeData.features ?? [])
+      .map((f: { properties?: Record<string, unknown> }) => {
+        const p = f.properties ?? {};
+        const datum = typeof p.datum === 'string' ? p.datum.substring(0, 10) : null;
+        if (!datum) return null;
+        const ts = new Date(datum).getTime();
+        return Number.isFinite(ts) ? { ts, fyllSma: clean(p.fyllnadsgrad_sma), fyllStora: clean(p.fyllnadsgrad_stora) } : null;
+      })
+      .filter((x: unknown): x is { ts: number; fyllSma: number | null; fyllStora: number | null } => x !== null)
+      .sort((a: { ts: number }, b: { ts: number }) => a.ts - b.ts);
+
+    const result = { series };
+    hypeSeriesCacheRef.current.set(cacheKey, result);
+    return result;
   };
 
 
@@ -488,6 +572,25 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
                       connectNulls={false}
                     />
                   ))}
+                  {/* Dashed HYPE-calibrated model lines — one per observed station */}
+                  {Array.from(modelKeys).map(modelKey => {
+                    const baseName = modelKey.replace(' (modell)', '');
+                    const idx = locations.findIndex(loc => loc.name === baseName);
+                    const color = idx >= 0 ? CHART_COLORS[idx % CHART_COLORS.length] : '#888';
+                    return (
+                      <Line
+                        key={modelKey}
+                        type="monotone"
+                        dataKey={modelKey}
+                        stroke={color}
+                        strokeWidth={1}
+                        strokeDasharray="4 3"
+                        dot={false}
+                        connectNulls={true}
+                        opacity={0.7}
+                      />
+                    );
+                  })}
                   <Brush
                     dataKey="date"
                     height={28}
@@ -502,6 +605,14 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
               <p className="text-xs text-muted-foreground text-center">
                 Y-axeln är inverterad: lägre värde = grundvatten närmare markytan. Dra i det nedre fältet för att zooma.
               </p>
+            )}
+            {modelKeys.size > 0 && (
+              <div className="text-xs text-muted-foreground text-center space-y-0.5">
+                <p>Streckad linje: HYPE-kalibrerad modellnivå (Pastas-metod) — fyller luckor mellan observationer.</p>
+                {Array.from(hypeFits.entries()).map(([key, fit]) => (
+                  <p key={key}>{key}: R²={fit.r2.toFixed(2)}, RMSE={fit.rmse.toFixed(2)} m, lag={fit.lagDays} d ({fit.source})</p>
+                ))}
+              </div>
             )}
           </div>
         )}
