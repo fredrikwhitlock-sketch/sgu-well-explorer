@@ -7,6 +7,13 @@ import { mercatorToWGS84, haversineKm, fetchWithTimeout, findNearest } from "./g
 
 export type { BrunnInfo, ReportData } from "./grundvattenTypes";
 import type { ReportData } from "./grundvattenTypes";
+import type {
+  OgcFeature, OgcFeatureCollection,
+  ObsStationProps, ObsNivaProps, BrunnProps, JordartProps,
+  MagasinProps, DelomradeProps, GvForekomstProps,
+  HypeOmradeProps, HypeNivaProps, GeokemiProps,
+  ProvplatsProps, AnalysresultatProps, WmsFeatureInfoProps,
+} from "./sguApiTypes";
 
 // Register SWEREF99 TM (EPSG:3006) here so this module is self-contained.
 // MapView.tsx also registers it, but we cannot rely on module loading order.
@@ -35,12 +42,12 @@ export async function fetchGrundvattenData(
 
   const brunnarBase = `https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar/items?f=json`;
   const brunnarBbox = (d: number) => `${lon - d},${lat - d},${lon + d},${lat + d}`;
-  const brunnarFetchJson = (d: number, limit: number) =>
+  const brunnarFetchJson = (d: number, limit: number): Promise<OgcFeatureCollection<BrunnProps> | null> =>
     fetch(`${brunnarBase}&bbox=${brunnarBbox(d)}&limit=${limit}`, { signal })
       .then(r => r.ok ? r.json().catch(() => null) : null)
       .catch(() => null);
 
-  const brunnarChain: Promise<any> = (async () => {
+  const brunnarChain: Promise<OgcFeatureCollection<BrunnProps>> = (async () => {
     const [close, medium] = await Promise.all([
       brunnarFetchJson(0.009, 50),
       brunnarFetchJson(0.045, 100),
@@ -49,7 +56,7 @@ export async function fetchGrundvattenData(
       ? (await brunnarFetchJson(0.13, 100)) ?? medium
       : medium;
     const seen = new Set<string>();
-    const merged: any[] = [];
+    const merged: OgcFeature<BrunnProps>[] = [];
     for (const f of [...(close?.features ?? []), ...(base?.features ?? [])]) {
       const key = String(f.properties?.brunnsid ?? f.id ?? '');
       if (key && !seen.has(key)) { seen.add(key); merged.push(f); }
@@ -84,7 +91,7 @@ export async function fetchGrundvattenData(
   const stAkvifSize = new Map<string, 'large' | 'small'>();
   const stNamn      = new Map<string, string>();
   const stCoords    = new Map<string, [number, number]>();
-  let nivaerPromise: Promise<any> | null = null;
+  let nivaerPromise: Promise<OgcFeatureCollection<ObsNivaProps> | null> | null = null;
 
   const latD50 = 0.45;
   const lonD50 = latD50 / Math.cos((lat * Math.PI) / 180);
@@ -102,7 +109,7 @@ export async function fetchGrundvattenData(
     `${obsBase}/stationer/items?f=json&bbox=${obs50Bbox}&limit=500`,
     { signal }
   ).then(r => r.ok ? r.json() : null)
-   .then(d => {
+   .then((d: OgcFeatureCollection<ObsStationProps> | null) => {
      const ids: string[] = [];
      for (const f of d?.features ?? []) {
        const p = f.properties ?? {};
@@ -197,8 +204,8 @@ export async function fetchGrundvattenData(
   // selectedDate per station, so duplicates are harmless.
   const stationIds = useSbStationer ? sbStationer!.map(s => s.platsbeteckning) : [];
   const cfWorkerUrl = import.meta.env.VITE_CF_WORKER_URL;
-  const nivaerFetch: Promise<any> = (async () => {
-    let cachedFeatures: any[] = [];
+  const nivaerFetch: Promise<OgcFeatureCollection<ObsNivaProps> | null> = (async () => {
+    let cachedFeatures: OgcFeature<ObsNivaProps>[] = [];
 
     if (useSbStationer && stationIds.length > 0) {
       if (cfWorkerUrl) {
@@ -229,7 +236,7 @@ export async function fetchGrundvattenData(
     // Always merge with the SGU API result (already in-flight, no extra latency).
     // This fills in stations the cache doesn't cover.
     const sguData = nivaerPromise ? await nivaerPromise : null;
-    const sguFeatures: any[] = sguData?.features ?? [];
+    const sguFeatures: OgcFeature<ObsNivaProps>[] = sguData?.features ?? [];
 
     const merged = [...cachedFeatures, ...sguFeatures];
     return merged.length > 0 ? { features: merged } : null;
@@ -244,7 +251,7 @@ export async function fetchGrundvattenData(
   // GV Tillgång
   if (gvTillgangRes.status === 'fulfilled' && gvTillgangRes.value.ok) {
     try {
-      const d = await gvTillgangRes.value.json();
+      const d: OgcFeatureCollection<WmsFeatureInfoProps> = await gvTillgangRes.value.json();
       if (d.features?.length > 0) {
         const p = d.features[0].properties ?? {};
         result.gvTillgangLdha =
@@ -255,7 +262,7 @@ export async function fetchGrundvattenData(
   }
 
   // Jordart: oversta-ytlager → ytlager → grundlager (CQL2), then grundlager bbox
-  const extractJordart = (features: any[]): { name: string; kod: string } | null => {
+  const extractJordart = (features: OgcFeature<JordartProps>[]): { name: string; kod: string } | null => {
     if (!features?.length) return null;
     const f = features[0];
     const jg2 = f.properties?.jg2 ?? f.properties?.JG2;
@@ -279,8 +286,8 @@ export async function fetchGrundvattenData(
     await tryRes(ytlagerRes,     'ytlager');
     await tryRes(jordartCql2Res, 'grundlager');
     if (!jordart && jordartBboxRes.status === 'fulfilled' && jordartBboxRes.value.ok) {
-      const d = await jordartBboxRes.value.json().catch(() => null);
-      const nonWater = (d?.features ?? []).filter((f: any) => {
+      const d: OgcFeatureCollection<JordartProps> | null = await jordartBboxRes.value.json().catch(() => null);
+      const nonWater = (d?.features ?? []).filter(f => {
         const jg2 = f.properties?.jg2 ?? f.properties?.JG2;
         return jg2 != null && Number(jg2) !== 91;
       });
@@ -293,7 +300,7 @@ export async function fetchGrundvattenData(
   // Grundvattenmagasin
   if (forekomstRes.status === 'fulfilled' && forekomstRes.value.ok) {
     try {
-      const d = await forekomstRes.value.json();
+      const d: OgcFeatureCollection<MagasinProps> = await forekomstRes.value.json();
       if (d.features?.length > 0) {
         const p = d.features[0].properties ?? {};
         result.magasin = {
@@ -320,7 +327,7 @@ export async function fetchGrundvattenData(
   // Magasinsdelområde
   if (delomradeRes.status === 'fulfilled' && delomradeRes.value.ok) {
     try {
-      const d = await delomradeRes.value.json();
+      const d: OgcFeatureCollection<DelomradeProps> = await delomradeRes.value.json();
       if (d.features?.length > 0) {
         const p = d.features[0].properties ?? {};
         result.delomrade = {
@@ -340,7 +347,7 @@ export async function fetchGrundvattenData(
   // Brunnar
   if (brunnarData?.features?.length > 0) {
     result.brunnar = brunnarData.features
-      .map((f: any) => {
+      .map(f => {
         const p = f.properties ?? {};
         const totaldjup = p.totaldjup ?? p.borrhalsdjup ?? null;
         const jorddjup  = p.jorddjup ?? 0;
@@ -361,14 +368,14 @@ export async function fetchGrundvattenData(
           typKod: p.typ_kod || p.brunnsstyp || undefined,
         };
       })
-      .sort((a: any, b: any) => (a.distKm ?? 999) - (b.distKm ?? 999))
+      .sort((a, b) => (a.distKm ?? 999) - (b.distKm ?? 999))
       .slice(0, 20);
   }
 
   // Jorddjup (WMS 10×10 m raster)
   if (jorddjupRes.status === 'fulfilled' && jorddjupRes.value.ok) {
     try {
-      const d = await jorddjupRes.value.json();
+      const d: OgcFeatureCollection<WmsFeatureInfoProps> = await jorddjupRes.value.json();
       const p = d.features?.[0]?.properties ?? {};
       // Try all known property name variants for this layer
       const raw = p.jorddjup_10x10m ?? p.jorddjup_intervall ?? p.jorddjup
@@ -395,7 +402,7 @@ export async function fetchGrundvattenData(
   // HYPE avrinningsområde – fast S_INTERSECTS lookup in core group
   if (hypeOmradeRes.status === 'fulfilled' && hypeOmradeRes.value.ok) {
     try {
-      const d = await hypeOmradeRes.value.json();
+      const d: OgcFeatureCollection<HypeOmradeProps> = await hypeOmradeRes.value.json();
       const id = d.features?.[0]?.properties?.omrade_id;
       if (typeof id === 'number') result.hypeOmradeId = id;
     } catch { /* ignore */ }
@@ -433,14 +440,14 @@ export async function fetchGrundvattenData(
       const hypeUrl = `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/grundvattennivaer-tidigare/items?f=json&filter=${encodeURIComponent(hypeFilter)}&filter-lang=cql2-text&limit=1000`;
       const hr = await fetchWithTimeout(hypeUrl, 8_000, signal);
       if (hr.ok) {
-        const hd = await hr.json().catch(() => null);
-        const feats: any[] = hd?.features ?? [];
+        const hd: OgcFeatureCollection<HypeNivaProps> | null = await hr.json().catch(() => null);
+        const feats = hd?.features ?? [];
         const clean = (x: any): number | null => {
           const n = Number(x);
           return !Number.isFinite(n) || n === -1 || n === 99 ? null : n;
         };
         const series = feats
-          .map((f: any) => {
+          .map(f => {
             const p = f.properties ?? {};
             const datum = String(p.datum ?? '').slice(0, 10);
             return {
@@ -464,7 +471,7 @@ export async function fetchGrundvattenData(
 
   // Geokemi (ICP-MS + ICP-AES morän)
   try {
-    const [msData, aesData] = await Promise.all([
+    const [msData, aesData]: Array<OgcFeatureCollection<GeokemiProps> | null> = await Promise.all([
       geokemiMsRes.status  === 'fulfilled' && geokemiMsRes.value.ok  ? geokemiMsRes.value.json().catch(() => null)  : null,
       geokemiAesRes.status === 'fulfilled' && geokemiAesRes.value.ok ? geokemiAesRes.value.json().catch(() => null) : null,
     ]);
@@ -473,7 +480,7 @@ export async function fetchGrundvattenData(
     const aes = findNearest(aesData?.features ?? [], lat, lon);
 
     if (ms || aes) {
-      const num = (p: any, k: string) => { const v = p?.[k]; return typeof v === 'number' && v > 0 ? v : null; };
+      const num = (p: GeokemiProps | undefined, k: string) => { const v = p?.[k]; return typeof v === 'number' && v > 0 ? v : null; };
       const oxToEl = (v: number | null, factor: number) => v != null ? Math.round(v * factor * 10) / 10 : null;
       result.geokemi = {
         distKm:    Math.round((ms?.dist ?? aes!.dist) * 10) / 10,
@@ -505,14 +512,14 @@ export async function fetchGrundvattenData(
   // GV-kemi
   try {
     if (gvKemiProvRes.status === 'fulfilled' && gvKemiProvRes.value.ok) {
-      const pd = await gvKemiProvRes.value.json().catch(() => null);
-      const bboxFeatures: any[] = pd?.features ?? [];
+      const pd: OgcFeatureCollection<ProvplatsProps> | null = await gvKemiProvRes.value.json().catch(() => null);
+      const bboxFeatures: OgcFeature<ProvplatsProps>[] = pd?.features ?? [];
 
       let bodyId: string | null = null;
       let bodyBbox: [number, number, number, number] | null = null;
       if (gvForekomstRes.status === 'fulfilled' && gvForekomstRes.value.ok) {
         try {
-          const fd = await gvForekomstRes.value.json().catch(() => null);
+          const fd: OgcFeatureCollection<GvForekomstProps> | null = await gvForekomstRes.value.json().catch(() => null);
           const feat = fd?.features?.[0];
           if (feat) {
             const fp = feat.properties ?? {};
@@ -530,7 +537,7 @@ export async function fetchGrundvattenData(
         } catch { /* ignore */ }
       }
 
-      let bodyFeatures: any[] = [];
+      let bodyFeatures: OgcFeature<ProvplatsProps>[] = [];
       if (bodyBbox || bodyId) {
         const fetches: Promise<Response | null>[] = [];
         if (bodyBbox) {
@@ -547,7 +554,7 @@ export async function fetchGrundvattenData(
         const bodyResponses = await Promise.allSettled(fetches);
         for (const r of bodyResponses) {
           if (r.status === 'fulfilled' && r.value?.ok) {
-            const bd = await r.value.json().catch(() => null);
+            const bd: OgcFeatureCollection<ProvplatsProps> | null = await r.value.json().catch(() => null);
             bodyFeatures.push(...(bd?.features ?? []));
           }
         }
@@ -556,13 +563,13 @@ export async function fetchGrundvattenData(
       else if (bodyBbox && bodyFeatures.length > 0) result.gvForekomstId = '(förekomst)';
 
       const seen = new Set<string>();
-      const merged: any[] = [];
+      const merged: OgcFeature<ProvplatsProps>[] = [];
       for (const f of [...bboxFeatures, ...bodyFeatures]) {
         const id = String(f.properties?.nationellt_provplatsid ?? '');
         if (id && !seen.has(id)) { seen.add(id); merged.push(f); }
       }
 
-      type Cand = { dist: number | null; p: any; lon?: number; lat?: number };
+      type Cand = { dist: number | null; p: ProvplatsProps; lon?: number; lat?: number };
       const bodyIds = new Set(bodyFeatures.map(f => String(f.properties?.nationellt_provplatsid ?? '')));
 
       let candidates: Cand[];
@@ -590,7 +597,7 @@ export async function fetchGrundvattenData(
             const dist = haversineKm(lat, lon, coords[1], coords[0]);
             return dist <= 50 ? { dist, p: f.properties ?? {}, lon: coords[0], lat: coords[1] } : null;
           })
-          .filter((x): x is { dist: number; p: any; lon: number; lat: number } => x !== null);
+          .filter((x): x is { dist: number; p: ProvplatsProps; lon: number; lat: number } => x !== null);
         const locAq = result.jordartKod
           ? classifyByJg2(Number(result.jordartKod))
           : classifyAquifer(result.jordartNamn);
@@ -609,7 +616,7 @@ export async function fetchGrundvattenData(
             return fetch(url, { signal }).catch(() => null);
           })
         );
-        const parsedAnalys = await Promise.all(
+        const parsedAnalys: Array<OgcFeatureCollection<AnalysresultatProps> | null> = await Promise.all(
           analysResponses.map(r =>
             r.status === 'fulfilled' && r.value?.ok ? r.value.json().catch(() => null) : Promise.resolve(null)
           )
