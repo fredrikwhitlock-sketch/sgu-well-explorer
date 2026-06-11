@@ -180,11 +180,17 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
         newModelKeys.add(modelKey);
         newHypeFits.set(modelKey, fit);
 
+        // The model line covers the full HYPE record (back to the 1960s).
+        // Daily resolution inside the observation window (gap filling),
+        // weekly outside it to keep the chart responsive.
         const obsMinTs = Math.min(...obs.map(o => o.ts));
         const obsMaxTs = Math.max(...obs.map(o => o.ts)) + 30 * 86400000;
+        let lastIncludedTs = -Infinity;
 
         for (const point of fit.series) {
-          if (point.ts < obsMinTs || point.ts > obsMaxTs) continue;
+          const inObsRange = point.ts >= obsMinTs && point.ts <= obsMaxTs;
+          if (!inObsRange && point.ts - lastIncludedTs < 7 * 86400000) continue;
+          lastIncludedTs = point.ts;
           const date = new Date(point.ts).toISOString().substring(0, 10);
           const existing = allData.get(date) || { date };
           existing[modelKey] = Math.round(point.niva * 100) / 100;
@@ -218,15 +224,27 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
     const omradeId: number | undefined = omradeData.features?.[0]?.properties?.omrade_id;
     if (typeof omradeId !== 'number') { hypeSeriesCacheRef.current.set(cacheKey, null); return null; }
 
+    // HYPE goes back to the early 1960s; ~24 000 daily rows in total, so fetch
+    // in parallel date chunks to stay well below the per-request row limit.
     const ymd = (dt: Date) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
-    const filter = `datum>='1990-01-01' AND datum<='${ymd(new Date())}' AND omrade_id=${omradeId}`;
-    const hypeUrl = `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/grundvattennivaer-tidigare/items?f=json&filter=${encodeURIComponent(filter)}&filter-lang=cql2-text&limit=15000`;
-    const hypeRes = await fetch(hypeUrl);
-    if (!hypeRes.ok) { hypeSeriesCacheRef.current.set(cacheKey, null); return null; }
-    const hypeData = await hypeRes.json();
+    const today = ymd(new Date());
+    const ranges: Array<[string, string]> = [
+      ['1960-01-01', '1979-12-31'],
+      ['1980-01-01', '1999-12-31'],
+      ['2000-01-01', '2014-12-31'],
+      ['2015-01-01', today],
+    ];
+    const chunks = await Promise.all(ranges.map(async ([from, to]) => {
+      const filter = `datum>='${from}' AND datum<='${to}' AND omrade_id=${omradeId}`;
+      const hypeUrl = `https://api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/ogc/features/v1/collections/grundvattennivaer-tidigare/items?f=json&filter=${encodeURIComponent(filter)}&filter-lang=cql2-text&limit=10000`;
+      const res = await fetch(hypeUrl);
+      if (!res.ok) return [];
+      const data = await res.json().catch(() => null);
+      return (data?.features ?? []) as Array<{ properties?: Record<string, unknown> }>;
+    }));
 
     const clean = (x: unknown): number | null => { const n = Number(x); return Number.isFinite(n) && n > 0 ? n : null; };
-    const series = (hypeData.features ?? [])
+    const series = chunks.flat()
       .map((f: { properties?: Record<string, unknown> }) => {
         const p = f.properties ?? {};
         const datum = typeof p.datum === 'string' ? p.datum.substring(0, 10) : null;
@@ -608,7 +626,7 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
             )}
             {modelKeys.size > 0 && (
               <div className="text-xs text-muted-foreground text-center space-y-0.5">
-                <p>Streckad linje: HYPE-kalibrerad modellnivå (Pastas-metod) — fyller luckor mellan observationer.</p>
+                <p>Streckad linje: HYPE-kalibrerad modellnivå (Pastas-metod) — fyller luckor mellan observationer och sträcker sig tillbaka till HYPE-seriens start på 1960-talet.</p>
                 {Array.from(hypeFits.entries()).map(([key, fit]) => (
                   <p key={key}>{key}: R²={fit.r2.toFixed(2)}, RMSE={fit.rmse.toFixed(2)} m, lag={fit.lagDays} d ({fit.source})</p>
                 ))}
