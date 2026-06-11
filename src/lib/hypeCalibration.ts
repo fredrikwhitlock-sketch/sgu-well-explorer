@@ -227,7 +227,7 @@ export function fitHypeToObservations(
 
   const fits = [fitOne(obs, sma, 'sma'), fitOne(obs, stora, 'stora')]
     .filter((f): f is HypeFit =>
-      f != null && f.r2 >= minR2 && (f.valR2 == null || f.valR2 >= 0.1));
+      f != null && f.r2 >= minR2 && (f.valR2 == null || f.n < 12 || f.valR2 >= 0.1));
   if (fits.length === 0) return null;
   return fits.reduce((p, c) => ((c.valR2 ?? c.r2) > (p.valR2 ?? p.r2) ? c : p));
 }
