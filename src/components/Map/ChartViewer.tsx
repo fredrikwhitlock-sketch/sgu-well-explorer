@@ -27,6 +27,8 @@ interface ChartViewerProps {
 
 interface ChartData {
   date: string;
+  /** Numeric timestamp used for the time-proportional X axis. */
+  ts: number;
   [key: string]: string | number;
 }
 
@@ -160,7 +162,7 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
 
       for (const { location, data } of observationResults) {
         for (const item of data) {
-          const existing = allData.get(item.date) || { date: item.date };
+          const existing = allData.get(item.date) || { date: item.date, ts: new Date(item.date).getTime() };
           existing[location.name] = item.value;
           allData.set(item.date, existing);
         }
@@ -192,7 +194,7 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
           if (!inObsRange && point.ts - lastIncludedTs < 7 * 86400000) continue;
           lastIncludedTs = point.ts;
           const date = new Date(point.ts).toISOString().substring(0, 10);
-          const existing = allData.get(date) || { date };
+          const existing = allData.get(date) || { date, ts: new Date(date).getTime() };
           existing[modelKey] = Math.round(point.niva * 100) / 100;
           allData.set(date, existing);
         }
@@ -202,7 +204,7 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
       setHypeFits(newHypeFits);
 
       const sortedData = Array.from(allData.values())
-        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        .sort((a, b) => a.ts - b.ts);
 
       setChartData(sortedData);
     } catch (err) {
@@ -543,7 +545,10 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
                 <LineChart data={chartData} margin={{ top: 5, right: 15, left: 10, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis
-                    dataKey="date"
+                    dataKey="ts"
+                    type="number"
+                    scale="time"
+                    domain={['dataMin', 'dataMax']}
                     tick={{ fontSize: 10 }}
                     tickFormatter={(value) => {
                       const date = new Date(value);
@@ -572,7 +577,7 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
                       borderRadius: '8px',
                       fontSize: '12px',
                     }}
-                    labelFormatter={(value) => `Datum: ${value}`}
+                    labelFormatter={(value) => `Datum: ${new Date(value).toISOString().substring(0, 10)}`}
                     formatter={(value: number, name: string) => [
                       `${value} ${chartType === 'level' ? 'm u. markyta' : ''}`,
                       name
@@ -610,7 +615,7 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
                     );
                   })}
                   <Brush
-                    dataKey="date"
+                    dataKey="ts"
                     height={28}
                     stroke="hsl(var(--border))"
                     fill="hsl(var(--muted))"
