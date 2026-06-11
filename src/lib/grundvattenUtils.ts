@@ -1,3 +1,5 @@
+import type { OgcFeature, GeokemiProps } from "./sguApiTypes";
+
 export function mercatorToWGS84(x: number, y: number): [number, number] {
   const lon = (x / 20037508.34) * 180;
   const lat = (Math.atan(Math.exp((y / 20037508.34) * Math.PI)) * 360 / Math.PI) - 90;
@@ -19,8 +21,8 @@ export function fetchWithTimeout(url: string, ms: number, signal: AbortSignal): 
   return fetch(url, { signal: tc.signal }).finally(() => clearTimeout(timer));
 }
 
-export function findNearest(features: any[], lat: number, lon: number) {
-  let best: { dist: number; p: any; artal?: number; provtyp?: string } | null = null;
+export function findNearest(features: OgcFeature<GeokemiProps>[], lat: number, lon: number) {
+  let best: { dist: number; p: GeokemiProps; artal?: number; provtyp?: string } | null = null;
   for (const f of features) {
     const coords = f.geometry?.coordinates;
     if (!coords) continue;

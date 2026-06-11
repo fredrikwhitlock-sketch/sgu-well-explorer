@@ -5,6 +5,7 @@ import { X, ExternalLink, Download, BarChart3, PlusCircle, ChevronLeft, ChevronR
 import { Separator } from "@/components/ui/separator";
 import { HypoTimeSeriesChart } from "./HypoTimeSeriesChart";
 import { safeHref } from "@/lib/utils";
+import type { OgcFeatureCollection, ObsNivaProps } from "@/lib/sguApiTypes";
 
 interface LagerItem {
   lagernr: number;
@@ -65,15 +66,15 @@ export const WellPopup = ({
     const base = `https://api.sgu.se/oppnadata/grundvattennivaer-observerade/ogc/features/v1/collections/nivaer/items?f=json&filter=platsbeteckning%20%3D%20%27${id}%27`;
     fetch(`${base}&limit=1`)
       .then(res => res.ok ? res.json() : null)
-      .then(json => {
+      .then((json: OgcFeatureCollection<ObsNivaProps> | null) => {
         const total = json?.numberMatched ?? 0;
         if (!total) return null;
         const tail = Math.min(50, total);
         return fetch(`${base}&limit=${tail}&startIndex=${total - tail}`)
           .then(res => res.ok ? res.json() : null);
       })
-      .then(json => {
-        const features: any[] = json?.features ?? [];
+      .then((json: OgcFeatureCollection<ObsNivaProps> | null) => {
+        const features = json?.features ?? [];
         let best: { value: number; date: string } | null = null;
         for (const f of features) {
           const p = f.properties ?? {};
