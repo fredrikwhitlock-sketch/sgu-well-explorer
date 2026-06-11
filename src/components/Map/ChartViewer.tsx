@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { X, Trash2, Loader2, ExternalLink, GripHorizontal, TrendingDown, TrendingUp, Minus } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Brush } from "recharts";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Brush } from "recharts";
 import { Separator } from "@/components/ui/separator";
 import { fitHypeToObservations, type HypeFit } from "@/lib/hypeCalibration";
 
@@ -29,8 +29,7 @@ interface ChartData {
   date: string;
   /** Numeric timestamp used for the time-proportional X axis. */
   ts: number;
-  /** Station values (number), model values (number) and ±RMSE bands ([low, high]). */
-  [key: string]: string | number | [number, number];
+  [key: string]: string | number;
 }
 
 interface StationStat {
@@ -196,12 +195,7 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
           lastIncludedTs = point.ts;
           const date = new Date(point.ts).toISOString().substring(0, 10);
           const existing = allData.get(date) || { date, ts: new Date(date).getTime() };
-          const niva = Math.round(point.niva * 100) / 100;
-          existing[modelKey] = niva;
-          existing[`${modelKey}__band`] = [
-            Math.round((point.niva - fit.rmse) * 100) / 100,
-            Math.round((point.niva + fit.rmse) * 100) / 100,
-          ];
+          existing[modelKey] = Math.round(point.niva * 100) / 100;
           allData.set(date, existing);
         }
       }
@@ -548,7 +542,7 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
             {/* Chart */}
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={chartData} margin={{ top: 5, right: 15, left: 10, bottom: 5 }}>
+                <LineChart data={chartData} margin={{ top: 5, right: 15, left: 10, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis
                     dataKey="ts"
@@ -601,7 +595,7 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
                       connectNulls={false}
                     />
                   ))}
-                  {/* Dashed HYPE-calibrated model lines with ±RMSE band — one per observed station.
+                  {/* Dashed HYPE-calibrated model lines — one per observed station.
                       Opacity is graded by validation confidence. */}
                   {Array.from(modelKeys).map(modelKey => {
                     const baseName = modelKey.replace(' (modell)', '');
@@ -609,19 +603,7 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
                     const color = idx >= 0 ? CHART_COLORS[idx % CHART_COLORS.length] : '#888';
                     const conf = hypeFits.get(modelKey)?.confidence ?? 'low';
                     const lineOpacity = conf === 'high' ? 0.8 : conf === 'medium' ? 0.55 : 0.35;
-                    return [
-                      <Area
-                        key={`${modelKey}__band`}
-                        type="monotone"
-                        dataKey={`${modelKey}__band`}
-                        stroke="none"
-                        fill={color}
-                        fillOpacity={0.08}
-                        connectNulls={true}
-                        legendType="none"
-                        tooltipType="none"
-                        isAnimationActive={false}
-                      />,
+                    return (
                       <Line
                         key={modelKey}
                         type="monotone"
@@ -632,8 +614,8 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
                         dot={false}
                         connectNulls={true}
                         opacity={lineOpacity}
-                      />,
-                    ];
+                      />
+                    );
                   })}
                   <Brush
                     dataKey="ts"
@@ -642,7 +624,7 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
                     fill="hsl(var(--muted))"
                     tickFormatter={(value) => new Date(value).getFullYear().toString()}
                   />
-                </ComposedChart>
+                </LineChart>
               </ResponsiveContainer>
             </div>
             {chartType === 'level' && (
