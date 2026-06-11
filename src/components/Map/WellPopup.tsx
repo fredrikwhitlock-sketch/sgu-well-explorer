@@ -20,8 +20,8 @@ interface WellPopupProps {
   type: 'source' | 'well' | 'aquifer' | 'waterBody' | 'gwLevelsObserved' | 'gwQuality' | 'soilType' | 'gvTillgang' | 'observation' | 'hypoArea' | 'jorddjupObs' | 'jorddjupKartor' | 'jorddjupSprick';
   analysisResults?: any[];
   onClose: () => void;
-  onOpenChart?: (location: { id: string; name: string; type: 'level' | 'quality'; platsbeteckning?: string; provplatsid?: string }) => void;
-  onAddToChart?: (location: { id: string; name: string; type: 'level' | 'quality'; platsbeteckning?: string; provplatsid?: string }) => void;
+  onOpenChart?: (location: { id: string; name: string; type: 'level' | 'quality'; platsbeteckning?: string; provplatsid?: string; lon?: number; lat?: number }) => void;
+  onAddToChart?: (location: { id: string; name: string; type: 'level' | 'quality'; platsbeteckning?: string; provplatsid?: string; lon?: number; lat?: number }) => void;
   chartOpen?: boolean;
   chartType?: 'level' | 'quality' | null;
   totalFeatures?: number;
@@ -904,7 +904,9 @@ export const WellPopup = ({
                       id: `${properties.platsbeteckning}-${Date.now()}`,
                       name: properties.platsbeteckning || properties.obsplatsnamn || 'Station',
                       type: 'level',
-                      platsbeteckning: properties.platsbeteckning
+                      platsbeteckning: properties.platsbeteckning,
+                      lon: properties._lon,
+                      lat: properties._lat,
                     })}
                     className="text-xs"
                   >
@@ -918,7 +920,9 @@ export const WellPopup = ({
                       id: `${properties.platsbeteckning}-${Date.now()}`,
                       name: properties.platsbeteckning || properties.obsplatsnamn || 'Station',
                       type: 'level',
-                      platsbeteckning: properties.platsbeteckning
+                      platsbeteckning: properties.platsbeteckning,
+                      lon: properties._lon,
+                      lat: properties._lat,
                     })}
                     className="text-xs"
                   >
