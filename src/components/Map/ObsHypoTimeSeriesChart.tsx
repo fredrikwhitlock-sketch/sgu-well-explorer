@@ -601,12 +601,13 @@ export const ObsHypoTimeSeriesChart = ({
       </div>
       {calibration && (
         <p className="text-[10px] text-muted-foreground mt-1">
-          Modellerad nivå: linjär kalibrering av HYPE-fyllnadsgrad ({calibration.fit.source === 'sma' ? 'små' : 'stora'} magasin)
+          Modellerad nivå: exponentiell kärnkalibrering av HYPE-fyllnadsgrad ({calibration.fit.source === 'sma' ? 'små' : 'stora'} magasin)
           mot {calibration.stationId}
           {' · '}R² = {calibration.fit.r2.toFixed(2)}
+          {calibration.fit.valR2 != null && <>{' · '}validerings-R² = {calibration.fit.valR2.toFixed(2)}</>}
           {' · '}RMSE = {calibration.fit.rmse.toFixed(2)} m
           {' · '}{calibration.fit.n} matchade observationer
-          {calibration.fit.lagDays > 0 && <>{' · '}lag {calibration.fit.lagDays} d</>}
+          {calibration.fit.memoryDays > 1 && <>{' · '}minne {calibration.fit.memoryDays} d</>}
           {' '}(Pastas-inspirerad transfermodell)
         </p>
       )}

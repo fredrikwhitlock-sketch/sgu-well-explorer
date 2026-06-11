@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { X, Trash2, Loader2, ExternalLink, GripHorizontal, TrendingDown, TrendingUp, Minus } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Brush } from "recharts";
+import { ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Brush } from "recharts";
 import { Separator } from "@/components/ui/separator";
 import { fitHypeToObservations, type HypeFit } from "@/lib/hypeCalibration";
 
@@ -29,7 +29,8 @@ interface ChartData {
   date: string;
   /** Numeric timestamp used for the time-proportional X axis. */
   ts: number;
-  [key: string]: string | number;
+  /** Station values (number), model values (number) and ±RMSE bands ([low, high]). */
+  [key: string]: string | number | [number, number];
 }
 
 interface StationStat {
@@ -195,7 +196,12 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
           lastIncludedTs = point.ts;
           const date = new Date(point.ts).toISOString().substring(0, 10);
           const existing = allData.get(date) || { date, ts: new Date(date).getTime() };
-          existing[modelKey] = Math.round(point.niva * 100) / 100;
+          const niva = Math.round(point.niva * 100) / 100;
+          existing[modelKey] = niva;
+          existing[`${modelKey}__band`] = [
+            Math.round((point.niva - fit.rmse) * 100) / 100,
+            Math.round((point.niva + fit.rmse) * 100) / 100,
+          ];
           allData.set(date, existing);
         }
       }
@@ -542,7 +548,7 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
             {/* Chart */}
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData} margin={{ top: 5, right: 15, left: 10, bottom: 5 }}>
+                <ComposedChart data={chartData} margin={{ top: 5, right: 15, left: 10, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis
                     dataKey="ts"
@@ -595,12 +601,27 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
                       connectNulls={false}
                     />
                   ))}
-                  {/* Dashed HYPE-calibrated model lines — one per observed station */}
+                  {/* Dashed HYPE-calibrated model lines with ±RMSE band — one per observed station.
+                      Opacity is graded by validation confidence. */}
                   {Array.from(modelKeys).map(modelKey => {
                     const baseName = modelKey.replace(' (modell)', '');
                     const idx = locations.findIndex(loc => loc.name === baseName);
                     const color = idx >= 0 ? CHART_COLORS[idx % CHART_COLORS.length] : '#888';
-                    return (
+                    const conf = hypeFits.get(modelKey)?.confidence ?? 'low';
+                    const lineOpacity = conf === 'high' ? 0.8 : conf === 'medium' ? 0.55 : 0.35;
+                    return [
+                      <Area
+                        key={`${modelKey}__band`}
+                        type="monotone"
+                        dataKey={`${modelKey}__band`}
+                        stroke="none"
+                        fill={color}
+                        fillOpacity={0.08}
+                        connectNulls={true}
+                        legendType="none"
+                        tooltipType="none"
+                        isAnimationActive={false}
+                      />,
                       <Line
                         key={modelKey}
                         type="monotone"
@@ -610,9 +631,9 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
                         strokeDasharray="4 3"
                         dot={false}
                         connectNulls={true}
-                        opacity={0.7}
-                      />
-                    );
+                        opacity={lineOpacity}
+                      />,
+                    ];
                   })}
                   <Brush
                     dataKey="ts"
@@ -621,7 +642,7 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
                     fill="hsl(var(--muted))"
                     tickFormatter={(value) => new Date(value).getFullYear().toString()}
                   />
-                </LineChart>
+                </ComposedChart>
               </ResponsiveContainer>
             </div>
             {chartType === 'level' && (
@@ -631,9 +652,14 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
             )}
             {modelKeys.size > 0 && (
               <div className="text-xs text-muted-foreground text-center space-y-0.5">
-                <p>Streckad linje: HYPE-kalibrerad modellnivå (Pastas-metod) — fyller luckor mellan observationer och sträcker sig tillbaka till HYPE-seriens start på 1960-talet.</p>
+                <p>Streckad linje: HYPE-kalibrerad modellnivå (Pastas-metod, exponentiell kärna) med ±RMSE-band — fyller luckor mellan observationer och sträcker sig tillbaka till HYPE-seriens start på 1960-talet. Linjens styrka speglar tillförlitligheten.</p>
                 {Array.from(hypeFits.entries()).map(([key, fit]) => (
-                  <p key={key}>{key}: R²={fit.r2.toFixed(2)}, RMSE={fit.rmse.toFixed(2)} m, lag={fit.lagDays} d ({fit.source})</p>
+                  <p key={key}>
+                    {key}: R²={fit.r2.toFixed(2)}
+                    {fit.valR2 != null && <>, validerings-R²={fit.valR2.toFixed(2)}</>}
+                    , RMSE={fit.rmse.toFixed(2)} m, minne={fit.memoryDays} d ({fit.source}
+                    , tillförlitlighet: {fit.confidence === 'high' ? 'hög' : fit.confidence === 'medium' ? 'medel' : 'låg'})
+                  </p>
                 ))}
               </div>
             )}
