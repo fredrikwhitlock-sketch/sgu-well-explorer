@@ -119,7 +119,7 @@ function olsMulti(X: number[][], y: number[]): { beta: number[]; r2: number; rms
       for (let c = col; c <= k; c++) A[r][c] -= f * A[col][c];
     }
   }
-  const beta = A.map((row, i) => row[k] / row[i][i]);
+  const beta = A.map((row, i) => row[k] / row[i]);
   const stats = scoreFit(beta, X, y);
   if (!stats) return null;
   return { beta, ...stats };
