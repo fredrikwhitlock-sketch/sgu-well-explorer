@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { fmtMonthYear } from "@/lib/utils";
 import { fitHypeToObservations, type HypeFit } from "@/lib/hypeCalibration";
@@ -14,7 +14,7 @@ import {
   ReferenceArea,
   ComposedChart,
 } from "recharts";
-import { Loader2 } from "lucide-react";
+import { Loader2, Download } from "lucide-react";
 
 interface ObsStation {
   id: string;        // platsbeteckning
@@ -147,6 +147,23 @@ async function fetchNivaerForStations(ids: string[], fromDate: string, signal?: 
 }
 
 
+// Resolves CSS custom properties (var(--xxx)) in a cloned SVG to their
+// computed values so the SVG renders correctly when drawn on a canvas.
+function resolveSvgCssVars(el: Element) {
+  const root = document.documentElement;
+  for (const attr of ['stroke', 'fill', 'color', 'stop-color']) {
+    const v = el.getAttribute(attr);
+    if (v?.includes('var('))
+      el.setAttribute(attr, v.replace(/var\((--[^),\s]+)\)/g, (_, n) =>
+        getComputedStyle(root).getPropertyValue(n).trim() || 'inherit'));
+  }
+  const s = el.getAttribute('style');
+  if (s?.includes('var('))
+    el.setAttribute('style', s.replace(/var\((--[^),\s]+)\)/g, (_, n) =>
+      getComputedStyle(root).getPropertyValue(n).trim() || 'inherit'));
+  for (const child of Array.from(el.children)) resolveSvgCssVars(child);
+}
+
 export const ObsHypoTimeSeriesChart = ({
   stations,
   omradeId,
@@ -155,6 +172,7 @@ export const ObsHypoTimeSeriesChart = ({
   maxStations = 5,
   hypeSeries: prefetchedHype,
 }: Props) => {
+  const chartRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [obsByStation, setObsByStation] = useState<Map<string, Array<{ ts: number; djup: number }>>>(
@@ -311,6 +329,50 @@ export const ObsHypoTimeSeriesChart = ({
     return null;
   }, [obsByStation, hypoSeries, stationsToShow]);
 
+  const handleExport = useCallback(() => {
+    const svg = chartRef.current?.querySelector('svg');
+    if (!svg) return;
+    const { width, height } = svg.getBoundingClientRect();
+    if (!width || !height) return;
+
+    const clone = svg.cloneNode(true) as SVGSVGElement;
+    resolveSvgCssVars(clone);
+
+    // White background behind the chart content
+    const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    bg.setAttribute('width', String(width));
+    bg.setAttribute('height', String(height));
+    bg.setAttribute('fill', 'white');
+    clone.insertBefore(bg, clone.firstChild);
+    clone.setAttribute('width', String(width));
+    clone.setAttribute('height', String(height));
+
+    const svgStr = new XMLSerializer().serializeToString(clone);
+    const blob = new Blob([svgStr], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+
+    const scale = 2; // retina quality
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(width * scale);
+    canvas.height = Math.round(height * scale);
+    const ctx = canvas.getContext('2d')!;
+    ctx.scale(scale, scale);
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, width, height);
+
+    const img = new Image();
+    img.onload = () => {
+      ctx.drawImage(img, 0, 0, width, height);
+      URL.revokeObjectURL(url);
+      const a = document.createElement('a');
+      a.download = `grundvattenniva-${stationsToShow[0]?.id ?? 'diagram'}.png`;
+      a.href = canvas.toDataURL('image/png');
+      a.click();
+    };
+    img.onerror = () => URL.revokeObjectURL(url);
+    img.src = url;
+  }, [stationsToShow]);
+
   // Merge all series into a single sorted-by-ts array of rows for recharts
   const merged = useMemo(() => {
     const map = new Map<number, Record<string, any>>();
@@ -382,17 +444,27 @@ export const ObsHypoTimeSeriesChart = ({
 
   return (
     <div>
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">
-        {hypoOnly
-          ? `HYPE fyllnadsgrad – senaste ${years} åren`
-          : `Grundvattennivå – senaste ${years} åren`}
-        {!hypoOnly && hasHypo && (
-          <span className="text-muted-foreground/70 normal-case font-normal">
-            {" · "}HYPE-fyllnadsgrad (små/stora magasin) i bakgrunden
-          </span>
-        )}
-      </p>
-      <div className="w-full h-44 sm:h-56">
+      <div className="flex items-start justify-between mb-1 gap-2">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          {hypoOnly
+            ? `HYPE fyllnadsgrad – senaste ${years} åren`
+            : `Grundvattennivå – senaste ${years} åren`}
+          {!hypoOnly && hasHypo && (
+            <span className="text-muted-foreground/70 normal-case font-normal">
+              {" · "}HYPE-fyllnadsgrad (små/stora magasin) i bakgrunden
+            </span>
+          )}
+        </p>
+        <button
+          type="button"
+          onClick={handleExport}
+          title="Exportera diagram som PNG"
+          className="shrink-0 p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+        >
+          <Download className="w-3.5 h-3.5" />
+        </button>
+      </div>
+      <div ref={chartRef} className="w-full h-44 sm:h-56">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={merged} margin={{ top: 8, right: hypoOnly ? 16 : 48, bottom: 4, left: hypoOnly ? 16 : -10 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
