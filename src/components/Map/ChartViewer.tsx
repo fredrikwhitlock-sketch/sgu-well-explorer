@@ -717,7 +717,7 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
             )}
             {modelKeys.size > 0 && (
               <div className="text-xs text-muted-foreground text-center space-y-0.5">
-                <p>Streckad linje: HYPE-kalibrerad modellnivå (Pastas-metod, exponentiell kärna) med ±RMSE-band — fyller luckor mellan observationer och sträcker sig tillbaka till HYPE-seriens start på 1960-talet. Linjens styrka speglar tillförlitligheten.</p>
+                <p>Streckad linje: HYPE-kalibrerad modellnivå (Pastas-metod, exponentiell kärna) — fyller luckor mellan observationer och sträcker sig tillbaka till HYPE-seriens start på 1960-talet. Linjens styrka speglar tillförlitligheten.</p>
                 {Array.from(hypeFits.entries()).map(([key, fit]) => (
                   <p key={key}>
                     {key}: R²={fit.r2.toFixed(2)}
