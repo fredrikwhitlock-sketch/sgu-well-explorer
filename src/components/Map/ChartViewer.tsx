@@ -81,8 +81,9 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
   const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef<{ startX: number; startY: number; initialX: number; initialY: number } | null>(null);
   const qualityCacheRef = useRef<Map<string, AnalysRow[]>>(new Map());
-  const hypeSeriesCacheRef = useRef<Map<string, { series: Array<{ ts: number; fyllSma: number | null; fyllStora: number | null }> } | null>>(new Map());
+  const hypeSeriesCacheRef = useRef<Map<string, { omradeId: number; series: Array<{ ts: number; fyllSma: number | null; fyllStora: number | null }> } | null>>(new Map());
   const [modelKeys, setModelKeys] = useState<Set<string>>(new Set());
+  const [fyllnadKeys, setFyllnadKeys] = useState<Set<string>>(new Set());
   const [hypeFits, setHypeFits] = useState<Map<string, HypeFit>>(new Map());
 
   const chartType = initialLocation.type;
@@ -200,7 +201,51 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
         }
       }
 
+      // HYPE fyllnadsgrad (percentile 0-100, right Y axis) — one series per
+      // unique HYPE area, using the calibrated source when a fit exists.
+      const newFyllnadKeys = new Set<string>();
+      if (chartType === 'level') {
+        const areaSeries = new Map<number, { series: NonNullable<typeof hypeResults[number]>['series']; source: 'sma' | 'stora' }>();
+        for (let i = 0; i < hypeResults.length; i++) {
+          const hyp = hypeResults[i];
+          if (!hyp || hyp.series.length === 0 || areaSeries.has(hyp.omradeId)) continue;
+          const fit = newHypeFits.get(`${observationResults[i].location.name} (modell)`);
+          const source = fit?.source ?? (hyp.series.some(p => p.fyllSma != null) ? 'sma' : 'stora');
+          areaSeries.set(hyp.omradeId, { series: hyp.series, source });
+        }
+
+        let gMin = Infinity, gMax = -Infinity;
+        for (const { data } of observationResults) {
+          for (const d of data) {
+            const t = new Date(d.date).getTime();
+            if (t < gMin) gMin = t;
+            if (t > gMax) gMax = t;
+          }
+        }
+        gMax += 30 * 86400000;
+
+        for (const [areaId, { series, source }] of areaSeries) {
+          const key = areaSeries.size > 1 ? `Fyllnadsgrad HYPE ${areaId}` : 'Fyllnadsgrad HYPE';
+          let last = -Infinity;
+          let any = false;
+          for (const p of series) {
+            const v = source === 'sma' ? p.fyllSma : p.fyllStora;
+            if (v == null) continue;
+            const inObs = p.ts >= gMin && p.ts <= gMax;
+            if (!inObs && p.ts - last < 7 * 86400000) continue;
+            last = p.ts;
+            const date = new Date(p.ts).toISOString().substring(0, 10);
+            const existing = allData.get(date) || { date, ts: new Date(date).getTime() };
+            existing[key] = v;
+            allData.set(date, existing);
+            any = true;
+          }
+          if (any) newFyllnadKeys.add(key);
+        }
+      }
+
       setModelKeys(newModelKeys);
+      setFyllnadKeys(newFyllnadKeys);
       setHypeFits(newHypeFits);
 
       const sortedData = Array.from(allData.values())
@@ -215,7 +260,7 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
     }
   };
 
-  const fetchHypeForLocation = async (lon: number, lat: number): Promise<{ series: Array<{ ts: number; fyllSma: number | null; fyllStora: number | null }> } | null> => {
+  const fetchHypeForLocation = async (lon: number, lat: number): Promise<{ omradeId: number; series: Array<{ ts: number; fyllSma: number | null; fyllStora: number | null }> } | null> => {
     const cacheKey = `${lon.toFixed(4)},${lat.toFixed(4)}`;
     if (hypeSeriesCacheRef.current.has(cacheKey)) return hypeSeriesCacheRef.current.get(cacheKey)!;
 
@@ -257,7 +302,7 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
       .filter((x: unknown): x is { ts: number; fyllSma: number | null; fyllStora: number | null } => x !== null)
       .sort((a: { ts: number }, b: { ts: number }) => a.ts - b.ts);
 
-    const result = { series };
+    const result = { omradeId, series };
     hypeSeriesCacheRef.current.set(cacheKey, result);
     return result;
   };
@@ -570,6 +615,23 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
                     reversed={chartType === 'level'}
                     domain={['auto', 'auto']}
                   />
+                  {fyllnadKeys.size > 0 && (
+                    <YAxis
+                      yAxisId="fyllnad"
+                      orientation="right"
+                      domain={[0, 100]}
+                      tick={{ fontSize: 10 }}
+                      width={32}
+                      label={{
+                        value: 'Fyllnadsgrad (%)',
+                        angle: 90,
+                        position: 'insideRight',
+                        dy: -40,
+                        style: { fontSize: 9 }
+                      }}
+                      className="text-muted-foreground"
+                    />
+                  )}
                   <Tooltip
                     contentStyle={{
                       backgroundColor: 'hsl(var(--card))',
@@ -579,7 +641,9 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
                     }}
                     labelFormatter={(value) => `Datum: ${new Date(value).toISOString().substring(0, 10)}`}
                     formatter={(value: number, name: string) => [
-                      `${value} ${chartType === 'level' ? 'm u. markyta' : ''}`,
+                      name.startsWith('Fyllnadsgrad')
+                        ? `${value} % (percentil)`
+                        : `${value} ${chartType === 'level' ? 'm u. markyta' : ''}`,
                       name
                     ]}
                   />
@@ -617,6 +681,20 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
                       />
                     );
                   })}
+                  {/* HYPE fyllnadsgrad (percentile) on the right axis */}
+                  {Array.from(fyllnadKeys).map(key => (
+                    <Line
+                      key={key}
+                      yAxisId="fyllnad"
+                      type="monotone"
+                      dataKey={key}
+                      stroke="hsl(195, 70%, 45%)"
+                      strokeWidth={1}
+                      dot={false}
+                      connectNulls={true}
+                      opacity={0.45}
+                    />
+                  ))}
                   <Brush
                     dataKey="ts"
                     height={28}
@@ -630,6 +708,11 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
             {chartType === 'level' && (
               <p className="text-xs text-muted-foreground text-center">
                 Y-axeln är inverterad: lägre värde = grundvatten närmare markytan. Dra i det nedre fältet för att zooma.
+              </p>
+            )}
+            {fyllnadKeys.size > 0 && (
+              <p className="text-xs text-muted-foreground text-center">
+                Ljusblå linje: SGU-HYPE fyllnadsgrad (höger axel, percentil 0–100 mot 1961–idag; 25–75 = normalt).
               </p>
             )}
             {modelKeys.size > 0 && (

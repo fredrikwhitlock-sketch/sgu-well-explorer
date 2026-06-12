@@ -2631,6 +2631,11 @@ export const MapView = () => {
           }}
           onAnalysisData={setGrundvattenAnalysData}
           onOpenAI={() => setAiChatOpen(true)}
+          onOpenChart={(location) => {
+            setChartLocation(location);
+            setChartLocations([location]);
+            setChartOpen(true);
+          }}
         />
       )}
 
