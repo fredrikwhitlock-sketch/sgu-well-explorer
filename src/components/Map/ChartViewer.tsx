@@ -6,6 +6,7 @@ import { X, Trash2, Loader2, ExternalLink, GripHorizontal, TrendingDown, Trendin
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Brush } from "recharts";
 import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
 import { fitHypeToObservations, type HypeFit } from "@/lib/hypeCalibration";
 
 interface ChartLocation {
@@ -52,6 +53,9 @@ const CHART_COLORS = [
   "hsl(180, 70%, 40%)",
 ];
 
+/** Muted, lighter variant of a station color — used for that station's HYPE-area fyllnadsgrad line. */
+const mutedColor = (hsl: string) => hsl.replace(/hsl\((\d+),\s*\d+%,\s*\d+%\)/, 'hsl($1, 45%, 68%)');
+
 const QUALITY_PARAMETERS = [
   { value: "pH", label: "pH" },
   { value: "Konduktivitet", label: "Konduktivitet (mS/m)" },
@@ -83,7 +87,8 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
   const qualityCacheRef = useRef<Map<string, AnalysRow[]>>(new Map());
   const hypeSeriesCacheRef = useRef<Map<string, { omradeId: number; series: Array<{ ts: number; fyllSma: number | null; fyllStora: number | null }> } | null>>(new Map());
   const [modelKeys, setModelKeys] = useState<Set<string>>(new Set());
-  const [fyllnadKeys, setFyllnadKeys] = useState<Set<string>>(new Set());
+  const [fyllnadInfo, setFyllnadInfo] = useState<Map<string, { color: string; stations: string[] }>>(new Map());
+  const [hiddenKeys, setHiddenKeys] = useState<Set<string>>(new Set());
   const [hypeFits, setHypeFits] = useState<Map<string, HypeFit>>(new Map());
 
   const chartType = initialLocation.type;
@@ -202,16 +207,20 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
       }
 
       // HYPE fyllnadsgrad (percentile 0-100, right Y axis) — one series per
-      // unique HYPE area, using the calibrated source when a fit exists.
-      const newFyllnadKeys = new Set<string>();
+      // unique HYPE area, labeled with the stations the area represents and
+      // drawn in a muted variant of the first station's color.
+      const newFyllnadInfo = new Map<string, { color: string; stations: string[] }>();
       if (chartType === 'level') {
-        const areaSeries = new Map<number, { series: NonNullable<typeof hypeResults[number]>['series']; source: 'sma' | 'stora' }>();
+        const areaInfo = new Map<number, { series: NonNullable<typeof hypeResults[number]>['series']; source: 'sma' | 'stora'; stations: string[] }>();
         for (let i = 0; i < hypeResults.length; i++) {
           const hyp = hypeResults[i];
-          if (!hyp || hyp.series.length === 0 || areaSeries.has(hyp.omradeId)) continue;
-          const fit = newHypeFits.get(`${observationResults[i].location.name} (modell)`);
+          if (!hyp || hyp.series.length === 0) continue;
+          const name = observationResults[i].location.name;
+          const prev = areaInfo.get(hyp.omradeId);
+          if (prev) { prev.stations.push(name); continue; }
+          const fit = newHypeFits.get(`${name} (modell)`);
           const source = fit?.source ?? (hyp.series.some(p => p.fyllSma != null) ? 'sma' : 'stora');
-          areaSeries.set(hyp.omradeId, { series: hyp.series, source });
+          areaInfo.set(hyp.omradeId, { series: hyp.series, source, stations: [name] });
         }
 
         let gMin = Infinity, gMax = -Infinity;
@@ -224,8 +233,8 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
         }
         gMax += 30 * 86400000;
 
-        for (const [areaId, { series, source }] of areaSeries) {
-          const key = areaSeries.size > 1 ? `Fyllnadsgrad HYPE ${areaId}` : 'Fyllnadsgrad HYPE';
+        for (const { series, source, stations } of areaInfo.values()) {
+          const key = `Fyllnadsgrad HYPE (${stations.join(', ')})`;
           let last = -Infinity;
           let any = false;
           for (const p of series) {
@@ -240,12 +249,16 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
             allData.set(date, existing);
             any = true;
           }
-          if (any) newFyllnadKeys.add(key);
+          if (any) {
+            const idx = locations.findIndex(loc => loc.name === stations[0]);
+            const base = CHART_COLORS[(idx >= 0 ? idx : 0) % CHART_COLORS.length];
+            newFyllnadInfo.set(key, { color: mutedColor(base), stations });
+          }
         }
       }
 
       setModelKeys(newModelKeys);
-      setFyllnadKeys(newFyllnadKeys);
+      setFyllnadInfo(newFyllnadInfo);
       setHypeFits(newHypeFits);
 
       const sortedData = Array.from(allData.values())
@@ -432,6 +445,14 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
     }
   };
 
+  const toggleKey = (key: string) => {
+    setHiddenKeys(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+
   const getYAxisLabel = () => {
     if (chartType === 'level') {
       return "Nivå under markyta (m)";
@@ -494,32 +515,77 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
         )}
 
         <div className="space-y-2">
-          <label className="text-sm font-medium text-foreground">Platser i diagrammet</label>
+          <label className="text-sm font-medium text-foreground">Serier i diagrammet</label>
           <div className="flex flex-wrap gap-2">
-            {locations.map((location, index) => (
-              <div 
-                key={location.id}
-                className="flex items-center gap-1 px-2 py-1 rounded-md text-sm"
-                style={{ backgroundColor: `${CHART_COLORS[index % CHART_COLORS.length]}20`, borderColor: CHART_COLORS[index % CHART_COLORS.length], borderWidth: 1 }}
-              >
-                <span 
-                  className="w-3 h-3 rounded-full"
-                  style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }}
-                />
-                <span className="text-foreground">{location.name}</span>
-                {locations.length > 1 && (
-                  <button
-                    onClick={() => removeLocation(location.id)}
-                    className="ml-1 text-muted-foreground hover:text-destructive"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </button>
-                )}
-              </div>
-            ))}
+            {locations.map((location, index) => {
+              const color = CHART_COLORS[index % CHART_COLORS.length];
+              const hidden = hiddenKeys.has(location.name);
+              return (
+                <div
+                  key={location.id}
+                  className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-sm ${hidden ? 'opacity-50' : ''}`}
+                  style={{ backgroundColor: `${color}20`, borderColor: color, borderWidth: 1 }}
+                >
+                  <Checkbox
+                    checked={!hidden}
+                    onCheckedChange={() => toggleKey(location.name)}
+                    className="h-3.5 w-3.5"
+                  />
+                  <span className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
+                  <span className="text-foreground">{location.name}</span>
+                  {locations.length > 1 && (
+                    <button
+                      onClick={() => removeLocation(location.id)}
+                      className="ml-1 text-muted-foreground hover:text-destructive"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+            {Array.from(modelKeys).map(modelKey => {
+              const baseName = modelKey.replace(' (modell)', '');
+              const idx = locations.findIndex(loc => loc.name === baseName);
+              const color = idx >= 0 ? CHART_COLORS[idx % CHART_COLORS.length] : '#888';
+              const hidden = hiddenKeys.has(modelKey);
+              return (
+                <div
+                  key={modelKey}
+                  className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-sm border border-dashed ${hidden ? 'opacity-50' : ''}`}
+                  style={{ borderColor: color }}
+                >
+                  <Checkbox
+                    checked={!hidden}
+                    onCheckedChange={() => toggleKey(modelKey)}
+                    className="h-3.5 w-3.5"
+                  />
+                  <span className="w-4 border-t-2 border-dashed" style={{ borderColor: color }} />
+                  <span className="text-foreground">{modelKey}</span>
+                </div>
+              );
+            })}
+            {Array.from(fyllnadInfo.entries()).map(([key, info]) => {
+              const hidden = hiddenKeys.has(key);
+              return (
+                <div
+                  key={key}
+                  className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-sm border ${hidden ? 'opacity-50' : ''}`}
+                  style={{ borderColor: info.color }}
+                >
+                  <Checkbox
+                    checked={!hidden}
+                    onCheckedChange={() => toggleKey(key)}
+                    className="h-3.5 w-3.5"
+                  />
+                  <span className="w-4 border-t-2" style={{ borderColor: info.color }} />
+                  <span className="text-foreground">{key}</span>
+                </div>
+              );
+            })}
           </div>
           <p className="text-xs text-muted-foreground">
-            Tips: Klicka på en annan station på kartan och välj "Lägg till i diagram" för att jämföra
+            Tips: Klicka på en annan station på kartan och välj "Lägg till i diagram" för att jämföra. Kryssrutorna döljer/visar serier.
           </p>
         </div>
 
@@ -615,7 +681,7 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
                     reversed={chartType === 'level'}
                     domain={['auto', 'auto']}
                   />
-                  {fyllnadKeys.size > 0 && (
+                  {fyllnadInfo.size > 0 && (
                     <YAxis
                       yAxisId="fyllnad"
                       orientation="right"
@@ -657,6 +723,7 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
                       strokeWidth={1.5}
                       dot={chartData.length < 200 ? { r: 2 } : false}
                       connectNulls={false}
+                      hide={hiddenKeys.has(location.name)}
                     />
                   ))}
                   {/* Dashed HYPE-calibrated model lines — one per observed station.
@@ -678,21 +745,23 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
                         dot={false}
                         connectNulls={true}
                         opacity={lineOpacity}
+                        hide={hiddenKeys.has(modelKey)}
                       />
                     );
                   })}
-                  {/* HYPE fyllnadsgrad (percentile) on the right axis */}
-                  {Array.from(fyllnadKeys).map(key => (
+                  {/* HYPE fyllnadsgrad (percentile) on the right axis, muted station color */}
+                  {Array.from(fyllnadInfo.entries()).map(([key, info]) => (
                     <Line
                       key={key}
                       yAxisId="fyllnad"
                       type="monotone"
                       dataKey={key}
-                      stroke="hsl(195, 70%, 45%)"
+                      stroke={info.color}
                       strokeWidth={1}
                       dot={false}
                       connectNulls={true}
-                      opacity={0.45}
+                      opacity={0.6}
+                      hide={hiddenKeys.has(key)}
                     />
                   ))}
                   <Brush
@@ -710,9 +779,9 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
                 Y-axeln är inverterad: lägre värde = grundvatten närmare markytan. Dra i det nedre fältet för att zooma.
               </p>
             )}
-            {fyllnadKeys.size > 0 && (
+            {fyllnadInfo.size > 0 && (
               <p className="text-xs text-muted-foreground text-center">
-                Ljusblå linje: SGU-HYPE fyllnadsgrad (höger axel, percentil 0–100 mot 1961–idag; 25–75 = normalt).
+                Tunn linje i dämpad färg: SGU-HYPE fyllnadsgrad för respektive stations HYPE-område (höger axel, percentil 0–100 mot 1961–idag; 25–75 = normalt). Etiketten anger vilka stationer området representerar.
               </p>
             )}
             {modelKeys.size > 0 && (
