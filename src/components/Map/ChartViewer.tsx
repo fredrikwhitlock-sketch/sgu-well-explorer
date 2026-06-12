@@ -87,7 +87,7 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
   const qualityCacheRef = useRef<Map<string, AnalysRow[]>>(new Map());
   const hypeSeriesCacheRef = useRef<Map<string, { omradeId: number; series: Array<{ ts: number; fyllSma: number | null; fyllStora: number | null }> } | null>>(new Map());
   const [modelKeys, setModelKeys] = useState<Set<string>>(new Set());
-  const [fyllnadInfo, setFyllnadInfo] = useState<Map<string, { color: string; stations: string[] }>>(new Map());
+  const [fyllnadInfo, setFyllnadInfo] = useState<Map<string, { color: string; stations: string[]; magasin: 'sma' | 'stora' }>>(new Map());
   const [hiddenKeys, setHiddenKeys] = useState<Set<string>>(new Set());
   const [hypeFits, setHypeFits] = useState<Map<string, HypeFit>>(new Map());
 
@@ -206,21 +206,18 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
         }
       }
 
-      // HYPE fyllnadsgrad (percentile 0-100, right Y axis) — one series per
-      // unique HYPE area, labeled with the stations the area represents and
-      // drawn in a muted variant of the first station's color.
-      const newFyllnadInfo = new Map<string, { color: string; stations: string[] }>();
+      // HYPE fyllnadsgrad (percentile 0-100, right Y axis) — two series per
+      // unique HYPE area (sma + stora), labeled with the station names.
+      const newFyllnadInfo = new Map<string, { color: string; stations: string[]; magasin: 'sma' | 'stora' }>();
       if (chartType === 'level') {
-        const areaInfo = new Map<number, { series: NonNullable<typeof hypeResults[number]>['series']; source: 'sma' | 'stora'; stations: string[] }>();
+        const areaInfo = new Map<number, { series: NonNullable<typeof hypeResults[number]>['series']; stations: string[] }>();
         for (let i = 0; i < hypeResults.length; i++) {
           const hyp = hypeResults[i];
           if (!hyp || hyp.series.length === 0) continue;
           const name = observationResults[i].location.name;
           const prev = areaInfo.get(hyp.omradeId);
           if (prev) { prev.stations.push(name); continue; }
-          const fit = newHypeFits.get(`${name} (modell)`);
-          const source = fit?.source ?? (hyp.series.some(p => p.fyllSma != null) ? 'sma' : 'stora');
-          areaInfo.set(hyp.omradeId, { series: hyp.series, source, stations: [name] });
+          areaInfo.set(hyp.omradeId, { series: hyp.series, stations: [name] });
         }
 
         let gMin = Infinity, gMax = -Infinity;
@@ -233,26 +230,29 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
         }
         gMax += 30 * 86400000;
 
-        for (const { series, source, stations } of areaInfo.values()) {
-          const key = `Fyllnadsgrad HYPE (${stations.join(', ')})`;
-          let last = -Infinity;
-          let any = false;
-          for (const p of series) {
-            const v = source === 'sma' ? p.fyllSma : p.fyllStora;
-            if (v == null) continue;
-            const inObs = p.ts >= gMin && p.ts <= gMax;
-            if (!inObs && p.ts - last < 7 * 86400000) continue;
-            last = p.ts;
-            const date = new Date(p.ts).toISOString().substring(0, 10);
-            const existing = allData.get(date) || { date, ts: new Date(date).getTime() };
-            existing[key] = v;
-            allData.set(date, existing);
-            any = true;
-          }
-          if (any) {
-            const idx = locations.findIndex(loc => loc.name === stations[0]);
-            const base = CHART_COLORS[(idx >= 0 ? idx : 0) % CHART_COLORS.length];
-            newFyllnadInfo.set(key, { color: mutedColor(base), stations });
+        for (const { series, stations } of areaInfo.values()) {
+          const idx = locations.findIndex(loc => loc.name === stations[0]);
+          const base = CHART_COLORS[(idx >= 0 ? idx : 0) % CHART_COLORS.length];
+          const color = mutedColor(base);
+          const stLabel = stations.join(', ');
+
+          for (const magasin of ['sma', 'stora'] as const) {
+            const key = `Fyllnadsgrad HYPE ${magasin} (${stLabel})`;
+            let last = -Infinity;
+            let any = false;
+            for (const p of series) {
+              const v = magasin === 'sma' ? p.fyllSma : p.fyllStora;
+              if (v == null) continue;
+              const inObs = p.ts >= gMin && p.ts <= gMax;
+              if (!inObs && p.ts - last < 7 * 86400000) continue;
+              last = p.ts;
+              const date = new Date(p.ts).toISOString().substring(0, 10);
+              const existing = allData.get(date) || { date, ts: new Date(date).getTime() };
+              existing[key] = v;
+              allData.set(date, existing);
+              any = true;
+            }
+            if (any) newFyllnadInfo.set(key, { color, stations, magasin });
           }
         }
       }
@@ -567,10 +567,11 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
             })}
             {Array.from(fyllnadInfo.entries()).map(([key, info]) => {
               const hidden = hiddenKeys.has(key);
+              const isDashed = info.magasin === 'stora';
               return (
                 <div
                   key={key}
-                  className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-sm border ${hidden ? 'opacity-50' : ''}`}
+                  className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-sm border ${isDashed ? 'border-dashed' : ''} ${hidden ? 'opacity-50' : ''}`}
                   style={{ borderColor: info.color }}
                 >
                   <Checkbox
@@ -578,7 +579,10 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
                     onCheckedChange={() => toggleKey(key)}
                     className="h-3.5 w-3.5"
                   />
-                  <span className="w-4 border-t-2" style={{ borderColor: info.color }} />
+                  <span
+                    className="w-4 border-t-2"
+                    style={{ borderColor: info.color, borderStyle: isDashed ? 'dashed' : 'solid' }}
+                  />
                   <span className="text-foreground">{key}</span>
                 </div>
               );
@@ -749,7 +753,8 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
                       />
                     );
                   })}
-                  {/* HYPE fyllnadsgrad (percentile) on the right axis, muted station color */}
+                  {/* HYPE fyllnadsgrad (percentile) on the right axis, muted station color.
+                      sma = solid, stora = dashed */}
                   {Array.from(fyllnadInfo.entries()).map(([key, info]) => (
                     <Line
                       key={key}
@@ -758,6 +763,7 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
                       dataKey={key}
                       stroke={info.color}
                       strokeWidth={1}
+                      strokeDasharray={info.magasin === 'stora' ? '4 3' : undefined}
                       dot={false}
                       connectNulls={true}
                       opacity={0.6}
@@ -781,7 +787,7 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
             )}
             {fyllnadInfo.size > 0 && (
               <p className="text-xs text-muted-foreground text-center">
-                Tunn linje i dämpad färg: SGU-HYPE fyllnadsgrad för respektive stations HYPE-område (höger axel, percentil 0–100 mot 1961–idag; 25–75 = normalt). Etiketten anger vilka stationer området representerar.
+                Tunna linjer i dämpad färg: SGU-HYPE fyllnadsgrad för respektive stations HYPE-område (höger axel, percentil 0–100 mot 1961–idag; 25–75 = normalt). Heldragen = små magasin, streckad = stora magasin. Etiketten anger vilka stationer området representerar.
               </p>
             )}
             {modelKeys.size > 0 && (
