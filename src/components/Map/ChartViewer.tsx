@@ -764,18 +764,26 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
                     ]}
                   />
                   <Legend wrapperStyle={{ fontSize: '11px' }} />
-                  {locations.map((location, index) => (
-                    <Line
-                      key={location.id}
-                      type="linear"
-                      dataKey={location.name}
-                      stroke={CHART_COLORS[index % CHART_COLORS.length]}
-                      strokeWidth={1.5}
-                      dot={chartData.length < 200 ? { r: 2 } : false}
-                      connectNulls={false}
-                      hide={hiddenKeys.has(location.name)}
-                    />
-                  ))}
+                  {locations.map((location, index) => {
+                    // Sparse series (e.g. 1-2 chemistry samples/year) sit between
+                    // thousands of daily model rows, which breaks the polyline —
+                    // they need dots, and quality samples a connecting line, to
+                    // stay visible. Base it on the series' own sample count, not
+                    // total chart rows.
+                    const antal = stationStats.find(s => s.name === location.name)?.antal ?? chartData.length;
+                    return (
+                      <Line
+                        key={location.id}
+                        type="linear"
+                        dataKey={location.name}
+                        stroke={CHART_COLORS[index % CHART_COLORS.length]}
+                        strokeWidth={1.5}
+                        dot={antal < 300 ? { r: 2 } : false}
+                        connectNulls={chartType === 'quality'}
+                        hide={hiddenKeys.has(location.name)}
+                      />
+                    );
+                  })}
                   {/* Dashed HYPE-calibrated model lines — one per observed station.
                       Opacity is graded by validation confidence. */}
                   {Array.from(modelKeys).map(modelKey => {
