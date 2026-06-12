@@ -13,7 +13,6 @@ import {
   analyzeSeasonality,
   GV_KLASS_COLORS,
 } from "../../lib/grundvattenKemi";
-import { FloatingChartPopup, ChartPopupState } from "./FloatingChartPopup";
 import { escapeHtml } from "../../lib/utils";
 import { exportAnalysisGeoPackage } from "../../lib/exportGeoPackage";
 import { toast } from "sonner";
@@ -25,6 +24,8 @@ interface Props {
   onClose: () => void;
   onAnalysisData?: (summary: string | null) => void;
   onOpenAI?: () => void;
+  /** Open a station in the full level chart (ChartViewer) with HYPE model + fyllnadsgrad. */
+  onOpenChart?: (location: { id: string; name: string; type: 'level'; platsbeteckning: string; lon?: number; lat?: number }) => void;
 }
 
 
@@ -60,7 +61,7 @@ function hypePercentileInfo(p: number): { label: string; color: string } {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysisData, onOpenAI }: Props) => {
+export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysisData, onOpenAI, onOpenChart }: Props) => {
   const [selectedDate, setSelectedDate] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() - d.getDay()); // most recent Sunday
@@ -77,7 +78,6 @@ export const GrundvattenRapport = ({ coordinate, wmsProxyUrl, onClose, onAnalysi
   const [error, setError] = useState<string | null>(null);
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const [expandedGvKemi, setExpandedGvKemi] = useState<Set<number>>(new Set([0]));
-  const [chartPopup, setChartPopup] = useState<ChartPopupState>(null);
 
   useEffect(() => { setExpandedGvKemi(new Set([0])); }, [coordinate]);
 
@@ -609,27 +609,6 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
   const desktopExpanded = expanded && !isMobile;
   return (
     <>
-    {/* Floating chart popup */}
-    {chartPopup && (
-      <FloatingChartPopup
-        title={
-          chartPopup.kind === 'obs'
-            ? `Nivådiagram – ${chartPopup.namn}`
-            : chartPopup.label
-        }
-        onClose={() => setChartPopup(null)}
-      >
-        {chartPopup.kind === 'obs' && (
-          <ObsHypoTimeSeriesChart
-            stations={[{ id: chartPopup.stationId, namn: chartPopup.namn, distKm: chartPopup.distKm }]}
-            omradeId={data?.hypeOmradeId}
-            useStora={!!(effectiveAquifer?.useStoraMagasin)}
-            years={5}
-            maxStations={1}
-          />
-        )}
-      </FloatingChartPopup>
-    )}
     <div
       className={`absolute z-30 bg-card shadow-xl border border-border overflow-hidden flex flex-col ${
         isMobile
@@ -1008,9 +987,16 @@ ${data.elevation != null ? `<div class="row"><span class="lbl">Höjd ö.h. (EU-D
                               <div className="flex items-center justify-end mb-1">
                                 <button
                                   type="button"
-                                  onClick={() => setChartPopup({ kind: 'obs', stationId: st.id, namn: st.namn || st.id, distKm: st.distKm })}
-                                  className="hidden sm:block p-0.5 rounded hover:bg-secondary/70 transition-colors"
-                                  title="Visa i större fönster"
+                                  onClick={() => onOpenChart?.({
+                                    id: `${st.id}-${Date.now()}`,
+                                    name: st.namn || st.id,
+                                    type: 'level',
+                                    platsbeteckning: st.id,
+                                    lon: st.lon,
+                                    lat: st.lat,
+                                  })}
+                                  className="p-0.5 rounded hover:bg-secondary/70 transition-colors"
+                                  title="Öppna i nivådiagram (hela mätserien, zoom, jämför stationer)"
                                 >
                                   <Maximize2 className="w-3 h-3 text-muted-foreground" />
                                 </button>
