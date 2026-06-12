@@ -8,6 +8,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { fitHypeToObservations, type HypeFit } from "@/lib/hypeCalibration";
+import { fitChemToHype, PARAM_CLASS_LABEL, type ChemFit } from "@/lib/chemCalibration";
 
 interface ChartLocation {
   id: string;
@@ -90,6 +91,8 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
   const [fyllnadInfo, setFyllnadInfo] = useState<Map<string, { color: string; stations: string[]; magasin: 'sma' | 'stora' }>>(new Map());
   const [hiddenKeys, setHiddenKeys] = useState<Set<string>>(new Set());
   const [hypeFits, setHypeFits] = useState<Map<string, HypeFit>>(new Map());
+  const [chemFits, setChemFits] = useState<Map<string, ChemFit>>(new Map());
+  const [censoredCount, setCensoredCount] = useState(0);
 
   const chartType = initialLocation.type;
 
@@ -141,7 +144,8 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
     setError(null);
 
     try {
-      // Fetch observations and HYPE data in parallel
+      // Fetch observations and HYPE data in parallel (HYPE is used both for
+      // the level model and for the chemistry transfer model)
       const [observationResults, hypeResults] = await Promise.all([
         Promise.all(
           locations.map(location =>
@@ -151,15 +155,13 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
             ).then(data => ({ location, data }))
           )
         ),
-        chartType === 'level'
-          ? Promise.all(
-              locations.map(location =>
-                location.lon != null && location.lat != null
-                  ? fetchHypeForLocation(location.lon, location.lat).catch(() => null)
-                  : Promise.resolve(null)
-              )
-            )
-          : Promise.resolve(locations.map(() => null)),
+        Promise.all(
+          locations.map(location =>
+            location.lon != null && location.lat != null
+              ? fetchHypeForLocation(location.lon, location.lat).catch(() => null)
+              : Promise.resolve(null)
+          )
+        ),
       ]);
 
       const allData: Map<string, ChartData> = new Map();
@@ -175,34 +177,75 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
       }
 
       // Calibrate HYPE model against observations for each level station with coordinates
-      for (let i = 0; i < observationResults.length; i++) {
-        const { location, data } = observationResults[i];
-        const hyp = hypeResults[i];
-        if (!hyp || hyp.series.length < 30 || data.length < 8) continue;
+      if (chartType === 'level') {
+        for (let i = 0; i < observationResults.length; i++) {
+          const { location, data } = observationResults[i];
+          const hyp = hypeResults[i];
+          if (!hyp || hyp.series.length < 30 || data.length < 8) continue;
 
-        const obs = data.map(d => ({ ts: new Date(d.date).getTime(), djup: d.value }));
-        const fit = fitHypeToObservations(obs, hyp.series);
-        if (!fit) continue;
+          const obs = data.map(d => ({ ts: new Date(d.date).getTime(), djup: d.value }));
+          const fit = fitHypeToObservations(obs, hyp.series);
+          if (!fit) continue;
 
-        const modelKey = `${location.name} (modell)`;
-        newModelKeys.add(modelKey);
-        newHypeFits.set(modelKey, fit);
+          const modelKey = `${location.name} (modell)`;
+          newModelKeys.add(modelKey);
+          newHypeFits.set(modelKey, fit);
 
-        // The model line covers the full HYPE record (back to the 1960s).
-        // Daily resolution inside the observation window (gap filling),
-        // weekly outside it to keep the chart responsive.
-        const obsMinTs = Math.min(...obs.map(o => o.ts));
-        const obsMaxTs = Math.max(...obs.map(o => o.ts)) + 30 * 86400000;
-        let lastIncludedTs = -Infinity;
+          // The model line covers the full HYPE record (back to the 1960s).
+          // Daily resolution inside the observation window (gap filling),
+          // weekly outside it to keep the chart responsive.
+          const obsMinTs = Math.min(...obs.map(o => o.ts));
+          const obsMaxTs = Math.max(...obs.map(o => o.ts)) + 30 * 86400000;
+          let lastIncludedTs = -Infinity;
 
-        for (const point of fit.series) {
-          const inObsRange = point.ts >= obsMinTs && point.ts <= obsMaxTs;
-          if (!inObsRange && point.ts - lastIncludedTs < 7 * 86400000) continue;
-          lastIncludedTs = point.ts;
-          const date = new Date(point.ts).toISOString().substring(0, 10);
-          const existing = allData.get(date) || { date, ts: new Date(date).getTime() };
-          existing[modelKey] = Math.round(point.niva * 100) / 100;
-          allData.set(date, existing);
+          for (const point of fit.series) {
+            const inObsRange = point.ts >= obsMinTs && point.ts <= obsMaxTs;
+            if (!inObsRange && point.ts - lastIncludedTs < 7 * 86400000) continue;
+            lastIncludedTs = point.ts;
+            const date = new Date(point.ts).toISOString().substring(0, 10);
+            const existing = allData.get(date) || { date, ts: new Date(date).getTime() };
+            existing[modelKey] = Math.round(point.niva * 100) / 100;
+            allData.set(date, existing);
+          }
+        }
+      }
+
+      // Chemistry transfer model: regress the selected parameter against the
+      // HYPE fyllnadsgrad of the provplats's area. Censored values ("<DL")
+      // enter the calibration at half the detection limit.
+      const newChemFits = new Map<string, ChemFit>();
+      let nCensored = 0;
+      if (chartType === 'quality') {
+        for (let i = 0; i < observationResults.length; i++) {
+          const { location, data } = observationResults[i];
+          const hyp = hypeResults[i];
+          nCensored += data.filter(d => d.censored).length;
+          if (!hyp || hyp.series.length < 30 || data.length < 10) continue;
+
+          const obs = data.map(d => ({
+            ts: new Date(d.date).getTime(),
+            v: d.censored ? d.value / 2 : d.value,
+          }));
+          const fit = fitChemToHype(obs, hyp.series, selectedParameter);
+          if (!fit) continue;
+
+          const modelKey = `${location.name} (modell)`;
+          newModelKeys.add(modelKey);
+          newChemFits.set(modelKey, fit);
+
+          const obsMinTs = Math.min(...obs.map(o => o.ts));
+          const obsMaxTs = Math.max(...obs.map(o => o.ts)) + 30 * 86400000;
+          let lastIncludedTs = -Infinity;
+
+          for (const point of fit.series) {
+            const inObsRange = point.ts >= obsMinTs && point.ts <= obsMaxTs;
+            if (!inObsRange && point.ts - lastIncludedTs < 7 * 86400000) continue;
+            lastIncludedTs = point.ts;
+            const date = new Date(point.ts).toISOString().substring(0, 10);
+            const existing = allData.get(date) || { date, ts: new Date(date).getTime() };
+            existing[modelKey] = Number(point.value.toPrecision(3));
+            allData.set(date, existing);
+          }
         }
       }
 
@@ -260,6 +303,8 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
       setModelKeys(newModelKeys);
       setFyllnadInfo(newFyllnadInfo);
       setHypeFits(newHypeFits);
+      setChemFits(newChemFits);
+      setCensoredCount(nCensored);
 
       const sortedData = Array.from(allData.values())
         .sort((a, b) => a.ts - b.ts);
@@ -346,7 +391,7 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
    * One HTTP request returns all measurements, sorted chronologically.
    * Significantly faster than JSON pagination (5–10 requests → 1).
    */
-  const fetchLevelData = async (location: ChartLocation): Promise<{ date: string; value: number }[]> => {
+  const fetchLevelData = async (location: ChartLocation): Promise<{ date: string; value: number; censored?: boolean }[]> => {
     const encodedId = encodeURIComponent(location.platsbeteckning || '').replace(/'/g, '%27');
     const url =
       `https://api.sgu.se/oppnadata/grundvattennivaer-observerade/ogc/features/v1/collections/nivaer/items` +
@@ -377,7 +422,7 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
     });
   };
 
-  const fetchQualityData = async (location: ChartLocation, parameter: string): Promise<{ date: string; value: number }[]> => {
+  const fetchQualityData = async (location: ChartLocation, parameter: string): Promise<{ date: string; value: number; censored?: boolean }[]> => {
     const nationelltProvplatsid = location.provplatsid;
     if (!nationelltProvplatsid) return [];
 
@@ -401,10 +446,11 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
     return rows
       .filter(r => r.parameternamn === parameter)
       .flatMap(r => {
-        const raw = r.matvardetal.replace(/^</, '').replace(/\s/g, '').replace(',', '.');
+        const censored = r.matvardetal.trim().startsWith('<');
+        const raw = r.matvardetal.replace(/^\s*</, '').replace(/\s/g, '').replace(',', '.');
         const value = Number.parseFloat(raw);
         if (!r.datum || isNaN(value)) return [];
-        return [{ date: r.datum, value }];
+        return [{ date: r.datum, value, censored }];
       });
   };
 
@@ -736,7 +782,7 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
                     const baseName = modelKey.replace(' (modell)', '');
                     const idx = locations.findIndex(loc => loc.name === baseName);
                     const color = idx >= 0 ? CHART_COLORS[idx % CHART_COLORS.length] : '#888';
-                    const conf = hypeFits.get(modelKey)?.confidence ?? 'low';
+                    const conf = (hypeFits.get(modelKey) ?? chemFits.get(modelKey))?.confidence ?? 'low';
                     const lineOpacity = conf === 'high' ? 0.8 : conf === 'medium' ? 0.55 : 0.35;
                     return (
                       <Line
@@ -790,7 +836,7 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
                 Tunna linjer i dämpad färg: SGU-HYPE fyllnadsgrad för respektive stations HYPE-område (höger axel, percentil 0–100 mot 1961–idag; 25–75 = normalt). Heldragen = små magasin, streckad = stora magasin. Etiketten anger vilka stationer området representerar.
               </p>
             )}
-            {modelKeys.size > 0 && (
+            {hypeFits.size > 0 && (
               <div className="text-xs text-muted-foreground text-center space-y-0.5">
                 <p>Streckad linje: HYPE-kalibrerad modellnivå (Pastas-metod, exponentiell kärna) — fyller luckor mellan observationer och sträcker sig tillbaka till HYPE-seriens start på 1960-talet. Linjens styrka speglar tillförlitligheten.</p>
                 {Array.from(hypeFits.entries()).map(([key, fit]) => (
@@ -802,6 +848,35 @@ export const ChartViewer = ({ initialLocation, locations, onLocationsChange, onC
                   </p>
                 ))}
               </div>
+            )}
+            {chemFits.size > 0 && (
+              <div className="text-xs text-muted-foreground text-center space-y-0.5">
+                <p>
+                  Streckad linje: modellerad halt utifrån SGU-HYPE fyllnadsgrad (samma Pastas-metod som nivåmodellen, med trendterm) — fyller luckor mellan provtagningar.
+                  Modellen interpolerar inom observerat intervall och fångar inte regimskiften (t.ex. redoxomslag) utanför historiskt spann.
+                </p>
+                {Array.from(chemFits.entries()).map(([key, fit]) => (
+                  <p key={key}>
+                    {key}: R²={fit.r2.toFixed(2)}
+                    {fit.valR2 != null && <>, validerings-R²={fit.valR2.toFixed(2)}</>}
+                    {fit.logTransform
+                      ? <>, typiskt fel ±{Math.round((Math.exp(fit.rmse) - 1) * 100)} %</>
+                      : <>, RMSE={fit.rmse.toFixed(2)}</>}
+                    , minne={fit.memoryDays} d ({fit.source}, {PARAM_CLASS_LABEL[fit.paramClass]}
+                    {fit.logTransform ? ', log-skala' : ''}
+                    , tillförlitlighet: {fit.confidence === 'high' ? 'hög' : fit.confidence === 'medium' ? 'medel' : 'låg'})
+                  </p>
+                ))}
+                {censoredCount > 0 && (
+                  <p>{censoredCount} värden under detektionsgräns har satts till halva gränsen i kalibreringen.</p>
+                )}
+              </div>
+            )}
+            {chartType === 'quality' && chemFits.size === 0 && chartData.length > 0 &&
+              locations.some(l => l.lon != null && l.lat != null) && (
+              <p className="text-xs text-muted-foreground text-center">
+                Ingen modellinje visas för {selectedParameter}: sambandet med grundvattennivån (HYPE) är för svagt på denna plats, eller för få prov — vanligt för redoxkänsliga parametrar.
+              </p>
             )}
           </div>
         )}

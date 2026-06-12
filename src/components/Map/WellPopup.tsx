@@ -1103,7 +1103,9 @@ export const WellPopup = ({
                       id: `${properties.nationellt_provplatsid}-${Date.now()}`,
                       name: properties.platsbeteckning || properties.provplatsnamn || 'Provplats',
                       type: 'quality',
-                      provplatsid: properties.nationellt_provplatsid
+                      provplatsid: properties.nationellt_provplatsid,
+                      lon: properties._lon,
+                      lat: properties._lat,
                     })}
                     className="text-xs"
                   >
@@ -1117,7 +1119,9 @@ export const WellPopup = ({
                       id: `${properties.nationellt_provplatsid}-${Date.now()}`,
                       name: properties.platsbeteckning || properties.provplatsnamn || 'Provplats',
                       type: 'quality',
-                      provplatsid: properties.nationellt_provplatsid
+                      provplatsid: properties.nationellt_provplatsid,
+                      lon: properties._lon,
+                      lat: properties._lat,
                     })}
                     className="text-xs"
                   >

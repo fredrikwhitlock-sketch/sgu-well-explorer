@@ -52,7 +52,7 @@ const MIN_N_SEASONAL = 16;
  * irregular sampling. Seeded with the mean of the first T days to suppress
  * warm-up bias at the start of the record.
  */
-function emaSmooth(
+export function emaSmooth(
   pts: Array<{ ts: number; v: number }>,
   T: number,
 ): Array<{ ts: number; v: number }> {
@@ -76,7 +76,7 @@ function emaSmooth(
 }
 
 /** Binary search the (sorted) series for the closest point to `ts`. */
-function nearestPoint(
+export function nearestPoint(
   pts: Array<{ ts: number; v: number }>,
   ts: number,
 ): { ts: number; v: number } | null {
@@ -96,7 +96,7 @@ function designRow(ts: number, s: number, seasonal: boolean): number[] {
 }
 
 /** Multiple OLS via normal equations + Gauss-Jordan with partial pivoting. */
-function olsMulti(X: number[][], y: number[]): { beta: number[]; r2: number; rmse: number } | null {
+export function olsMulti(X: number[][], y: number[]): { beta: number[]; r2: number; rmse: number } | null {
   const n = X.length;
   if (n === 0) return null;
   const k = X[0].length;
@@ -126,7 +126,7 @@ function olsMulti(X: number[][], y: number[]): { beta: number[]; r2: number; rms
 }
 
 /** R²/RMSE of predictions `X·beta` against `y`; null when y has no variance. */
-function scoreFit(beta: number[], X: number[][], y: number[]): { r2: number; rmse: number } | null {
+export function scoreFit(beta: number[], X: number[][], y: number[]): { r2: number; rmse: number } | null {
   const n = X.length;
   if (n === 0) return null;
   const meanY = y.reduce((acc, v) => acc + v, 0) / n;
