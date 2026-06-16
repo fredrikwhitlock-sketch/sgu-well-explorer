@@ -5,18 +5,3 @@ verify_jwt = false
 
 [functions.geo-chat]
 verify_jwt = false
-
-[functions.sync-wells]
-verify_jwt = false
-
-[functions.wells-query]
-verify_jwt = false
-
-[functions.sync-obs-stationer]
-verify_jwt = false
-
-[functions.sync-obs-nivaer]
-verify_jwt = false
-
-[functions.sync-well-lager]
-verify_jwt = false

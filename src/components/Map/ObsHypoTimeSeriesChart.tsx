@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { fmtMonthYear } from "@/lib/utils";
 import { fitHypeToObservations, type HypeFit } from "@/lib/hypeCalibration";
 import {
@@ -272,17 +271,6 @@ export const ObsHypoTimeSeriesChart = ({
           }
         } catch { /* fall through */ }
       }
-
-      // Query descending so recent rows are returned first, avoiding the 1000-row default cap
-      // cutting off the latest observations. Limit to 5000 to cover all practical cases.
-      const { data: sbRows } = await supabase
-        .from('obs_nivaer')
-        .select('platsbeteckning, obsdatum, nivaer_m')
-        .in('platsbeteckning', ids)
-        .gte('obsdatum', fromStr)
-        .order('obsdatum', { ascending: false })
-        .limit(5000);
-      if (sbRows && sbRows.length > 0) return withSupplement(parseRows(sbRows as any));
 
       return fetchNivaerForStations(ids, fromStr, ctrl.signal);
     };

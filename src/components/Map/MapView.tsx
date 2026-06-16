@@ -491,25 +491,7 @@ export const MapView = () => {
       try {
         let geojsonFeatures: any[] = [];
 
-        // Try Supabase first, then SGU API
-        if (geojsonFeatures.length === 0 && import.meta.env.VITE_SUPABASE_URL) {
-          try {
-            const wellsQueryUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wells-query?minLon=${minLon}&maxLon=${maxLon}&minLat=${minLat}&maxLat=${maxLat}&limit=50000`;
-            const cacheResponse = await fetch(wellsQueryUrl);
-            const cacheData = cacheResponse.ok ? await cacheResponse.json() : null;
-            if (cacheData?.wells?.length > 0) {
-              geojsonFeatures = cacheData.wells.map((w: any) => ({
-                type: "Feature",
-                geometry: { type: "Point", coordinates: [w.lon, w.lat] },
-                properties: { ...w.properties, brunnsid: w.brunnsid, obsplatsid: w.obsplatsid },
-              }));
-            }
-          } catch {
-            // Supabase unavailable — fall through to SGU API
-          }
-        }
-
-        // SGU API fallback (always used when cache is empty or unavailable)
+        // SGU API
         if (geojsonFeatures.length === 0) {
           const bbox = `${minLon},${minLat},${maxLon},${maxLat}`;
           const url = `https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar/items?f=json&bbox=${bbox}&limit=50000`;

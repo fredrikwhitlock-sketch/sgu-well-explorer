@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { FileText, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { supabase } from "@/integrations/supabase/client";
 
 interface WellData {
   obsplatsid?: string;
@@ -72,27 +71,15 @@ const WellProtocol = () => {
         if (!feature) throw new Error("Brunnen hittades inte i svaret");
         setWell(feature.properties);
 
-        // Try Supabase first, then SGU API
-        let lagerLoaded = false;
-        const { data: sbLager } = await supabase
-          .from("well_lager")
-          .select("lagernr, djup_fran, djup_till, jordart_bergart, lageranmarkning")
-          .eq("obsplatsid", obsplatsid)
-          .order("lagernr");
-        if (sbLager && sbLager.length > 0) {
-          setLager(sbLager as LagerData[]); lagerLoaded = true;
-        }
-        if (!lagerLoaded) {
-          const lagerRes = await fetch(
-            `https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar-lager/items?f=json&filter=obsplatsid%3D%27${encodeURIComponent(obsplatsid)}%27&limit=100`
-          );
-          if (lagerRes.ok) {
-            const lagerJson = await lagerRes.json();
-            const lagerItems: LagerData[] = (lagerJson.features || [])
-              .map((f: any) => f.properties)
-              .sort((a: LagerData, b: LagerData) => a.lagernr - b.lagernr);
-            setLager(lagerItems);
-          }
+        const lagerRes = await fetch(
+          `https://api.sgu.se/oppnadata/brunnar/ogc/features/v1/collections/brunnar-lager/items?f=json&filter=obsplatsid%3D%27${encodeURIComponent(obsplatsid)}%27&limit=100`
+        );
+        if (lagerRes.ok) {
+          const lagerJson = await lagerRes.json();
+          const lagerItems: LagerData[] = (lagerJson.features || [])
+            .map((f: any) => f.properties)
+            .sort((a: LagerData, b: LagerData) => a.lagernr - b.lagernr);
+          setLager(lagerItems);
         }
       } catch (err: any) {
         setError(err.message);
