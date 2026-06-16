@@ -1,5 +1,4 @@
 import proj4 from "proj4";
-import { supabase } from "@/integrations/supabase/client";
 import { getSoilTypeColor } from "./soilTypeColors";
 import { classifyAquifer, classifyByJg2, aquiferToBedgrKat } from "./aquifer";
 import { GV_BEDGR, classifyParam, getSeason, mannKendall, analyzeSeasonality } from "./grundvattenKemi";
@@ -98,13 +97,6 @@ export async function fetchGrundvattenData(
   const obs50Bbox = `${lon - lonD50},${lat - latD50},${lon + lonD50},${lat + latD50}`;
   const obsBase = 'https://api.sgu.se/oppnadata/grundvattennivaer-observerade/ogc/features/v1/collections';
 
-  const sbStationerPromise = supabase
-    .from('obs_stationer')
-    .select('platsbeteckning, stationsnamn, jordart_tx, akvifer, lon, lat')
-    .gte('lon', lon - lonD50).lte('lon', lon + lonD50)
-    .gte('lat', lat - latD50).lte('lat', lat + latD50)
-    .limit(500);
-
   const obsStationerChain = fetch(
     `${obsBase}/stationer/items?f=json&bbox=${obs50Bbox}&limit=500`,
     { signal }
@@ -180,66 +172,10 @@ export async function fetchGrundvattenData(
 
   if (signal.aborted) throw new DOMException('aborted', 'AbortError');
 
-  // Merge Supabase station cache
-  const { data: sbStationer } = await sbStationerPromise;
-  const useSbStationer = (sbStationer?.length ?? 0) > 0;
-  if (useSbStationer) {
-    for (const s of sbStationer!) {
-      stNamn.set(s.platsbeteckning, s.stationsnamn ?? s.platsbeteckning);
-      stJordart.set(s.platsbeteckning, s.jordart_tx ?? '');
-      stCoords.set(s.platsbeteckning, [s.lon, s.lat]);
-      const akv = String(s.akvifer ?? '').toUpperCase();
-      if (akv.startsWith('B')) stAkvifer.set(s.platsbeteckning, 'rock');
-      else if (akv.startsWith('J')) {
-        stAkvifer.set(s.platsbeteckning, 'jord');
-        stAkvifSize.set(s.platsbeteckning, classifyAquifer(s.jordart_tx ?? '').useStoraMagasin ? 'large' : 'small');
-      }
-    }
-  }
-
-  // Nivaer: cache (CF Worker / Supabase) + SGU API merged.
-  // The cache only covers 628 out of 1 524 stations, so we ALWAYS also await
-  // nivaerPromise (already in-flight from obsStationerChain) and merge both
-  // result sets. The stBest deduplication below keeps the reading closest to
-  // selectedDate per station, so duplicates are harmless.
-  const stationIds = useSbStationer ? sbStationer!.map(s => s.platsbeteckning) : [];
-  const cfWorkerUrl = import.meta.env.VITE_CF_WORKER_URL;
   const nivaerFetch: Promise<OgcFeatureCollection<ObsNivaProps> | null> = (async () => {
-    let cachedFeatures: OgcFeature<ObsNivaProps>[] = [];
-
-    if (useSbStationer && stationIds.length > 0) {
-      if (cfWorkerUrl) {
-        try {
-          const res = await fetchWithTimeout(`${cfWorkerUrl}/obs-nivaer?ids=${stationIds.join(',')}&from=${nivaerLoDate}&to=${nivaerHiDate}`, 8_000, signal);
-          if (res.ok) {
-            const d = await res.json();
-            if (d?.nivaer?.length > 0) {
-              cachedFeatures = d.nivaer.map((r: any) => ({ properties: { platsbeteckning: r.platsbeteckning, obsdatum: r.obsdatum, grundvattenniva_m_u_markyta: r.nivaer_m } }));
-            }
-          }
-        } catch { /* fall through */ }
-      }
-      if (cachedFeatures.length === 0) {
-        const { data } = await supabase
-          .from('obs_nivaer')
-          .select('platsbeteckning, obsdatum, nivaer_m')
-          .in('platsbeteckning', stationIds)
-          .gte('obsdatum', nivaerLoDate)
-          .lte('obsdatum', nivaerHiDate)
-          .limit(500);
-        if (data && data.length > 0) {
-          cachedFeatures = data.map(r => ({ properties: { platsbeteckning: r.platsbeteckning, obsdatum: r.obsdatum, grundvattenniva_m_u_markyta: r.nivaer_m } }));
-        }
-      }
-    }
-
-    // Always merge with the SGU API result (already in-flight, no extra latency).
-    // This fills in stations the cache doesn't cover.
     const sguData = nivaerPromise ? await nivaerPromise : null;
     const sguFeatures: OgcFeature<ObsNivaProps>[] = sguData?.features ?? [];
-
-    const merged = [...cachedFeatures, ...sguFeatures];
-    return merged.length > 0 ? { features: merged } : null;
+    return sguFeatures.length > 0 ? { features: sguFeatures } : null;
   })();
 
   const [nivaerData, brunnarData] = await Promise.all([nivaerFetch, brunnarChain]);
