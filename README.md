@@ -10,21 +10,30 @@ Click any point on the map to open a three-column analysis panel:
 **Column 1 – Coordinates & Interpretation**
 - WGS84 and SWEREF99TM coordinates
 - Soil type and soil depth (10×10 m raster)
-- Aquifer type interpretation
+- Aquifer type interpretation (jord/berg, large/small)
+- Groundwater reservoir (grundvattenmagasin) and sub-area (delområde) information
+- Nearby dug wells (brunnar) sorted by distance, with capacity and depth
 
 **Column 2 – Grundvattentillgång (Availability)**
 - Nearby observed groundwater level stations (within 50 km), matched to selected date ±7 days
-- Inline time-series charts per station, expandable to a larger draggable popup on desktop
-- SGU-HYPE fill-degree for small and large aquifers (percentile + situation)
+- Inline time-series charts per station, expandable to a draggable popup
+- SGU-HYPE fill-degree (fyllnadsgrad) for **both** small and large aquifers (percentile + situation)
+- **Pastas-style transfer model**: HYPE fill-degree is convolved with an exponential impulse-response kernel and regressed against observed levels (80/20 chronological validation split, optional annual harmonics). The calibrated model fills gaps in sparse level records and extends into the full HYPE record.
 - Calibrated depth-to-groundwater estimate with quartile range
-- Nearby groundwater reservoirs (grundvattenmagasin)
-- Closest wells (brunnar) sorted by distance, with capacity and depth
 
 **Column 3 – Grundvattenkvalitet (Quality)**
-- Nearest groundwater chemistry station (SGU monitoring network), latest values classified against SGU assessment criteria (class 1–5)
-- Mann-Kendall trend analysis per parameter
-- Geochemical background (markgeokemi) from SGU's geochemical atlas
-- AI-powered analysis button (requires Supabase + Claude backend)
+- Nearest groundwater chemistry stations (SGU monitoring network), latest values classified against SGU assessment criteria (class 1–5)
+- Mann-Kendall trend analysis per parameter with seasonality diagnostics
+- **Chemistry transfer model**: the same Pastas-style machinery as the level model, fitted per hydrogeochemical parameter class:
+  - *Dilution-driven* (Cl, Na, conductivity, SO₄): fast response, log space
+  - *Weathering/residence-time* (alkalinity, Ca, Mg, Si, pH): slow response
+  - *Redox-sensitive* (Fe, Mn, NH₄, NO₃): fast response, log space; correctly rejected by the validation gate when local chemistry is regime-controlled rather than level-controlled
+- Censored (`<DL`) values handled at DL/2 in calibration, full DL in display
+- Geochemical background (markgeokemi) from SGU's regional geochemical atlas
+- AI-powered analysis via the geo-chat function (requires optional Supabase backend)
+
+### Printable Well Protocol
+Navigate to `/protokoll?id=<brunnsid>` to render a print-ready SGU-style well protocol for any well in the national database, including the full layer log (lagerföljd) fetched from the SGU OGC API.
 
 ### Map Layers
 Toggleable layers via the layer panel:
@@ -49,20 +58,21 @@ Draw a polygon on the map to fetch and export all data within the area:
 | Charts | [Recharts](https://recharts.org/) |
 | GeoPackage export | [sql.js](https://sql.js.org/) (SQLite WASM) |
 | Projections | [proj4](https://proj4js.org/) |
-| Backend / AI | [Supabase](https://supabase.com/) |
 | Framework | React + TypeScript + Vite |
 
 ## Data Sources
 
-All data is fetched live from public APIs — no API keys required for map or data functions:
+All data is fetched live from public APIs — no API keys required for the map or core data functions:
 
 | Source | API |
 |---|---|
 | SGU OGC Features (brunnar, källor, magasin, nivåer, kvalitet) | `api.sgu.se/oppnadata/…/ogc/features/v1` |
 | SGU-HYPE groundwater model | `api.sgu.se/oppnadata/grundvattennivaer-sgu-hype-omraden/…` |
-| SGU Markgeokemi | `apps.sgu.se/markgeokemi/…` |
-| Lantmäteriet WMS | `minkarta.lantmateriet.se/…` |
-| Copernicus Land Service WMS | `image.discomap.eea.europa.eu/…` |
+| SGU Markgeokemi (regional geochemical atlas) | `api.sgu.se/oppnadata/markgeokemi-regional/ogc/features/v1` |
+| Lantmäteriet WMS (via wms-proxy) | `minkarta.lantmateriet.se/…` |
+| Copernicus Land Service WMS (via wms-proxy) | `image.discomap.eea.europa.eu/…` |
+| Elevation (EU-DEM 25 m) | `api.opentopodata.org/v1/eudem25m` |
+| Street-level imagery | [Mapillary](https://www.mapillary.com/) (requires API token) |
 
 ## Getting Started
 
@@ -84,14 +94,19 @@ The app runs at `http://localhost:8080`.
 
 ### Environment Variables (optional)
 
-Only needed for the AI analysis feature. Create a `.env` file in the project root:
+Create a `.env` file in the project root. All variables are optional — the map and all SGU data functions work without them.
 
 ```env
+# Required only for the AI geo-chat feature (Supabase geo-chat edge function)
 VITE_SUPABASE_URL=https://<your-project>.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=<your-anon-key>
-```
 
-All map and data functions work without these.
+# Cloudflare Worker for cached groundwater level time series (optional speed-up)
+VITE_CF_WORKER_URL=https://<your-worker>.workers.dev
+
+# Mapillary API token for street-level imagery layer
+VITE_MAPILLARY_TOKEN=<your-token>
+```
 
 ## Build
 
