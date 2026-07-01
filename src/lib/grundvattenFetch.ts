@@ -292,7 +292,7 @@ export async function fetchGrundvattenData(
           ? Math.round(haversineKm(lat, lon, coords[1], coords[0]) * 10) / 10
           : undefined;
         return {
-          id: p.brunnsid || p.id || f.id || '?',
+          id: String(p.brunnsid || p.id || f.id || '?'),
           lon: coords ? coords[0] : undefined,
           lat: coords ? coords[1] : undefined,
           kapacitet: p.kapacitet,
