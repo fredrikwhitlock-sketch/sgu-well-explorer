@@ -26,6 +26,8 @@ interface LayerPanelProps {
   ortofotoVisible: boolean;
   terrangskuggningVisible: boolean;
   terrangskuggningOpacity: number;
+  fjallkartanVisible: boolean;
+  norgeTopoVisible: boolean;
   // SGU WMS layers
   sguBerggrund1MVisible: boolean;
   sguBerggrund1MOpacity: number;
