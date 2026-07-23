@@ -2335,6 +2335,10 @@ export const MapView = () => {
         onOrtofotoVisibleChange={setOrtofotoVisible}
         onTerrangskuggningVisibleChange={setTerrangskuggningVisible}
         onTerrangskuggningOpacityChange={setTerrangskuggningOpacity}
+        fjallkartanVisible={fjallkartanVisible}
+        onFjallkartanVisibleChange={setFjallkartanVisible}
+        norgeTopoVisible={norgeTopoVisible}
+        onNorgeTopoVisibleChange={setNorgeTopoVisible}
         onSguBerggrund1MVisibleChange={setSguBerggrund1MVisible}
         onSguBerggrund1MOpacityChange={setSguBerggrund1MOpacity}
         onSguBerggrund50kVisibleChange={setSguBerggrund50kVisible}
