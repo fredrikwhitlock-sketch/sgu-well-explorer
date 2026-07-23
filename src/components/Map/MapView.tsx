@@ -221,6 +221,30 @@ export const MapView = () => {
     });
     terrangskuggningLayerRef.current = terrangskuggningLayer;
 
+    // Lantmäteriet Fjällkartan (svenska fjällen) – WMS via minkarta
+    const fjallkartanLayer = new ImageLayer({
+      source: new ImageWMS({
+        url: 'https://minkarta.lantmateriet.se/map/fjallkartan',
+        params: { 'LAYERS': 'fjallkartan', 'VERSION': '1.1.1', 'FORMAT': 'image/png' },
+        ratio: 1,
+        serverType: 'geoserver',
+      }),
+      visible: fjallkartanVisible,
+    });
+    fjallkartanLayerRef.current = fjallkartanLayer;
+
+    // Kartverket topografisk karta (Norge) – WMS via geonorge
+    const norgeTopoLayer = new ImageLayer({
+      source: new ImageWMS({
+        url: 'https://wms.geonorge.no/skwms1/wms.topo',
+        params: { 'LAYERS': 'topo', 'VERSION': '1.3.0', 'FORMAT': 'image/png' },
+        ratio: 1,
+        crossOrigin: 'anonymous',
+      }),
+      visible: norgeTopoVisible,
+    });
+    norgeTopoLayerRef.current = norgeTopoLayer;
+
     // SGU WMS layers - using CORS proxy edge function
     const wmsProxyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wms-proxy`;
     
