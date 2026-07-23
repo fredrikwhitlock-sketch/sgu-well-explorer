@@ -64,6 +64,8 @@ interface LayerPanelProps {
   onOrtofotoVisibleChange: (visible: boolean) => void;
   onTerrangskuggningVisibleChange: (visible: boolean) => void;
   onTerrangskuggningOpacityChange: (opacity: number) => void;
+  onFjallkartanVisibleChange: (visible: boolean) => void;
+  onNorgeTopoVisibleChange: (visible: boolean) => void;
   // SGU WMS layer callbacks
   onSguBerggrund1MVisibleChange: (visible: boolean) => void;
   onSguBerggrund1MOpacityChange: (opacity: number) => void;
