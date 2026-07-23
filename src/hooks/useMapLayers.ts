@@ -180,6 +180,7 @@ export function useMapLayers() {
     osmVisible,
     topoWebbVisible, ortofotoVisible,
     terrangskuggningVisible, terrangskuggningOpacity,
+    fjallkartanVisible, norgeTopoVisible,
     sguBerggrund1MVisible, sguBerggrund1MOpacity,
     sguBerggrund50kVisible, sguBerggrund50kOpacity,
     sguJordarter1MVisible, sguJordarter1MOpacity,
