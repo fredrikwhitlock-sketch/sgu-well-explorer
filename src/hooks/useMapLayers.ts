@@ -219,6 +219,8 @@ export function useMapLayers() {
     ortofotoVisible, setOrtofotoVisible,
     terrangskuggningVisible, setTerrangskuggningVisible,
     terrangskuggningOpacity, setTerrangskuggningOpacity,
+    fjallkartanVisible, setFjallkartanVisible,
+    norgeTopoVisible, setNorgeTopoVisible,
     // SGU WMS state
     sguBerggrund1MVisible, setSguBerggrund1MVisible,
     sguBerggrund1MOpacity, setSguBerggrund1MOpacity,
