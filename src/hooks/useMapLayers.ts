@@ -148,6 +148,8 @@ export function useMapLayers() {
     ortofotoLayerRef.current?.setVisible(ortofotoVisible);
     terrangskuggningLayerRef.current?.setVisible(terrangskuggningVisible);
     terrangskuggningLayerRef.current?.setOpacity(terrangskuggningOpacity);
+    fjallkartanLayerRef.current?.setVisible(fjallkartanVisible);
+    norgeTopoLayerRef.current?.setVisible(norgeTopoVisible);
     sguBerggrund1MLayerRef.current?.setVisible(sguBerggrund1MVisible);
     sguBerggrund1MLayerRef.current?.setOpacity(sguBerggrund1MOpacity);
     sguBerggrund50kLayerRef.current?.setVisible(sguBerggrund50kVisible);
