@@ -26,6 +26,8 @@ interface LayerPanelProps {
   ortofotoVisible: boolean;
   terrangskuggningVisible: boolean;
   terrangskuggningOpacity: number;
+  fjallkartanVisible: boolean;
+  norgeTopoVisible: boolean;
   // SGU WMS layers
   sguBerggrund1MVisible: boolean;
   sguBerggrund1MOpacity: number;
@@ -62,6 +64,8 @@ interface LayerPanelProps {
   onOrtofotoVisibleChange: (visible: boolean) => void;
   onTerrangskuggningVisibleChange: (visible: boolean) => void;
   onTerrangskuggningOpacityChange: (opacity: number) => void;
+  onFjallkartanVisibleChange: (visible: boolean) => void;
+  onNorgeTopoVisibleChange: (visible: boolean) => void;
   // SGU WMS layer callbacks
   onSguBerggrund1MVisibleChange: (visible: boolean) => void;
   onSguBerggrund1MOpacityChange: (opacity: number) => void;
@@ -184,6 +188,10 @@ export const LayerPanel = ({
   onOrtofotoVisibleChange,
   onTerrangskuggningVisibleChange,
   onTerrangskuggningOpacityChange,
+  fjallkartanVisible,
+  onFjallkartanVisibleChange,
+  norgeTopoVisible,
+  onNorgeTopoVisibleChange,
   onSguBerggrund1MVisibleChange,
   onSguBerggrund1MOpacityChange,
   onSguBerggrund50kVisibleChange,
@@ -1124,6 +1132,69 @@ export const LayerPanel = ({
             </div>
           )}
         </div>
+
+        {/* Fjällkartan (Lantmäteriet) */}
+        <div className="space-y-3 pt-4 border-t border-border">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label htmlFor="fjallkartan-layer" className="text-sm font-medium">
+                Fjällkartan
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Lantmäteriets fjällkarta över svenska fjällen
+              </p>
+            </div>
+            <Switch
+              id="fjallkartan-layer"
+              checked={fjallkartanVisible}
+              onCheckedChange={onFjallkartanVisibleChange}
+            />
+          </div>
+          {fjallkartanVisible && (
+            <div className="mt-2 text-xs">
+              <a
+                href="https://www.lantmateriet.se/sv/geodata/vara-produkter/produktlista/fjallkartan/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sgu-link hover:underline inline-flex items-center gap-1"
+              >
+                Produktbeskrivning <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+          )}
+        </div>
+
+        {/* Norsk topografisk karta (Kartverket) */}
+        <div className="space-y-3 pt-4 border-t border-border">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label htmlFor="norge-topo-layer" className="text-sm font-medium">
+                Norge topografisk
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Kartverkets topografiska karta (norska fjällen)
+              </p>
+            </div>
+            <Switch
+              id="norge-topo-layer"
+              checked={norgeTopoVisible}
+              onCheckedChange={onNorgeTopoVisibleChange}
+            />
+          </div>
+          {norgeTopoVisible && (
+            <div className="mt-2 text-xs">
+              <a
+                href="https://kartkatalog.geonorge.no/metadata/topografisk-norgeskart/8f381180-1a47-4453-bee7-9a3d64843efa"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sgu-link hover:underline inline-flex items-center gap-1"
+              >
+                Produktbeskrivning <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+          )}
+        </div>
+
 
         {/* Copernicus Land Service Section */}
         <div className="pt-4 border-t-2 border-primary/30">

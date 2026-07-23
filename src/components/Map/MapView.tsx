@@ -59,6 +59,7 @@ export const MapView = () => {
   const mapInstanceRef = useRef<OLMap | null>(null);
   const {
     osmLayerRef, topoWebbLayerRef, ortofotoLayerRef, terrangskuggningLayerRef,
+    fjallkartanLayerRef, norgeTopoLayerRef,
     sguBerggrund1MLayerRef, sguBerggrund50kLayerRef,
     sguJordarter1MLayerRef, sguJordarter25kLayerRef,
     sguGvTillgangLayerRef, sguJorddjupLayerRef,
@@ -75,6 +76,8 @@ export const MapView = () => {
     ortofotoVisible, setOrtofotoVisible,
     terrangskuggningVisible, setTerrangskuggningVisible,
     terrangskuggningOpacity, setTerrangskuggningOpacity,
+    fjallkartanVisible, setFjallkartanVisible,
+    norgeTopoVisible, setNorgeTopoVisible,
     sguBerggrund1MVisible, setSguBerggrund1MVisible,
     sguBerggrund1MOpacity, setSguBerggrund1MOpacity,
     sguBerggrund50kVisible, setSguBerggrund50kVisible,
@@ -217,6 +220,30 @@ export const MapView = () => {
       opacity: terrangskuggningOpacity,
     });
     terrangskuggningLayerRef.current = terrangskuggningLayer;
+
+    // Lantmäteriet Fjällkartan (svenska fjällen) – WMS via minkarta
+    const fjallkartanLayer = new ImageLayer({
+      source: new ImageWMS({
+        url: 'https://minkarta.lantmateriet.se/map/fjallkartan',
+        params: { 'LAYERS': 'fjallkartan', 'VERSION': '1.1.1', 'FORMAT': 'image/png' },
+        ratio: 1,
+        serverType: 'geoserver',
+      }),
+      visible: fjallkartanVisible,
+    });
+    fjallkartanLayerRef.current = fjallkartanLayer;
+
+    // Kartverket topografisk karta (Norge) – WMS via geonorge
+    const norgeTopoLayer = new ImageLayer({
+      source: new ImageWMS({
+        url: 'https://wms.geonorge.no/skwms1/wms.topo',
+        params: { 'LAYERS': 'topo', 'VERSION': '1.3.0', 'FORMAT': 'image/png' },
+        ratio: 1,
+        crossOrigin: 'anonymous',
+      }),
+      visible: norgeTopoVisible,
+    });
+    norgeTopoLayerRef.current = norgeTopoLayer;
 
     // SGU WMS layers - using CORS proxy edge function
     const wmsProxyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wms-proxy`;
@@ -1571,6 +1598,8 @@ export const MapView = () => {
         topoWebbLayer, 
         ortofotoLayer, 
         terrangskuggningLayer, 
+        fjallkartanLayer,
+        norgeTopoLayer,
         // SGU WMS layers ABOVE Lantmäteriet so they display on top
         sguBerggrund1MLayer,
         sguBerggrund50kLayer,
@@ -2306,6 +2335,10 @@ export const MapView = () => {
         onOrtofotoVisibleChange={setOrtofotoVisible}
         onTerrangskuggningVisibleChange={setTerrangskuggningVisible}
         onTerrangskuggningOpacityChange={setTerrangskuggningOpacity}
+        fjallkartanVisible={fjallkartanVisible}
+        onFjallkartanVisibleChange={setFjallkartanVisible}
+        norgeTopoVisible={norgeTopoVisible}
+        onNorgeTopoVisibleChange={setNorgeTopoVisible}
         onSguBerggrund1MVisibleChange={setSguBerggrund1MVisible}
         onSguBerggrund1MOpacityChange={setSguBerggrund1MOpacity}
         onSguBerggrund50kVisibleChange={setSguBerggrund50kVisible}

@@ -22,6 +22,8 @@ export function useMapLayers() {
   const topoWebbLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
   const ortofotoLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
   const terrangskuggningLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
+  const fjallkartanLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
+  const norgeTopoLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
   const sguBerggrund1MLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
   const sguBerggrund50kLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
   const sguJordarter1MLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
@@ -58,6 +60,8 @@ export function useMapLayers() {
   const [ortofotoVisible, setOrtofotoVisible] = useState(false);
   const [terrangskuggningVisible, setTerrangskuggningVisible] = useState(false);
   const [terrangskuggningOpacity, setTerrangskuggningOpacity] = useState(0.5);
+  const [fjallkartanVisible, setFjallkartanVisible] = useState(false);
+  const [norgeTopoVisible, setNorgeTopoVisible] = useState(false);
 
   // ── SGU WMS ─────────────────────────────────────────────────────────────────
   const [sguBerggrund1MVisible, setSguBerggrund1MVisible] = useState(false);
@@ -144,6 +148,8 @@ export function useMapLayers() {
     ortofotoLayerRef.current?.setVisible(ortofotoVisible);
     terrangskuggningLayerRef.current?.setVisible(terrangskuggningVisible);
     terrangskuggningLayerRef.current?.setOpacity(terrangskuggningOpacity);
+    fjallkartanLayerRef.current?.setVisible(fjallkartanVisible);
+    norgeTopoLayerRef.current?.setVisible(norgeTopoVisible);
     sguBerggrund1MLayerRef.current?.setVisible(sguBerggrund1MVisible);
     sguBerggrund1MLayerRef.current?.setOpacity(sguBerggrund1MOpacity);
     sguBerggrund50kLayerRef.current?.setVisible(sguBerggrund50kVisible);
@@ -174,6 +180,7 @@ export function useMapLayers() {
     osmVisible,
     topoWebbVisible, ortofotoVisible,
     terrangskuggningVisible, terrangskuggningOpacity,
+    fjallkartanVisible, norgeTopoVisible,
     sguBerggrund1MVisible, sguBerggrund1MOpacity,
     sguBerggrund50kVisible, sguBerggrund50kOpacity,
     sguJordarter1MVisible, sguJordarter1MOpacity,
@@ -193,6 +200,7 @@ export function useMapLayers() {
     sguBerggrund1MLayerRef, sguBerggrund50kLayerRef,
     sguJordarter1MLayerRef, sguJordarter25kLayerRef,
     sguGvTillgangLayerRef, sguJorddjupLayerRef,
+    fjallkartanLayerRef, norgeTopoLayerRef,
     clcLayerRef, waterWetnessLayerRef,
     // Vector layer refs
     sourcesLayerRef, wellsLayerRef,
@@ -211,6 +219,8 @@ export function useMapLayers() {
     ortofotoVisible, setOrtofotoVisible,
     terrangskuggningVisible, setTerrangskuggningVisible,
     terrangskuggningOpacity, setTerrangskuggningOpacity,
+    fjallkartanVisible, setFjallkartanVisible,
+    norgeTopoVisible, setNorgeTopoVisible,
     // SGU WMS state
     sguBerggrund1MVisible, setSguBerggrund1MVisible,
     sguBerggrund1MOpacity, setSguBerggrund1MOpacity,
