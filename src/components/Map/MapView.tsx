@@ -1598,6 +1598,8 @@ export const MapView = () => {
         topoWebbLayer, 
         ortofotoLayer, 
         terrangskuggningLayer, 
+        fjallkartanLayer,
+        norgeTopoLayer,
         // SGU WMS layers ABOVE Lantmäteriet so they display on top
         sguBerggrund1MLayer,
         sguBerggrund50kLayer,
