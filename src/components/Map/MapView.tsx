@@ -59,6 +59,7 @@ export const MapView = () => {
   const mapInstanceRef = useRef<OLMap | null>(null);
   const {
     osmLayerRef, topoWebbLayerRef, ortofotoLayerRef, terrangskuggningLayerRef,
+    fjallkartanLayerRef, norgeTopoLayerRef,
     sguBerggrund1MLayerRef, sguBerggrund50kLayerRef,
     sguJordarter1MLayerRef, sguJordarter25kLayerRef,
     sguGvTillgangLayerRef, sguJorddjupLayerRef,
@@ -75,6 +76,8 @@ export const MapView = () => {
     ortofotoVisible, setOrtofotoVisible,
     terrangskuggningVisible, setTerrangskuggningVisible,
     terrangskuggningOpacity, setTerrangskuggningOpacity,
+    fjallkartanVisible, setFjallkartanVisible,
+    norgeTopoVisible, setNorgeTopoVisible,
     sguBerggrund1MVisible, setSguBerggrund1MVisible,
     sguBerggrund1MOpacity, setSguBerggrund1MOpacity,
     sguBerggrund50kVisible, setSguBerggrund50kVisible,
