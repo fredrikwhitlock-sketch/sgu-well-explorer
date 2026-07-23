@@ -200,6 +200,7 @@ export function useMapLayers() {
     sguBerggrund1MLayerRef, sguBerggrund50kLayerRef,
     sguJordarter1MLayerRef, sguJordarter25kLayerRef,
     sguGvTillgangLayerRef, sguJorddjupLayerRef,
+    fjallkartanLayerRef, norgeTopoLayerRef,
     clcLayerRef, waterWetnessLayerRef,
     // Vector layer refs
     sourcesLayerRef, wellsLayerRef,
