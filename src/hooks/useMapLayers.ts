@@ -60,6 +60,8 @@ export function useMapLayers() {
   const [ortofotoVisible, setOrtofotoVisible] = useState(false);
   const [terrangskuggningVisible, setTerrangskuggningVisible] = useState(false);
   const [terrangskuggningOpacity, setTerrangskuggningOpacity] = useState(0.5);
+  const [fjallkartanVisible, setFjallkartanVisible] = useState(false);
+  const [norgeTopoVisible, setNorgeTopoVisible] = useState(false);
 
   // ── SGU WMS ─────────────────────────────────────────────────────────────────
   const [sguBerggrund1MVisible, setSguBerggrund1MVisible] = useState(false);
