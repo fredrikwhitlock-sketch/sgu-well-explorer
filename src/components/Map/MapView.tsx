@@ -7,6 +7,8 @@ import VectorLayer from "ol/layer/Vector";
 import VectorImageLayer from "ol/layer/VectorImage";
 import OSM from "ol/source/OSM";
 import ImageWMS from "ol/source/ImageWMS";
+import XYZ from "ol/source/XYZ";
+
 import VectorSource from "ol/source/Vector";
 import GeoJSON from "ol/format/GeoJSON";
 import { register } from "ol/proj/proj4";
@@ -221,13 +223,14 @@ export const MapView = () => {
     });
     terrangskuggningLayerRef.current = terrangskuggningLayer;
 
-    // Lantmäteriet Fjällkartan (svenska fjällen) – WMS via minkarta
-    const fjallkartanLayer = new ImageLayer({
-      source: new ImageWMS({
-        url: 'https://minkarta.lantmateriet.se/map/fjallkartan',
-        params: { 'LAYERS': 'fjallkartan', 'VERSION': '1.1.1', 'FORMAT': 'image/png' },
-        ratio: 1,
-        serverType: 'geoserver',
+    // Fjäll/terrängkarta (OpenTopoMap) – Lantmäteriets Fjällkartan har ingen
+    // öppen WMS-tjänst, så vi använder OpenTopoMap som fri topografisk karta.
+    const fjallkartanLayer = new TileLayer({
+      source: new XYZ({
+        url: 'https://{a-c}.tile.opentopomap.org/{z}/{x}/{y}.png',
+        maxZoom: 17,
+        attributions: '© OpenTopoMap (CC-BY-SA)',
+        crossOrigin: 'anonymous',
       }),
       visible: fjallkartanVisible,
     });
@@ -237,13 +240,14 @@ export const MapView = () => {
     const norgeTopoLayer = new ImageLayer({
       source: new ImageWMS({
         url: 'https://wms.geonorge.no/skwms1/wms.topo',
-        params: { 'LAYERS': 'topo', 'VERSION': '1.3.0', 'FORMAT': 'image/png' },
+        params: { 'LAYERS': 'topo', 'VERSION': '1.3.0', 'FORMAT': 'image/png', 'TRANSPARENT': 'TRUE' },
         ratio: 1,
         crossOrigin: 'anonymous',
       }),
       visible: norgeTopoVisible,
     });
     norgeTopoLayerRef.current = norgeTopoLayer;
+
 
     // SGU WMS layers - using CORS proxy edge function
     const wmsProxyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wms-proxy`;

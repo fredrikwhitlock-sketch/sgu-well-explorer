@@ -14,6 +14,8 @@ import VectorLayer from "ol/layer/Vector";
 import VectorImageLayer from "ol/layer/VectorImage";
 import OSM from "ol/source/OSM";
 import ImageWMS from "ol/source/ImageWMS";
+import XYZ from "ol/source/XYZ";
+
 import VectorSource from "ol/source/Vector";
 
 export function useMapLayers() {
@@ -22,7 +24,7 @@ export function useMapLayers() {
   const topoWebbLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
   const ortofotoLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
   const terrangskuggningLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
-  const fjallkartanLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
+  const fjallkartanLayerRef = useRef<TileLayer<XYZ> | null>(null);
   const norgeTopoLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
   const sguBerggrund1MLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
   const sguBerggrund50kLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);

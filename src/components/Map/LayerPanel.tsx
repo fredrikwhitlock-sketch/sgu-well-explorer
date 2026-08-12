@@ -1133,15 +1133,15 @@ export const LayerPanel = ({
           )}
         </div>
 
-        {/* Fjällkartan (Lantmäteriet) */}
+        {/* Fjäll-/terrängkarta (OpenTopoMap) */}
         <div className="space-y-3 pt-4 border-t border-border">
           <div className="flex items-center justify-between">
             <div className="space-y-1">
               <Label htmlFor="fjallkartan-layer" className="text-sm font-medium">
-                Fjällkartan
+                Fjäll- och terrängkarta
               </Label>
               <p className="text-xs text-muted-foreground">
-                Lantmäteriets fjällkarta över svenska fjällen
+                OpenTopoMap – höjdkurvor och terräng (Lantmäteriets Fjällkarta har ingen öppen tjänst)
               </p>
             </div>
             <Switch
@@ -1153,16 +1153,17 @@ export const LayerPanel = ({
           {fjallkartanVisible && (
             <div className="mt-2 text-xs">
               <a
-                href="https://www.lantmateriet.se/sv/geodata/vara-produkter/produktlista/fjallkartan/"
+                href="https://opentopomap.org/about"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-sgu-link hover:underline inline-flex items-center gap-1"
               >
-                Produktbeskrivning <ExternalLink className="w-3 h-3" />
+                Om OpenTopoMap <ExternalLink className="w-3 h-3" />
               </a>
             </div>
           )}
         </div>
+
 
         {/* Norsk topografisk karta (Kartverket) */}
         <div className="space-y-3 pt-4 border-t border-border">
