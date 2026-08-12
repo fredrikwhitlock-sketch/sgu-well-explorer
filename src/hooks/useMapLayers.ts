@@ -22,7 +22,7 @@ export function useMapLayers() {
   const topoWebbLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
   const ortofotoLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
   const terrangskuggningLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
-  const fjallkartanLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
+  const fjallkartanLayerRef = useRef<TileLayer<XYZ> | null>(null);
   const norgeTopoLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
   const sguBerggrund1MLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
   const sguBerggrund50kLayerRef = useRef<ImageLayer<ImageWMS> | null>(null);
