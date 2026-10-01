@@ -5,6 +5,7 @@ import { X, Download, Loader2, Database, AlertTriangle, Package } from "lucide-r
 import { Separator } from "@/components/ui/separator";
 import { CheckSquare, Square } from "lucide-react";
 import { escapeCSV, downloadBlob } from "@/lib/utils";
+import { LmAddressFetcher } from "./LmAddressFetcher";
 
 interface DataSource {
   id: string;
@@ -547,6 +548,9 @@ export const PolygonFetcher = ({ bbox, areaKm2, onClose }: PolygonFetcherProps) 
             ? <><Loader2 className="w-3 h-3 mr-2 animate-spin" /> Hämtar…</>
             : <><Database className="w-3 h-3 mr-2" /> Hämta data</>}
         </Button>
+
+        <Separator />
+        <LmAddressFetcher bbox={bbox} />
 
         {hasFetched && anyResults && (
           <>
